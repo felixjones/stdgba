@@ -1,0 +1,561 @@
+#pragma once
+
+#include <gba/bios>
+
+#include <gba/bits/min_heap.hpp>
+#include <gba/bits/ranges.hpp>
+
+#include <bitset>
+#include <cstdint>
+#include <functional>
+#include <numeric>
+#include <vector>
+
+namespace gba {
+
+    //TODO: Make these work for suppliers of const char[N]
+    //TODO: <gba/bits/supplier_traits.hpp>?
+
+    consteval const unpack_parameters& bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, const unpack_parameters& params) requires std::indirectly_writable<decltype(dest), std::byte> {
+        if (params.dst_bpp == 32) {
+            const auto view = bits::view_integers<std::uint32_t>(src)
+                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
+                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                    return static_cast<std::uint8_t>(x);
+                });
+
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    buffer |= *iter << i * params.src_bpp;
+                    ++iter;
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        if (params.dst_bpp == 16) {
+            const auto view = bits::view_integers<std::uint16_t>(src)
+                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
+                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                    return static_cast<std::uint8_t>(x);
+                });
+
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    buffer |= *iter << i * params.src_bpp;
+                    ++iter;
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        if (params.dst_bpp == 8) {
+            const auto view = bits::view_integers<std::uint8_t>(src)
+                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
+                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                    return static_cast<std::uint8_t>(x);
+                });
+
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    buffer |= *iter << i * params.src_bpp;
+                    ++iter;
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        throw "Unsupported destination bpp"; // TODO: 4, 2, 1 bpp types
+    }
+
+    consteval auto bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, int bpp) -> unpack_parameters requires std::indirectly_writable<decltype(dest), std::byte> {
+        static constexpr auto src_value_size = sizeof(std::ranges::range_value_t<decltype(src)>);
+
+        if (bpp == 32) {
+            const auto view = bits::view_integers<std::uint32_t>(src);
+            const auto [min, max, hasZero] = bits::min_max(view);
+            const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+            const auto range = max - offset;
+
+            if (range < 256) {
+                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
+                    | std::views::filter([](auto x) { return !!x; })
+                    | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+                const auto elemsPerByte = 8 / packedBpp;
+
+                return bit_pack(src, dest,{
+                    .src_len = static_cast<unsigned short>(((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
+                    .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+                    .dst_bpp = 32,
+                    .dst_ofs = offset,
+                    .offset_zero = !hasZero
+                });
+            }
+
+            bpp = 16;
+        }
+
+        if (bpp == 16) {
+            const auto view = bits::view_integers<std::uint16_t>(src);
+            const auto [min, max, hasZero] = bits::min_max(view);
+            const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+            const auto range = max - offset;
+
+            if (range < 256) {
+                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
+                    | std::views::filter([](auto x) { return !!x; })
+                    | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+                const auto elemsPerByte = 8 / packedBpp;
+
+                return bit_pack(src, dest,{
+                    .src_len = static_cast<unsigned short>(((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
+                    .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+                    .dst_bpp = 16,
+                    .dst_ofs = offset,
+                    .offset_zero = !hasZero
+                });
+            }
+        }
+
+        const auto view = bits::view_integers<std::uint8_t>(src);
+        const auto [min, max, hasZero] = bits::min_max(view);
+        const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+        const auto range = max - offset;
+
+        const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
+            | std::views::filter([](auto x) { return !!x; })
+            | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+        const auto elemsPerByte = 8 / packedBpp;
+        const auto sourcelen = ((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte;
+
+        return bit_pack(src, dest,{
+            .src_len = static_cast<unsigned short>(sourcelen + 3 & ~3),
+            .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+            .dst_bpp = 8,
+            .dst_ofs = offset,
+            .offset_zero = !hasZero
+        });
+
+        // TODO: 4, 2, 1 bpp
+    }
+
+    consteval auto bit_pack(auto supplier) {
+        using supplied_type = decltype(supplier());
+
+        static constexpr std::size_t supplied_bpp = std::numeric_limits<std::make_unsigned_t<typename supplied_type::value_type>>::digits;
+        static_assert(std::has_single_bit(supplied_bpp));
+        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
+            std::integral_constant<std::size_t, supplier().size()>,
+            std::tuple_size<supplied_type>>::value;
+        static constexpr auto large_buffer_size = supplied_length * supplied_bpp / 8 + 3; // +3 bytes to handle 4 byte alignement woes
+
+        static constexpr auto oversized = [&supplier] consteval -> std::pair<unpack_parameters, std::array<std::byte, large_buffer_size>> {
+            std::array<std::byte, large_buffer_size> largeBuffer;
+            return { bit_pack(supplier(), largeBuffer.begin(), std::min(supplied_bpp, 32u)), largeBuffer };
+        }();
+
+        static_assert(oversized.first.src_len <= large_buffer_size && oversized.first.src_len <= oversized.first.dst_len());
+        using buffer_type = std::array<std::byte, oversized.first.src_len>;
+
+        buffer_type resizedBuffer;
+        std::copy_n(oversized.second.begin(), resizedBuffer.size(), resizedBuffer.begin());
+
+        static_assert(oversized.first.dst_len() / sizeof(typename supplied_type::value_type) >= supplied_length);
+        struct combined : unpack_parameters, buffer_type {
+            using unpacked_array = std::array<typename supplied_type::value_type, oversized.first.dst_len() / sizeof(typename supplied_type::value_type)>;
+            using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
+        };
+        return combined{oversized.first, resizedBuffer};
+    }
+
+    consteval auto lz77_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+        union block {
+            std::uint8_t uncompressed{};
+            struct {
+                unsigned short msb : 4;
+                unsigned short size : 4;
+                unsigned short lsb : 8;
+            } compressed;
+        };
+        std::bitset<8> blockTypes;
+        std::vector<block> blockBuffer;
+        std::vector<std::uint8_t> lookBackBuffer;
+        static constexpr auto capacity = 1 << 12;
+
+        const auto pushBack = [&lookBackBuffer](const std::uint8_t x) {
+            if (lookBackBuffer.size() == capacity) {
+                lookBackBuffer.erase(lookBackBuffer.begin());
+            }
+            lookBackBuffer.push_back(x);
+        };
+
+        const auto view = bits::view_integers<std::uint8_t>(src);
+        auto left = view.begin();
+        auto right = left;
+
+        const auto compressedStart = dest;
+
+        while (left != view.end()) {
+            auto lookBackStart = lookBackBuffer.end();
+            auto size = 0u;
+            while (right != view.end()) {
+                ++right;
+                const auto lookBackCandidate = std::search(lookBackBuffer.begin(), lookBackBuffer.end(), left, right);
+                if (lookBackCandidate == lookBackBuffer.end()) {
+                    break;
+                }
+                ++size;
+                lookBackStart = lookBackCandidate;
+            }
+
+            if (size >= 3) {
+                // Compressed run
+                if (size > 18) {
+                    size = 18;
+                }
+                const auto displacement = std::distance(lookBackStart, lookBackBuffer.end()) - 1;
+                blockTypes.set(blockBuffer.size(), true);
+                blockBuffer.push_back({.compressed = {
+                    .msb = static_cast<unsigned short>((displacement >> 8) & 0xf),
+                    .size = static_cast<unsigned short>((size - 3) & 0xf),
+                    .lsb = static_cast<unsigned short>(displacement & 0xff),
+                }});
+                while (size--) {
+                    pushBack(*left);
+                    ++left;
+                }
+            } else {
+                // Uncompressed byte
+                blockBuffer.push_back({ .uncompressed = *left });
+                pushBack(*left);
+                ++left;
+            }
+            right = left;
+
+            if (blockBuffer.size() == 8) {
+                std::bitset<8> reversed;
+                for (std::size_t i = 0; i < 8; ++i) {
+                    reversed[i] = blockTypes[7 - i];
+                }
+                *dest++ = static_cast<std::byte>(reversed.to_ulong());
+
+                for (std::size_t i = 0; i < blockBuffer.size(); ++i) {
+                    if (blockTypes.test(i)) {
+                        const auto [a, b] = std::bit_cast<std::array<std::byte, 2>>(blockBuffer[i].compressed);
+                        *dest++ = a;
+                        *dest++ = b;
+                    } else {
+                        *dest++ = std::bit_cast<std::byte>(blockBuffer[i].uncompressed);
+                    }
+                }
+
+                blockTypes.reset();
+                blockBuffer.clear();
+            }
+        }
+
+        if (blockBuffer.size() < 8) {
+            std::bitset<8> reversed;
+            for (std::size_t i = 0; i < 8; ++i) {
+                reversed[i] = blockTypes[7 - i];
+            }
+            *dest++ = static_cast<std::byte>(reversed.to_ulong());
+
+            std::size_t i = 0;
+            for (; i < blockBuffer.size(); ++i) {
+                if (blockTypes.test(i)) {
+                    const auto [a, b] = std::bit_cast<std::array<std::byte, 2>>(blockBuffer[i].compressed);
+                    *dest++ = a;
+                    *dest++ = b;
+                } else {
+                    *dest++ = static_cast<std::byte>(blockBuffer[i].uncompressed);
+                }
+            }
+
+            for (; i < 8; ++i) {
+                *dest++ = {};
+            }
+        }
+
+        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
+            .comp_algo = comp_algo_lz77,
+            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>) + 1 & ~1), // 2 byte aligned for vram
+        });
+    }
+
+    consteval auto lz77_compress(auto supplier) {
+        using supplied_type = decltype(supplier());
+        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
+            std::integral_constant<std::size_t, supplier().size()>,
+            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
+        static constexpr auto large_buffer_size = supplied_bytes + (supplied_bytes + 7 / 8); // At worst, it is uncompressable, so every 8 bytes gains a new byte
+
+        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+            std::array<std::byte, large_buffer_size> largeBuffer;
+            const auto [compressedSize, compressedData] = lz77_compress(supplier(), largeBuffer.begin());
+            return { compressedSize, compressedData, largeBuffer };
+        }();
+
+        using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
+
+        buffer_type resizedBuffer;
+        std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
+
+        struct combined : uncompress_header, buffer_type {
+            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
+        };
+        return combined{std::get<1>(oversized), resizedBuffer};
+    }
+
+    template<std::size_t Bits = 8>
+    consteval auto huffman_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+        static_assert(Bits == 4 || Bits == 8);
+
+        std::vector<std::uint8_t> view;
+        {
+            const auto byteView = bits::view_integers<std::uint8_t>(src);
+
+            if constexpr (Bits == 8) {
+                view = std::ranges::to<std::vector>(byteView);
+            } else if constexpr (Bits == 4) {
+                for (auto byte : byteView) {
+                    view.push_back(byte & 0xf);
+                    view.push_back((byte >> 4) & 0xf);
+                }
+            }
+        }
+
+        std::unique_ptr<bits::huffman_node> root;
+        {
+            bits::min_heap<bits::huffman_node> heap;
+            {
+                const auto [frequencies, frequencyCount] = bits::ranges_frequency(view);
+
+                for (std::size_t i = 0; i < frequencyCount; ++i) {
+                    heap.emplace(frequencies[i].first, frequencies[i].second);
+                }
+            }
+
+            if (heap.size() == 1) {
+                const auto& node = heap.front();
+                heap.emplace(node->symbol, node->frequency);
+            }
+
+            while (heap.size() > 1) {
+                auto left = heap.pop();
+                auto right = heap.pop();
+                heap.emplace(std::move(left), std::move(right));
+            }
+            root = heap.pop();
+        }
+
+        const auto compressedStart = dest;
+
+        {
+            std::vector<std::pair<const bits::huffman_node*, std::size_t>> linearNodes;
+            linearNodes.emplace_back(root.get(), 0);
+            bits::huffman_node::traverse(*root, [&](const auto& node) consteval {
+                linearNodes.emplace_back(node.left.get(), 0);
+                linearNodes.emplace_back(node.right.get(), 0);
+            });
+
+            *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((linearNodes.size() / 2) | 1));
+
+            auto iter = linearNodes.begin();
+            while (iter != linearNodes.end()) {
+                if (!iter->first->is_leaf()) {
+                    iter->second = std::distance(iter, std::find_if(iter, linearNodes.end(), [&](const auto& p) {
+                        return p.first == iter->first->left.get();
+                    }));
+                }
+                ++iter;
+            }
+
+            struct branch {
+                std::uint8_t offset : 6;
+                bool node1_leaf : 1;
+                bool node0_leaf : 1;
+            };
+
+            for (const auto& n : linearNodes) {
+                if (n.first->is_leaf()) {
+                    *dest++ = std::bit_cast<std::byte>(n.first->symbol);
+                } else {
+                    *dest++ = std::bit_cast<std::byte>(branch{
+                        .offset = static_cast<std::uint8_t>((n.second - 1) / 2),
+                        .node1_leaf = n.first->right->is_leaf(),
+                        .node0_leaf = n.first->left->is_leaf()
+                    });
+                }
+            }
+
+            if (((linearNodes.size() + 1) % 4) != 0) {
+                *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(0xff));
+                *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(0xff));
+            }
+        }
+
+        std::array<std::vector<bool>, 255> codes;
+        bits::huffman_node::to_keys(*root, [&](auto key, const auto& code) consteval {
+            codes[key] = code;
+        });
+
+        std::vector<bool> buffer;
+        buffer.reserve(32);
+        for (auto key : view) {
+            for (auto bit : codes[key]) {
+                buffer.push_back(bit);
+
+                if (buffer.size() == 32) {
+                    const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{}, [](auto x, auto y) { return (x << 1) + y; });
+                    *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(data & 0xff));
+                    *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 8) & 0xff));
+                    *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 16) & 0xff));
+                    *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 24) & 0xff));
+
+                    buffer.clear();
+                }
+            }
+        }
+
+        if (!buffer.empty()) {
+            buffer.resize(32);
+            const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{}, [](auto x, auto y) { return (x << 1) + y; });
+            *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(data & 0xff));
+            *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 8) & 0xff));
+            *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 16) & 0xff));
+            *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 24) & 0xff));
+        }
+
+        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
+            .src_len = Bits,
+            .comp_algo = comp_algo_huff,
+            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>))
+        });
+    }
+
+    template<std::size_t Bits = 8>
+    consteval auto huffman_compress(auto supplier) {
+        using supplied_type = decltype(supplier());
+        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
+            std::integral_constant<std::size_t, supplier().size()>,
+            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
+        static constexpr auto large_buffer_size = supplied_bytes * 3;
+
+        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+            std::array<std::byte, large_buffer_size> largeBuffer;
+            const auto [compressedSize, compressedData] = huffman_compress<Bits>(supplier(), largeBuffer.begin());
+            return { compressedSize, compressedData, largeBuffer };
+        }();
+
+        using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
+
+        buffer_type resizedBuffer;
+        std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
+
+        struct combined : uncompress_header, buffer_type {
+            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
+        };
+        return combined{std::get<1>(oversized), resizedBuffer};
+    }
+
+    consteval auto rle_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+        const auto view = bits::view_integers<std::uint8_t>(src);
+
+        const auto compressedStart = dest;
+
+        auto iter = view.begin();
+        while (iter != view.end()) {
+            std::ptrdiff_t length = 0;
+            auto run = iter;
+            do {
+                ++run;
+                ++length;
+            } while (length < 130 && *run == *iter && run != view.end());
+
+            if (length >= 3) {
+                // RLE repeat
+                *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((length - 3) | 0x80));
+                *dest++ = std::bit_cast<std::byte>(*iter);
+                iter = run;
+            } else {
+                do {
+                    std::ptrdiff_t repeatLength = 0;
+                    auto repeatRun = run;
+                    do {
+                        ++repeatRun;
+                        ++repeatLength;
+                    } while (repeatLength < 3 && *repeatRun == *run && repeatRun != view.end());
+
+                    if (repeatLength == 3) {
+                        break;
+                    }
+
+                    run = repeatRun;
+                    length += repeatLength;
+                } while (length < 128 && *run != *iter && run != view.end());
+
+                // RLE copy
+                *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(length - 1));
+                do {
+                    *dest++ = std::bit_cast<std::byte>(*iter);
+                    ++iter;
+                } while (iter != run && iter != view.end());
+            }
+        }
+
+        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
+            .comp_algo = comp_algo_rl,
+            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>))
+        });
+    }
+
+    consteval auto rle_compress(auto supplier) {
+        using supplied_type = decltype(supplier());
+        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
+            std::integral_constant<std::size_t, supplier().size()>,
+            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
+        static constexpr auto large_buffer_size = supplied_bytes + ((supplied_bytes + 127) / 128);
+
+        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+            std::array<std::byte, large_buffer_size> largeBuffer;
+            const auto [compressedSize, compressedData] = rle_compress(supplier(), largeBuffer.begin());
+            return { compressedSize, compressedData, largeBuffer };
+        }();
+
+        using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
+
+        buffer_type resizedBuffer;
+        std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
+
+        struct combined : uncompress_header, buffer_type {
+            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
+        };
+        return combined{std::get<1>(oversized), resizedBuffer};
+    }
+
+}

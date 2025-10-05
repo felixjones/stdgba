@@ -1,0 +1,148 @@
+#pragma once
+
+#include <gba/peripherals>
+
+#include <chrono>
+#include <expected>
+
+namespace gba {
+
+    using clock_ratio = std::ratio<1, 16777216>;
+
+    template<typename Rep = unsigned int>
+    using clock_duration = std::chrono::duration<Rep, clock_ratio>;
+
+    enum class timer_error {
+        unrepresentable_duration,
+        not_enough_cascade_timers
+    };
+
+    template<typename Rep, typename Period>
+    constexpr auto make_cycle_timer(std::chrono::duration<Rep, Period> cycles, bool irq = false, std::size_t cascadeTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+        static_assert(
+            std::ratio_equal_v<Period, clock_ratio> ||
+            std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 64>>> ||
+            std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 256>>> ||
+            std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 1024>>>
+        );
+
+        static constexpr auto cycles_constant = std::ratio_equal_v<Period, clock_ratio> ? cycles_1 :
+            std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 64>>> ? cycles_64 :
+            std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 256>>> ? cycles_256 : cycles_1024;
+
+        if (cycles.count() < 0x10000) {
+            return {{{
+                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .overflow_irq = irq, .enabled = true })
+            }, 1}};
+        }
+
+        if (!cascadeTimers) {
+            return std::unexpected{timer_error::not_enough_cascade_timers};
+        }
+
+        cascadeTimers -= 1;
+        auto cascade1 = std::chrono::duration_cast<std::chrono::duration<Rep, std::ratio_divide<typename decltype(cycles)::period, std::ratio<1, 0x10000>>>>(cycles);
+        cycles -= cascade1;
+        if (cascade1.count() < 0x10000) {
+            return {{{
+                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
+                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+            }, 2}};
+        }
+
+        if (!cascadeTimers) {
+            return std::unexpected{timer_error::not_enough_cascade_timers};
+        }
+
+        cascadeTimers -= 1;
+        auto cascade2 = std::chrono::duration_cast<std::chrono::duration<Rep, std::ratio_divide<typename decltype(cascade1)::period, std::ratio<1, 0x10000>>>>(cascade1);
+        cascade1 -= cascade2;
+        if (cascade2.count() < 0x10000) {
+            return {{{
+                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
+                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .enabled = true }),
+                std::make_pair(-cascade2.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+            }, 3}};
+        }
+
+        if (!cascadeTimers) {
+            return std::unexpected{timer_error::not_enough_cascade_timers};
+        }
+
+        auto cascade3 = std::chrono::duration_cast<std::chrono::duration<Rep, std::ratio_divide<typename decltype(cascade2)::period, std::ratio<1, 0x10000>>>>(cascade2);
+        cascade2 -= cascade3;
+        if (cascade3.count() < 0x10000) {
+            return {{{
+                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
+                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .enabled = true }),
+                std::make_pair(-cascade2.count(), timer_control{ .cascade = true, .enabled = true }),
+                std::make_pair(-cascade3.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+            }, 4}};
+        }
+
+        return std::unexpected{timer_error::not_enough_cascade_timers};
+    }
+
+    template<typename Rep, typename Period>
+    constexpr auto make_timer(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+        using duration_1024 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 1024>>>;
+        using duration_256 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 256>>>;
+        using duration_64 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 64>>>;
+        using duration_1 = std::chrono::duration<Rep, clock_ratio>;
+
+        if (const auto cycles = std::chrono::duration_cast<duration_1024>(duration); std::chrono::duration_cast<decltype(duration)>(cycles) == duration) {
+            if (const auto timer = make_cycle_timer(cycles, irq, extraTimers); timer.has_value() || timer.error() == timer_error::not_enough_cascade_timers) {
+                return timer;
+            }
+        }
+
+        if (const auto cycles = std::chrono::duration_cast<duration_256>(duration); std::chrono::duration_cast<decltype(duration)>(cycles) == duration) {
+            if (const auto timer = make_cycle_timer(cycles, irq, extraTimers); timer.has_value() || timer.error() == timer_error::not_enough_cascade_timers) {
+                return timer;
+            }
+        }
+
+        if (const auto cycles = std::chrono::duration_cast<duration_64>(duration); std::chrono::duration_cast<decltype(duration)>(cycles) == duration) {
+            if (const auto timer = make_cycle_timer(cycles, irq, extraTimers); timer.has_value() || timer.error() == timer_error::not_enough_cascade_timers) {
+                return timer;
+            }
+        }
+
+        if (const auto cycles = std::chrono::duration_cast<duration_1>(duration); std::chrono::duration_cast<decltype(duration)>(cycles) == duration) {
+            return make_cycle_timer(cycles, irq, extraTimers);
+        }
+
+        return std::unexpected{timer_error::unrepresentable_duration};
+    }
+
+    template<typename Rep, typename Period>
+    constexpr auto make_timer_after(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+        using duration_1024 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 1024>>>;
+        using duration_256 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 256>>>;
+        using duration_64 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 64>>>;
+        using duration_1 = std::chrono::duration<Rep, clock_ratio>;
+
+        const auto duration1024 = std::chrono::duration_cast<duration_1024>(duration);
+        const auto duration256 = std::chrono::duration_cast<duration_256>(duration);
+        const auto duration64 = std::chrono::duration_cast<duration_64>(duration);
+        const auto duration1 = std::chrono::duration_cast<duration_1>(duration);
+
+        const std::array diffs = {
+            duration.count() - std::chrono::duration_cast<decltype(duration)>(duration1024).count(),
+            duration.count() - std::chrono::duration_cast<decltype(duration)>(duration256).count(),
+            duration.count() - std::chrono::duration_cast<decltype(duration)>(duration64).count(),
+            duration.count() - std::chrono::duration_cast<decltype(duration)>(duration1).count(),
+        };
+
+        switch (std::distance(diffs.begin(), std::min_element(diffs.begin(), diffs.end()))) {
+            case 0: return make_cycle_timer(duration1024, irq, extraTimers);
+            case 1: return make_cycle_timer(duration256, irq, extraTimers);
+            case 2: return make_cycle_timer(duration64, irq, extraTimers);
+            case 3: return make_cycle_timer(duration1, irq, extraTimers);
+            default:
+                __builtin_unreachable();
+                return std::unexpected{timer_error::unrepresentable_duration};
+        }
+    }
+
+}

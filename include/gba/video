@@ -1,0 +1,107 @@
+#pragma once
+
+#include <gba/peripherals>
+
+#include <array>
+
+namespace gba {
+
+inline constexpr auto mem_pal = registral<short[512]>{0x5000000};
+inline constexpr auto mem_pal_bg = registral<short[256]>{0x5000000};
+inline constexpr auto mem_pal_obj = registral<short[256]>{0x5000200};
+
+struct alignas(unsigned short) color {
+    unsigned short red : 5;
+    unsigned short green : 5;
+    unsigned short blue : 5;
+    unsigned short : 1;
+    //TODO: green_lo bit
+};
+static_assert(sizeof(color) == 2);
+static_assert(alignof(color) == 2);
+
+inline constexpr auto pal_bg_mem = registral_cast<color[256]>(mem_pal_bg);
+inline constexpr auto pal_obj_mem = registral_cast<color[256]>(mem_pal_obj);
+
+inline constexpr auto pal_bg_bank = registral<color[16][16]>(0x5000000);
+inline constexpr auto pal_obj_bank = registral<color[16][16]>(0x5000200);
+
+inline constexpr auto mem_vram = registral<short[0xC000]>{0x6000000};
+inline constexpr auto mem_vram_bg = registral<short[0x8000]>{0x6000000};
+inline constexpr auto mem_vram_obj = registral<short[0x4000]>{0x6010000};
+
+enum mode : short {
+    mode_normal = 0,
+    mode_blend = 1,
+    mode_window = 2,
+};
+
+enum depth : short {
+    depth_4bpp = 0,
+    depth_8bpp = 1,
+};
+
+enum shape : short {
+    shape_square = 0,
+    shape_wide = 1,
+    shape_tall = 2,
+};
+
+struct alignas(short) object {
+    // Attribute 0
+    unsigned short y : 8;
+    bool : 1;
+    bool disable : 1;
+    gba::mode mode : 2;
+    bool mosaic : 1;
+    gba::depth depth : 1;
+    gba::shape shape : 2;
+
+    // Attribute 1
+    unsigned short x : 9;
+    short : 3;
+    bool flip_x : 1;
+    bool flip_y : 1;
+    unsigned short size : 2;
+
+    // Attribute 2
+    unsigned short tile_index : 10;
+    unsigned short background : 2;
+    unsigned short palette_index : 4;
+};
+
+static_assert(sizeof(object) == 6);
+
+inline constexpr auto mem_oam = registral<short[128][3]>{0x7000000, sizeof(short[4])};
+inline constexpr auto obj_mem = registral_cast<object[128]>(mem_oam);
+
+inline constexpr auto mem_obj_aff = registral<fixed<short>[128]>{0x7000006, 8};
+inline constexpr auto mem_obj_affa = registral<fixed<short>[32]>{0x7000006, 32};
+inline constexpr auto mem_obj_affb = registral<fixed<short>[32]>{0x700000E, 32};
+inline constexpr auto mem_obj_affc = registral<fixed<short>[32]>{0x7000016, 32};
+inline constexpr auto mem_obj_affd = registral<fixed<short>[32]>{0x700001E, 32};
+
+inline constexpr auto char_map(const void* ptr) noexcept {
+    return static_cast<unsigned short>(((reinterpret_cast<std::uintptr_t>(ptr) - reinterpret_cast<std::uintptr_t>(memory_map(gba::mem_vram_bg))) / 0x4000u));
+}
+
+inline constexpr auto screen_map(const void* ptr) noexcept {
+    return static_cast<unsigned short>(((reinterpret_cast<std::uintptr_t>(ptr) - reinterpret_cast<std::uintptr_t>(memory_map(gba::mem_vram_bg))) / 0x800u));
+}
+
+using tile4bpp = std::array<unsigned int, 8>;
+using tile8bpp = std::array<unsigned int, 16>;
+
+inline constexpr auto mem_tile_4bpp = registral<tile4bpp[512][4]>{0x6000000};
+inline constexpr auto mem_tile_8bpp = registral<tile8bpp[256][4]>{0x6000000};
+
+struct alignas(short) screen_entry {
+    unsigned short tile_index : 10;
+    bool flip_horizontal : 1;
+    bool flip_vertical : 1;
+    unsigned short palette_index : 4;
+};
+
+inline constexpr auto mem_se = registral<screen_entry[1024][32]>{0x6000000};
+
+}

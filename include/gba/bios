@@ -1,0 +1,350 @@
+#pragma once
+
+#include <gba/fixed_point>
+#include <gba/peripherals>
+#include <gba/bits/bios.hpp>
+
+namespace gba {
+
+[[noreturn]]
+inline void SoftReset() noexcept {
+    asm volatile ("swi 0x0 << ((1f - . == 4) * -16); 1:");
+    __builtin_unreachable();
+}
+
+struct register_ram_mask {
+    bool ewram : 1;
+    bool iwram : 1;
+    bool palette : 1;
+    bool vram : 1;
+    bool oam : 1;
+    bool reg_sio : 1;
+    bool reg_sound : 1;
+    bool reg : 1;
+};
+
+inline void RegisterRamReset(register_ram_mask flags) noexcept {
+    // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
+    register auto r0 asm("r0") = flags;
+    asm volatile ("swi 0x1 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3", "memory");
+}
+
+inline void Halt() noexcept {
+    asm volatile ("swi 0x2 << ((1f - . == 4) * -16); 1:");
+}
+
+inline void Stop() noexcept {
+    asm volatile ("swi 0x3 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
+}
+
+inline void IntrWait(bool clearCurrent, irq flags) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto r0 asm("r0") = clearCurrent;
+    register auto r1 asm("r1") = __builtin_bit_cast(short, flags);
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x4 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)  :: "r3");
+}
+
+inline void VBlankIntrWait() noexcept {
+    asm volatile ("swi 0x5 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
+}
+
+[[nodiscard, gnu::const]]
+constexpr auto Div(int number, int denom) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
+    if consteval {
+        return (int [[gnu::vector_size(sizeof(int) * 2)]]){number / denom, number % denom};
+    } else {
+        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+        register auto r0 asm("r0") = number;
+        register auto r1 asm("r1") = denom;
+        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+        asm volatile ("swi 0x6 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3");
+        return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
+    }
+}
+
+[[nodiscard, gnu::const]]
+constexpr auto DivArm(int denom, int number) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
+    if consteval {
+        return (int [[gnu::vector_size(sizeof(int) * 2)]]){number / denom, number % denom};
+    } else {
+        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+        register auto r0 asm("r0") = denom;
+        register auto r1 asm("r1") = number;
+        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+        asm volatile ("swi 0x7 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3");
+        return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
+    }
+}
+
+[[nodiscard, gnu::const]]
+// ReSharper disable once CppDFAConstantParameter
+constexpr unsigned int Sqrt(unsigned int arg) noexcept {
+    if consteval {
+        if (arg == 0 || arg == 1) {
+            return arg;
+        }
+
+        unsigned int low = 0, high = arg, result = 0;
+        while (low <= high) {
+            if (auto mid = low + (high - low) / 2; mid * mid == arg) {
+                return mid;
+            } else if (mid * mid < arg) {
+                low = mid + 1;
+                result = mid;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return result;
+    } else {
+        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
+        register auto r0 asm("r0") = arg;
+        asm volatile ("swi 0x8 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+        return r0;
+    }
+}
+
+[[nodiscard, gnu::const]]
+constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (std::numeric_limits<typename fixed_point_traits<decltype(arg)>::underlying_type>::digits <= 16) {
+    const auto higherPrecision = __builtin_bit_cast(typename fixed_point_traits<decltype(arg)>::underlying_type, arg) << fixed_point_traits<decltype(arg)>::fractional_digits;
+    const auto result = static_cast<typename fixed_point_traits<decltype(arg)>::underlying_type>(Sqrt(higherPrecision));
+    return __builtin_bit_cast(decltype(arg), result);
+}
+
+[[nodiscard, gnu::const]]
+constexpr int ArcTan(fixed<int, 14> arg) noexcept {
+    if consteval {
+        return bits::arc_tan(__builtin_bit_cast(int, arg));
+    } else {
+        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
+        register auto r0 asm("r0") = __builtin_bit_cast(int, arg);
+        asm volatile ("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+        return r0 << 16 >> 16; // TODO: angle type
+    }
+}
+
+[[nodiscard, gnu::const]]
+constexpr int ArcTan2(int x, int y) noexcept {
+    if consteval {
+        return bits::arc_tan2(x, y);
+    } else {
+        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+        register auto r0 asm("r0") = x;
+        register auto r1 asm("r1") = y;
+        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+        asm volatile ("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
+        return r0 << 16 >> 16; // TODO: angle type
+    }
+}
+
+[[nodiscard, gnu::const]]
+constexpr int ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
+    return ArcTan2(__builtin_bit_cast(typename fixed_point_traits<decltype(x)>::underlying_type, x), __builtin_bit_cast(typename fixed_point_traits<decltype(y)>::underlying_type, y));
+}
+
+struct cpu_set {
+    unsigned int count : 21;
+    int : 3;
+    bool fill : 1;
+    int : 1;
+    bool set_32bit : 1;
+};
+
+[[gnu::nonnull(1, 2)]]
+inline void CpuSet(const void* __restrict__ src, void* __restrict__ dest, cpu_set lenmode) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = src;
+    register auto* r1 asm("r1") = dest;
+    register auto r2 asm("r2") = lenmode;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0xB << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+}
+
+struct cpu_fast_set {
+    unsigned int count : 21;
+    int : 3;
+    bool fill : 1;
+};
+
+[[gnu::nonnull(1, 2)]]
+inline void CpuFastSet(const void* __restrict__ src, void* __restrict__ dest, cpu_fast_set lenmode) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = src;
+    register auto* r1 asm("r1") = dest;
+    register auto r2 asm("r2") = lenmode;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0xC << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+}
+
+namespace undocumented {
+
+    [[nodiscard, gnu::const]]
+    inline int GetBiosChecksum() noexcept {
+        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
+        register int i asm("r0");
+        asm volatile ("swi 0xD << ((1f - . == 4) * -16); 1:" : "=r"(i) :: "r1", "r3");
+        return i;
+    }
+
+}
+
+struct background_parameters {
+    fixed<int, 8> tex_x;
+    fixed<int, 8> tex_y;
+    short scr_x;
+    short scr_y;
+    fixed<short> sx;
+    fixed<short> sy;
+    int alpha;
+};
+
+[[gnu::nonnull(1, 2)]]
+inline void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest, std::size_t num) noexcept {
+    //TODO: Constexpr implementation
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = src;
+    register auto* r1 asm("r1") = dest;
+    register auto r2 asm("r2") = num;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+}
+
+struct object_parameters {
+    fixed<short> sx;
+    fixed<short> sy;
+    int alpha;
+};
+
+[[gnu::nonnull(1, 2)]]
+inline void ObjAffineSet(const object_parameters* __restrict__ src, volatile fixed<short>* __restrict__ dest, std::size_t num, std::size_t stride) noexcept {
+    //TODO: Constexpr implementation
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = src;
+    register auto* r1 asm("r1") = dest;
+    register auto r2 asm("r2") = num;
+    register auto r3 asm("r3") = stride;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
+}
+
+struct unpack_parameters {
+    unsigned short src_len;
+    unsigned char src_bpp : 4;
+    unsigned char dst_bpp : 6;
+    unsigned int dst_ofs : 31;
+    bool offset_zero : 1;
+
+    [[nodiscard]]
+    constexpr auto dst_len() const noexcept {
+        return src_len * dst_bpp / src_bpp;
+    }
+};
+
+[[gnu::nonnull(1, 2)]]
+inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest, const unpack_parameters& unpack) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = src;
+    register auto* r1 asm("r1") = dest;
+    register auto* r2 asm("r2") = &unpack;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x10 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+}
+
+enum comp_algo : unsigned int {
+    comp_algo_lz77 = 1,
+    comp_algo_huff = 2,
+    comp_algo_rl = 3,
+    comp_algo_diff = 8,
+};
+
+struct uncompress_header {
+    unsigned int src_len : 4;
+    // ReSharper disable once CppRedundantQualifier
+    gba::comp_algo comp_algo : 4;
+    unsigned int dst_len : 24;
+};
+
+inline void LZ77UnCompWram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x11 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void LZ77UnCompVram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x12 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void HuffUnComp(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x13 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void RLUnCompWram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x14 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void RLUnCompVram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x15 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void Diff8bitUnFilterWram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x16 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void Diff8bitUnFilterVram(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x17 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+inline void Diff16bitUnFilter(const uncompress_header& src, void* dest) noexcept {
+    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+    register auto* r0 asm("r0") = &src;
+    register auto* r1 asm("r1") = dest;
+    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+    asm volatile ("swi 0x18 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+}
+
+//TODO:
+// SoundBiasSet
+// SoundBiasReset
+// SoundDriverInit
+// SoundDriverMode
+// SoundDriverMain
+// SoundDriverVSync
+// SoundChannelClear
+// SoundDriverVSyncOff
+// SoundDriverVSyncOn
+// MidiKey2Freq
+// MusicPlayerOpen
+// MusicPlayerStart
+// MusicPlayerStop
+// MusicPlayerContinue
+// MusicPlayerFadeOut
+// MultiBoot
+
+}

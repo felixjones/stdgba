@@ -1,0 +1,492 @@
+#pragma once
+
+#include <gba/bits/registral_ops.hpp>
+
+#include <gba/fixed_point>
+
+#include <algorithm>
+#include <concepts>
+#include <cstdint>
+#include <type_traits>
+#include <utility>
+
+namespace gba {
+
+    template<typename>
+    struct registral {};
+
+    template<typename T>
+    concept IsNonArrayTriviallyCopiable = !std::is_array_v<T> && std::is_trivially_copyable_v<T>;
+
+    template<IsNonArrayTriviallyCopiable ValueType>
+    struct registral<ValueType> : std::conditional_t<std::is_const_v<ValueType>, std::conditional_t<std::is_volatile_v<ValueType>, void, bits::read_ops>, std::conditional_t<std::is_volatile_v<ValueType>, bits::write_ops, bits::read_write_ops>> {
+        friend bits::read_ops;
+        friend bits::write_ops;
+        friend bits::read_write_ops;
+
+        using value_type = std::remove_cvref_t<ValueType>;
+
+        registral(const registral&) = default;
+
+        explicit constexpr registral(const std::uintptr_t address) noexcept : m_address{address} {}
+
+        [[gnu::always_inline]]
+        // ReSharper disable once CppNonExplicitConversionOperator
+        operator value_type() const noexcept requires std::derived_from<registral, bits::read_ops> { // NOLINT(*-explicit-constructor)
+            return this->value();
+        }
+
+        [[gnu::always_inline]]
+        const registral& operator=(value_type&& value) const noexcept requires std::derived_from<registral, bits::write_ops> { // NOLINT(*-unconventional-assign-operator)
+            bits::write_ops::write(static_cast<value_type&&>(value));
+            return *this;
+        }
+
+        [[gnu::always_inline]]
+        const registral& operator=(const value_type& value) const noexcept requires std::derived_from<registral, bits::write_ops> { // NOLINT(*-unconventional-assign-operator)
+            bits::write_ops::write(value);
+            return *this;
+        }
+
+        [[gnu::always_inline]]
+        const registral& operator=(std::integral auto&& value) const noexcept requires (std::derived_from<registral, bits::write_ops> && !std::integral<value_type> && !fixed_point<value_type>) { // NOLINT(*-unconventional-assign-operator)
+            bits::write_ops::write_integer(static_cast<decltype(value)&&>(value));
+            return *this;
+        }
+
+        // ReSharper disable once CppNonExplicitConversionOperator
+        constexpr operator registral<const value_type>() const noexcept requires std::derived_from<registral, bits::read_write_ops> { // NOLINT(*-explicit-constructor)
+            return {m_address};
+        }
+
+        // ReSharper disable once CppNonExplicitConversionOperator
+        constexpr operator gba::registral<volatile value_type>() const noexcept requires std::derived_from<registral, bits::read_write_ops> { // NOLINT(*-explicit-constructor)
+            return {m_address};
+        }
+
+    private:
+        std::uintptr_t m_address;
+    };
+
+    template<IsNonArrayTriviallyCopiable ValueType>
+    [[gnu::always_inline]]
+    // ReSharper disable once CppRedundantInlineSpecifier
+    inline auto* memory_map(const registral<ValueType>& r) noexcept {
+        return __builtin_bit_cast(std::remove_volatile_t<ValueType>*, r);
+    }
+
+    template<typename T>
+    concept IsArrayOfTriviallyCopiable = std::is_array_v<T> && std::is_trivially_copyable_v<std::remove_extent_t<T>>;
+
+    template<IsArrayOfTriviallyCopiable ValueType> //TODO: Multidimensional stride support
+    struct registral<ValueType> {
+        using value_type = std::remove_extent_t<ValueType>;
+        using size_type = std::size_t;
+
+        registral(const registral&) = default;
+
+        explicit constexpr registral(const std::uintptr_t address, const std::size_t stride = sizeof(value_type)) noexcept : m_address{address}, m_stride{stride} {}
+
+        [[gnu::always_inline]]
+        constexpr registral<value_type> operator[](const std::size_t index) const noexcept {
+            return registral<value_type>{m_address + index * m_stride};
+        }
+
+        [[gnu::always_inline]]
+        const registral& operator=(const std::initializer_list<std::remove_cv_t<value_type>>& ilist) const noexcept { // NOLINT(*-unconventional-assign-operator)
+            std::copy(ilist.begin(), ilist.end(), begin());
+            return *this;
+        }
+
+        template<typename IterValueType>
+        struct iterator_impl {
+            using value_type = IterValueType;
+            using reference = registral<value_type>;
+            using pointer = value_type*;
+            using difference_type = std::ptrdiff_t;
+            using iterator_category = std::forward_iterator_tag;
+            using iterator_concept = std::forward_iterator_tag;
+
+            reference operator*() const noexcept {
+                return registral<value_type>{m_address};
+            }
+
+            pointer operator->() const noexcept {
+                return gba::memory_map(registral<value_type>{m_address});
+            }
+
+            constexpr iterator_impl& operator++() noexcept { m_address += m_stride; return *this; }
+            constexpr iterator_impl operator++(int) noexcept { iterator_impl temp = *this; ++*this; return temp; }
+            constexpr iterator_impl& operator--() noexcept { m_address -= m_stride; return *this; }
+            constexpr iterator_impl operator--(int) noexcept { iterator_impl temp = *this; --*this; return temp; }
+            constexpr iterator_impl& operator+=(const difference_type offset) noexcept { m_address += m_stride * offset; return *this; }
+            constexpr iterator_impl& operator-=(const difference_type offset) noexcept { m_address -= m_stride * offset; return *this; }
+            constexpr iterator_impl operator+(const difference_type offset) const noexcept { return {m_address + m_stride * offset, m_stride}; }
+            constexpr iterator_impl operator-(const difference_type offset) const noexcept { return {m_address - m_stride * offset, m_stride}; }
+            constexpr difference_type operator-(const iterator_impl& other) const noexcept { return (m_address - other.m_address) / m_stride; }
+
+            auto operator<=>(const iterator_impl& other) const noexcept = default;
+            bool operator==(const iterator_impl& rhs) const noexcept { return m_address == rhs.m_address; }
+            bool operator!=(const iterator_impl& rhs) const noexcept { return m_address != rhs.m_address; }
+
+            constexpr iterator_impl(const std::uintptr_t address, const std::size_t stride) noexcept : m_address{address}, m_stride{stride} {}
+            constexpr iterator_impl() noexcept : m_address{0}, m_stride{sizeof(value_type)} {}
+        private:
+            std::uintptr_t m_address;
+            std::size_t m_stride;
+        };
+
+        using iterator = iterator_impl<value_type>;
+        using const_iterator = iterator_impl<const value_type>;
+
+        static consteval size_type size() noexcept {
+            return sizeof(ValueType) / sizeof(value_type);
+        }
+
+        [[nodiscard]]
+        constexpr iterator begin() const noexcept {
+            return {m_address, m_stride};
+        }
+        [[nodiscard]]
+        constexpr iterator end() const noexcept {
+            return {m_address + m_stride * size(), m_stride};
+        }
+        [[nodiscard]]
+        constexpr const_iterator cbegin() const noexcept {
+            return {m_address, m_stride};
+        }
+        [[nodiscard]]
+        constexpr const_iterator cend() const noexcept {
+            return {m_address + m_stride * size(), m_stride};
+        }
+    private:
+        std::uintptr_t m_address;
+        std::size_t m_stride;
+    };
+
+    template<IsArrayOfTriviallyCopiable ValueType>
+    [[gnu::always_inline]]
+    // ReSharper disable once CppRedundantInlineSpecifier
+    inline auto* memory_map(const registral<ValueType>& r) noexcept {
+        struct temp_type {
+            std::remove_volatile_t<std::remove_extent_t<ValueType>>* address;
+            int : 32;
+        };
+        return __builtin_bit_cast(temp_type, r).address;
+    }
+
+    template<typename To, IsNonArrayTriviallyCopiable From> requires(IsNonArrayTriviallyCopiable<To> || IsArrayOfTriviallyCopiable<To>)
+    constexpr auto registral_cast(const registral<From>& r) noexcept {
+        return registral<To>{__builtin_bit_cast(std::uintptr_t, r)};
+    }
+
+    template<IsArrayOfTriviallyCopiable To, IsArrayOfTriviallyCopiable From>
+    constexpr auto registral_cast(const registral<From>& r) noexcept {
+        struct {
+            std::uintptr_t address;
+            std::size_t stride;
+        } temp = __builtin_bit_cast(decltype(temp), r);
+        return registral<To>{temp.address, temp.stride};
+    }
+
+    template<IsNonArrayTriviallyCopiable To, IsArrayOfTriviallyCopiable From>
+    constexpr auto registral_cast(const registral<From>& r) noexcept {
+        struct {
+            std::uintptr_t address;
+            std::size_t stride;
+        } temp = __builtin_bit_cast(decltype(temp), r);
+        return registral<To>{temp.address};
+    }
+
+    struct display_control {
+        unsigned short video_mode : 3;
+        bool cgb : 1;
+        unsigned short page : 1;
+        bool hblank_oam_free : 1;
+        bool linear_obj_tilemap : 1;
+        bool disable : 1;
+        bool enable_bg0 : 1;
+        bool enable_bg1 : 1;
+        bool enable_bg2 : 1;
+        bool enable_bg3 : 1;
+        bool enable_obj : 1;
+        bool enable_win0 : 1;
+        bool enable_win1 : 1;
+        bool enable_obj_win : 1;
+    };
+
+    inline constexpr auto reg_dispcnt = registral<display_control>{0x4000000};
+
+    namespace undocumented {
+        inline constexpr auto reg_stereo_3d = registral<bool>{0x4000002};
+    }
+
+    struct display_status {
+        const bool currently_vblank : 1;
+        const bool currently_hblank : 1;
+        const bool currently_vcount : 1;
+        bool enable_irq_vblank : 1;
+        bool enable_irq_hblank : 1;
+        bool enable_irq_vcount : 1;
+        short : 2;
+        unsigned short vcount_setting : 8;
+    };
+
+    inline constexpr auto reg_dispstat = registral<display_status>{0x4000004};
+    inline constexpr auto reg_vcount = registral<const unsigned short>{0x4000006};
+
+    struct background_control {
+        unsigned short priority : 2;
+        unsigned short charblock : 2;
+        short : 2;
+        bool mosaic : 1;
+        bool bpp8 : 1;
+        unsigned short screenblock : 5;
+        bool wrap_affine_tiles : 1;
+        unsigned short size : 2;
+    };
+
+    inline constexpr auto reg_bgcnt = registral<background_control[4]>{0x4000008};
+    inline constexpr auto reg_bgofs = registral<volatile short[4][2]>{0x4000010};
+
+    inline constexpr auto reg_bgp = registral<volatile fixed<short>[2][4]>{0x4000020};
+
+    inline constexpr auto reg_bgx = registral<volatile fixed<>[2]>{0x4000028, 0x10};
+    inline constexpr auto reg_bgy = registral<volatile fixed<>[2]>{0x400002C, 0x10};
+
+    struct background_matrix {
+        fixed<short> p[4];
+        fixed<int, 8> x;
+        fixed<int, 8> y;
+    };
+
+    inline constexpr auto reg_bg_affine = registral<volatile background_matrix[2]>{0x4000020};
+
+    inline constexpr auto reg_winh = registral<volatile unsigned char[2]>{0x4000040};
+    inline constexpr auto reg_winv = registral<volatile unsigned char[2]>{0x4000044};
+
+    struct window_control {
+        bool enable_bg0 : 1;
+        bool enable_bg1 : 1;
+        bool enable_bg2 : 1;
+        bool enable_bg3 : 1;
+        bool enable_obj : 1;
+        bool enable_color_effect : 1;
+    };
+
+    inline constexpr auto reg_winin = registral<window_control[2]>{0x4000048};
+    inline constexpr auto reg_winout = registral<window_control>{0x400004a};
+    inline constexpr auto reg_winobj = registral<window_control>{0x400004b};
+
+    struct mosaic_control {
+        unsigned char add_h : 4;
+        unsigned char add_v : 4;
+    };
+
+    inline constexpr auto reg_mosaicbg = registral<mosaic_control>{0x400004c};
+    inline constexpr auto reg_mosaicobj = registral<mosaic_control>{0x400004d};
+
+    enum blend_op : unsigned short {
+        blend_op_none = 0,
+        blend_op_alpha = 1,
+        blend_op_brighten = 2,
+        blend_op_darken = 3
+    };
+
+    struct blend_control {
+        bool dest_bg0 : 1;
+        bool dest_bg1 : 1;
+        bool dest_bg2 : 1;
+        bool dest_bg3 : 1;
+        bool dest_obj : 1;
+        bool dest_backdrop : 1;
+        // ReSharper disable once CppRedundantQualifier
+        gba::blend_op blend_op : 2;
+        bool src_bg0 : 1;
+        bool src_bg1 : 1;
+        bool src_bg2 : 1;
+        bool src_bg3 : 1;
+        bool src_obj : 1;
+        bool src_backdrop : 1;
+    };
+
+    inline constexpr auto reg_bldcnt = registral<blend_control>{0x4000050};
+
+    inline constexpr auto reg_bldalpha = registral<fixed<unsigned char>[2]>{0x4000052};
+    inline constexpr auto reg_bldy = registral<fixed<unsigned char>>{0x4000054};
+
+    //TODO: Sound registers
+
+    inline constexpr auto reg_tmcnt_l = registral<unsigned short[4]>{0x4000100, 4};
+    inline constexpr auto reg_tmcnt_l_stat = registral<const unsigned short[4]>{0x4000100, 4};
+    inline constexpr auto reg_tmcnt_l_reload = registral<volatile unsigned short[4]>{0x4000100, 4};
+
+    enum cycles : unsigned short {
+        cycles_1 = 0,
+        cycles_64 = 1,
+        cycles_256 = 2,
+        cycles_1024 = 3
+    };
+
+    struct timer_control {
+        // ReSharper disable once CppRedundantQualifier
+        gba::cycles cycles : 2;
+        bool cascade : 1;
+        short : 3;
+        bool overflow_irq : 1;
+        bool enabled : 1;
+    };
+
+    inline constexpr auto reg_tmcnt_h = registral<timer_control[4]>{0x4000102, 4};
+    inline constexpr auto reg_tmcnt = registral<std::pair<const unsigned short, const timer_control>[4]>{0x4000100};
+
+    inline constexpr auto reg_dmasad = registral<const void* volatile[4]>{0x40000B0, 12};
+    inline constexpr auto reg_dmadad = registral<void* volatile[4]>{0x40000B4, 12};
+    inline constexpr auto reg_dmacnt_l = registral<volatile unsigned short[4]>{0x40000B8, 12};
+
+    enum dest_op : unsigned short {
+        dest_opincrement,
+        dest_opdecrement,
+        dest_op_fixed,
+        dest_opincrement_reload
+    };
+
+    enum src_op : unsigned short {
+        src_op_increment,
+        src_op_decrement,
+        src_op_fixed
+    };
+
+    enum class dma_type : bool {
+        half = false,
+        word = true
+    };
+
+    enum dma_cond : unsigned short {
+        dma_cond_now = 0,
+        dma_cond_vblank = 1,
+        dma_cond_hblank = 2,
+        dma_cond_sound_fifo = 3,
+        dma_cond_video_capture = 3,
+    };
+
+    struct dma_control {
+        short : 5;
+        // ReSharper disable CppRedundantQualifier
+        gba::dest_op dest_op : 2;
+        gba::src_op src_op : 2;
+        // ReSharper restore CppRedundantQualifier
+        bool repeat : 1;
+        // ReSharper disable once CppRedundantQualifier
+        gba::dma_type dma_type : 1;
+        bool gamepak_drq : 1;
+        // ReSharper disable once CppRedundantQualifier
+        gba::dma_cond dma_cond : 2;
+        bool irq_on_finish : 1;
+        bool enable : 1;
+    };
+
+    inline constexpr auto reg_dmacnt_h = registral<dma_control[4]>{0x40000BA, 12};
+
+    struct dma {
+        const void* source;
+        void* destination;
+        unsigned short units;
+        dma_control control;
+    };
+
+    inline constexpr auto reg_dma = registral<volatile struct dma[4]>{0x40000B0, 12};
+
+    //TODO: Serial IO
+
+    struct key_control {
+        bool a : 1;
+        bool b : 1;
+        bool select : 1;
+        bool start : 1;
+        bool right : 1;
+        bool left : 1;
+        bool up : 1;
+        bool down : 1;
+        bool r : 1;
+        bool l : 1;
+        short : 4;
+        bool irq_enabled : 1;
+        bool irq_all : 1;
+    };
+
+    inline constexpr auto reg_keyinput = registral<const key_control>{0x4000130};
+    inline constexpr auto reg_keycnt = registral<key_control>{0x4000132};
+
+    struct irq {
+        bool vblank : 1;
+        bool hblank : 1;
+        bool vcounter : 1;
+        bool timer0 : 1;
+        bool timer1 : 1;
+        bool timer2 : 1;
+        bool timer3 : 1;
+        bool serial : 1;
+        bool dma0 : 1;
+        bool dma1 : 1;
+        bool dma2 : 1;
+        bool dma3 : 1;
+        bool keypad : 1;
+        bool gamepak : 1;
+    };
+
+    inline constexpr auto reg_ie = registral<irq>{0x4000200};
+    inline constexpr auto reg_if = registral<irq>{0x4000202};
+    inline constexpr auto reg_if_stat = registral<const irq>{0x4000202};
+    inline constexpr auto reg_if_ack = registral<volatile irq>{0x4000202};
+
+    struct waitcnt {
+        unsigned short sram: 2{3};
+        unsigned short ws0_first: 2{1};
+        unsigned short ws0_second: 1{1};
+        unsigned short ws1_first: 2{};
+        unsigned short ws1_second: 1{};
+        unsigned short ws2_first: 2{3};
+        unsigned short ws2_second: 1{};
+        unsigned short phi: 2{};
+        short : 1;
+        bool prefetch: 1{true};
+        const bool is_cgb: 1{};
+    };
+
+    inline constexpr auto reg_waitcnt = registral<waitcnt>{0x4000204};
+    inline constexpr auto reg_ime = registral<bool>{0x4000208};
+
+    namespace undocumented {
+
+        inline constexpr auto reg_postflg = registral<bool>{0x4000300};
+
+        struct halt_control {
+            char : 7;
+            bool low_power_mode : 1;
+        };
+
+        inline constexpr auto reg_haltcnt = registral<halt_control>{0x4000301};
+
+        inline constexpr auto reg_obj_center = registral<volatile char>{0x4000410};
+
+        struct memory_control {
+            bool swap_bios : 1{};
+            int : 2;
+            bool disable_cgb_bios : 1{};
+            int : 1;
+            bool ewram : 1{true};
+            int : 18;
+            unsigned int ws_ewram : 4{0xd};
+        };
+
+        inline constexpr auto reg_memcnt = registral<memory_control>{0x4000800};
+
+    }
+
+}
+
+namespace std::ranges {
+    template<typename T>
+    inline constexpr bool enable_view<::gba::registral<T>> = true;
+}

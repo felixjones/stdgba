@@ -1,0 +1,15 @@
+#pragma once
+
+#include <gba/bits/handler.hpp>
+
+namespace gba {
+    struct irq;
+
+    template<typename... Args>
+    using handler = bits::handler<Args...>;
+
+    inline constexpr handler<irq> nullisr;
+
+    inline constexpr bits::isr irq_handler;
+
+}

@@ -1,0 +1,75 @@
+#pragma once
+
+#include <gba/bios>
+
+#include <gba/bits/ranges.hpp>
+
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <ranges>
+
+namespace gba {
+
+    template<std::size_t Size = 1> requires (Size == 1 || Size == 2)
+    consteval void diff_filter(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) requires std::indirectly_writable<decltype(dest), std::byte> {
+        using diff_type = std::conditional_t<Size == 1, std::uint8_t, std::uint16_t>;
+        using buffer_type = std::array<std::byte, Size>;
+
+        const auto view = bits::view_integers<diff_type>(src);
+
+        auto iter = view.begin();
+        if (iter == view.end()) {
+            return;
+        }
+
+        diff_type value = *iter;
+        for (auto b : std::bit_cast<buffer_type>(value)) {
+            *dest++ = b;
+        }
+        ++iter;
+
+        while (iter != view.end()) {
+            const diff_type nextValue = *iter;
+            const diff_type diff = nextValue - value;
+            for (auto b : std::bit_cast<buffer_type>(diff)) {
+                *dest++ = b;
+            }
+            value = nextValue;
+            ++iter;
+        }
+    }
+
+    template<std::size_t Size = 1>
+    consteval auto diff_filter(auto supplier) {
+        using supplied_type = decltype(supplier());
+        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
+            std::integral_constant<std::size_t, supplier().size()>,
+            std::tuple_size<supplied_type>>::value;
+
+        std::array<std::byte, supplied_length * sizeof(typename supplied_type::value_type)> buffer{};
+        diff_filter<Size>(supplier(), buffer.begin());
+
+        using buffer_type = std::array<typename supplied_type::value_type, supplied_length>;
+
+        struct combined : uncompress_header, buffer_type {
+            using unfiltered_array = buffer_type;
+        };
+
+        return combined{{
+            .src_len = Size,
+            .comp_algo = comp_algo_diff,
+            .dst_len = buffer.size()
+        }, std::bit_cast<buffer_type>(buffer)};
+    }
+
+    template<typename UnpackedType, std::size_t Size = 1> requires (Size == 1 || Size == 2)
+    struct filtered_unpacked_array : uncompress_header, std::array<typename UnpackedType::unpacked_array::value_type, UnpackedType::unpacked_size::value> {
+        constexpr filtered_unpacked_array() : uncompress_header{
+            .src_len = Size,
+            .comp_algo = comp_algo_diff,
+            .dst_len = UnpackedType::unpacked_size::value * sizeof(typename UnpackedType::unpacked_array::value_type)
+        } {}
+    };
+
+}
