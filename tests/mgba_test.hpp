@@ -14,6 +14,20 @@
 #include "mgba_test_macros.hpp"
 
 namespace test {
+    template<typename F>
+    inline decltype(auto) do_not_optimize(F&& f) noexcept {
+        asm volatile ("" ::: "memory");
+        if constexpr (std::is_same_v<void, std::invoke_result_t<F>>) {
+            std::forward<F>(f)();
+            asm volatile ("" ::: "memory");
+            return;
+        } else {
+            auto res = std::forward<F>(f)();
+            asm volatile ("" ::: "memory");
+            return res;
+        }
+    }
+
     [[gnu::noreturn]]
     inline void exit(int code) noexcept {
         register auto r0 asm("r0") = code;

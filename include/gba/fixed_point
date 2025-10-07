@@ -271,3 +271,8 @@ struct fixed_point_traits<fixed<Rep, FracBits, IntermediateRep, Round>> {
 };
 
 }
+
+namespace std {
+    template<typename T> requires gba::is_fixed_point_v<T>
+    struct is_arithmetic<T> : std::true_type {};
+}

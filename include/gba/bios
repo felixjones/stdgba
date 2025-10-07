@@ -1,8 +1,9 @@
 #pragma once
 
+#include <gba/bits/bios.hpp>
+#include <gba/bits/constexpr_trig.hpp>
 #include <gba/fixed_point>
 #include <gba/peripherals>
-#include <gba/bits/bios.hpp>
 
 namespace gba {
 
@@ -200,14 +201,44 @@ struct background_parameters {
 };
 
 [[gnu::nonnull(1, 2)]]
-inline void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest, std::size_t num) noexcept {
-    //TODO: Constexpr implementation
-    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
-    register auto* r0 asm("r0") = src;
-    register auto* r1 asm("r1") = dest;
-    register auto r2 asm("r2") = num;
-    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
-    asm volatile ("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+inline constexpr void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest, std::size_t num) noexcept {
+    if consteval {
+        for (std::size_t i = 0; i < num; ++i) {
+            const auto& bp = src[i];
+            const unsigned int alpha16 = static_cast<unsigned int>(bp.alpha) & 0xFFFFu;
+            const auto [s, c] = bits::sin_cos(alpha16);
+
+            const auto ox = static_cast<long double>(bp.tex_x);
+            const auto oy = static_cast<long double>(bp.tex_y);
+            const auto cx = static_cast<long double>(bp.scr_x);
+            const auto cy = static_cast<long double>(bp.scr_y);
+            const auto sx = static_cast<long double>(bp.sx);
+            const auto sy = static_cast<long double>(bp.sy);
+
+            const long double a = sx * c;
+            const long double b = -sx * s;
+            const long double c_ = sy * s;
+            const long double d = sy * c;
+
+            dest[i].p[0] = fixed<short>(a);
+            dest[i].p[1] = fixed<short>(b);
+            dest[i].p[2] = fixed<short>(c_);
+            dest[i].p[3] = fixed<short>(d);
+
+            const long double rx = ox - (a * cx + b * cy);
+            const long double ry = oy - (c_ * cx + d * cy);
+
+            dest[i].x = fixed<int, 8>(rx);
+            dest[i].y = fixed<int, 8>(ry);
+        }
+    } else {
+        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+        register auto* r0 asm("r0") = src;
+        register auto* r1 asm("r1") = dest;
+        register auto r2 asm("r2") = num;
+        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+        asm volatile ("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+    }
 }
 
 struct object_parameters {
@@ -217,15 +248,38 @@ struct object_parameters {
 };
 
 [[gnu::nonnull(1, 2)]]
-inline void ObjAffineSet(const object_parameters* __restrict__ src, volatile fixed<short>* __restrict__ dest, std::size_t num, std::size_t stride) noexcept {
-    //TODO: Constexpr implementation
-    // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
-    register auto* r0 asm("r0") = src;
-    register auto* r1 asm("r1") = dest;
-    register auto r2 asm("r2") = num;
-    register auto r3 asm("r3") = stride;
-    // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
-    asm volatile ("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
+inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest, std::size_t num, std::size_t stride = 2) noexcept {
+    if consteval {
+        stride /= sizeof(short);
+        for (std::size_t i = 0; i < num; ++i) {
+            const auto& op = src[i];
+            const unsigned int alpha16 = static_cast<unsigned int>(op.alpha) & 0xFFFFu;
+            const auto [s, c] = bits::sin_cos(alpha16);
+
+            const auto sx = static_cast<long double>(op.sx);
+            const auto sy = static_cast<long double>(op.sy);
+
+            const long double a = sx * c;
+            const long double b = -sx * s;
+            const long double c_ = sy * s;
+            const long double d = sy * c;
+
+            dest[0] = fixed<short>(a);
+            dest[stride] = fixed<short>(b);
+            dest[stride * 2] = fixed<short>(c_);
+            dest[stride * 3] = fixed<short>(d);
+
+            dest += stride * 4;
+        }
+    } else {
+        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
+        register auto* r0 asm("r0") = src;
+        register auto* r1 asm("r1") = dest;
+        register auto r2 asm("r2") = num;
+        register auto r3 asm("r3") = stride;
+        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
+        asm volatile ("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
+    }
 }
 
 struct unpack_parameters {

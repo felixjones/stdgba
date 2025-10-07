@@ -251,8 +251,8 @@ namespace gba {
 
     inline constexpr auto reg_bgp = registral<volatile fixed<short>[2][4]>{0x4000020};
 
-    inline constexpr auto reg_bgx = registral<volatile fixed<>[2]>{0x4000028, 0x10};
-    inline constexpr auto reg_bgy = registral<volatile fixed<>[2]>{0x400002C, 0x10};
+    inline constexpr auto reg_bgx = registral<volatile fixed<int, 8>[2]>{0x4000028, 0x10};
+    inline constexpr auto reg_bgy = registral<volatile fixed<int, 8>[2]>{0x400002C, 0x10};
 
     struct background_matrix {
         fixed<short> p[4];
