@@ -23,13 +23,13 @@
         ::test::expect_nz_impl((expr), #expr, __FILE__, __LINE__, true); \
     } while (0)
 
-#define EXPECT_EQ(actual, expected) \
-    test::expect_eq_impl((actual), (expected), #actual, #expected, __FILE__, __LINE__)
+// Modern C++20/23 approach using __VA_OPT__
+// This handles template arguments with commas properly
+#define EXPECT_EQ(...) \
+    ::test::expect_eq_impl(__VA_ARGS__ __VA_OPT__(,) "LHS", "RHS", __FILE__, __LINE__)
 
-#define ASSERT_EQ(a,b) \
-    do { \
-        ::test::expect_eq_impl((a), (b), #a, #b, __FILE__, __LINE__, true); \
-    } while (0)
+#define ASSERT_EQ(...) \
+    ::test::expect_eq_impl(__VA_ARGS__ __VA_OPT__(,) "LHS", "RHS", __FILE__, __LINE__, true)
 
 // Boolean assertion macros
 #define ASSERT_TRUE(cond) \

@@ -1,278 +1,116 @@
 #pragma once
 
-#include <compare>
-#include <concepts>
-#include <limits>
-#include <type_traits>
+/**
+ * @file fixed_point
+ * @brief Fixed-point arithmetic with flexible conversion policies
+ *
+ * This library provides a flexible fixed-point arithmetic implementation with
+ * configurable conversion policies through wrapper types.
+ *
+ * ## Basic Usage
+ *
+ * ```cpp
+ * gba::fixed<int, 8> a = 3.5;    // 8 fractional bits
+ * gba::fixed<int, 4> b = 1.25;   // 4 fractional bits
+ *
+ * // Direct operations (same type only)
+ * auto same = a + a;  // OK - same type
+ *
+ * // Different types require conversion wrapper
+ * // auto mixed = a + b;  // Error - different types
+ * auto mixed = as_lhs(a) + b;  // OK - explicit conversion policy
+ *
+ * // Implicit conversion only works when safe (no precision loss)
+ * fixed<int, 8> c = b;  // OK - widening (4 frac -> 8 frac, safe)
+ *
+ * // Narrowing conversions not allowed - use converter in operation
+ * // fixed<int, 4> d = a;  // Error - would lose precision
+ *
+ * // For "assignment", add zero with target type
+ * auto d = as_narrowing(a) + fixed<int, 4>(0);  // Result: fixed<int, 4>
+ * ```
+ *
+ * ## Fixed-Point Literals (_fx)
+ *
+ * Use the `_fx` suffix for compile-time fixed-point literals that can convert
+ * to any `fixed<>` type. Import just the literal namespace to avoid pulling in
+ * all of `gba`:
+ *
+ * ```cpp
+ * // Option 1: Import just the literals namespace
+ * using namespace gba::literals;
+ * auto a = 1_fx + 2.3_fx;
+ * gba::fixed<int, 8> b = a;
+ *
+ * // Option 2: Import just the _fx operator
+ * using gba::literals::operator""_fx;
+ * auto c = 5_fx * 2_fx;
+ *
+ * // Option 3: Use with full gba namespace
+ * using namespace gba;
+ * fixed<int, 8> d = 1_fx + 2.3_fx;
+ *
+ * // Mix with other numeric types
+ * fixed<int, 16> e = 1_fx + 2.3f + 4LL;
+ *
+ * // Complex expressions
+ * constexpr auto result = (10_fx / 4_fx) * 2_fx - 1.5_fx;
+ * fixed<int, 8> f = result;  // f = 3.5
+ * ```
+ *
+ * The `_fx` literals are `consteval` only and exist purely at compile-time.
+ * They automatically convert to the appropriate `fixed<>` type on assignment.
+ *
+ * ## Conversion Wrappers
+ *
+ * ### Performance-oriented (best for most cases)
+ * - `as_lhs(x)` - Result matches wrapped operand's type
+ * - `as_rhs(x)` - Result matches unwrapped operand's type
+ *
+ * ### Precision-oriented
+ * - `as_narrowing(x)` - Narrow to RHS type (may lose precision)
+ * - `as_widening(x)` - Widen to higher precision (never loses data)
+ * - `as_average_frac(x)` - Average fractional bits
+ * - `as_average_int(x)` - Average integer bits
+ *
+ * ### Container-oriented
+ * - `as_next_container(x)` - Use next larger container type
+ * - `as_signed(x)` - Convert to signed (safe promotion if needed)
+ * - `as_unsigned(x)` - Convert to unsigned (lossy for negatives)
+ * - `as_word_storage(x)` - Use word-sized storage (int/unsigned int) for GBA performance
+ *
+ * ### Rounding
+ * - `with_rounding(converter)` - Add rounding to any converter
+ *
+ * ## Type Parameters
+ *
+ * ```cpp
+ * template<
+ *     std::integral Rep = int,             // Underlying integer type
+ *     unsigned int FracBits = ...,         // Number of fractional bits
+ *     std::integral IntermediateRep = ...  // Type for intermediate calculations
+ * >
+ * class fixed;
+ * ```
+ */
 
-#include <gba/bits/int_util.hpp>
+// Core fixed-point implementation
+#include <gba/bits/fixed_point/fixed_point_base.hpp>
+#include <gba/bits/fixed_point/fixed_literal.hpp>
 
-namespace gba {
+// Conversion infrastructure
+#include <gba/bits/fixed_point/conversion_wrapper.hpp>
+#include <gba/bits/fixed_point/operators.hpp>
 
-template<typename>
-struct is_fixed_point : std::false_type {};
-
-template<typename T>
-concept fixed_point = is_fixed_point<T>::value;
-
-template<typename>
-struct fixed_point_traits {};
-
-template<std::integral Rep = int, unsigned int FracBits = std::numeric_limits<std::make_unsigned_t<Rep>>::digits / 2, std::integral IntermediateRep = typename bits::int_util<Rep>::promote_type, bool Round = false>
-    requires (FracBits > 0
-        && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1
-        && sizeof(IntermediateRep) >= sizeof(Rep)
-        && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
-class fixed {
-    static constexpr auto frac_mul = IntermediateRep{1} << FracBits;
-
-    static constexpr auto convert_fixed(fixed_point auto rhs) noexcept {
-        static constexpr auto shift_right = fixed_point_traits<decltype(rhs)>::fractional_digits - fixed_point_traits<fixed>::fractional_digits;
-
-        const auto rhsData = __builtin_bit_cast(typename fixed_point_traits<decltype(rhs)>::underlying_type, rhs);
-        if constexpr (Round) {
-            const auto lsb = bits::shift_right(rhsData, shift_right - 1) & 1;
-            return bits::shift_right(rhsData + lsb, shift_right);
-        } else {
-            return bits::shift_right(rhsData, shift_right);
-        }
-    }
-
-    template<fixed_point Other>
-    static constexpr bool trivially_converts_from() {
-        if (fixed_point_traits<Other>::fractional_digits > FracBits) {
-            return false;
-        }
-
-        using other_type = typename fixed_point_traits<Other>::underlying_type;
-        if constexpr (std::is_unsigned_v<other_type>) {
-            return std::numeric_limits<other_type>::digits <= std::numeric_limits<Rep>::digits;
-        }
-
-        return std::is_signed_v<Rep>;
-    }
-
-public:
-    constexpr fixed() noexcept = default;
-
-    // ReSharper disable once CppNonExplicitConvertingConstructor
-    constexpr fixed(std::integral auto num) noexcept : m_data{static_cast<Rep>(num * frac_mul)} {} // NOLINT(*-explicit-constructor)
-
-    // ReSharper disable once CppNonExplicitConvertingConstructor
-    consteval fixed(std::floating_point auto flt) noexcept : m_data{static_cast<Rep>(Round ? flt >= 0 ? flt * frac_mul + decltype(flt){0.5} : flt * frac_mul - decltype(flt){0.5} : flt * frac_mul)} {} // NOLINT(*-explicit-constructor)
-
-    // ReSharper disable once CppNonExplicitConvertingConstructor
-    constexpr fixed(fixed_point auto rhs) noexcept requires (trivially_converts_from<decltype(rhs)>()) : m_data{static_cast<Rep>(convert_fixed(rhs))} {} // NOLINT(*-explicit-constructor)
-
-    constexpr explicit fixed(fixed_point auto rhs) noexcept requires (!trivially_converts_from<decltype(rhs)>()) : m_data{static_cast<Rep>(convert_fixed(rhs))} {}
-
-    template <std::integral T>
-    constexpr explicit operator T() const noexcept {
-        return static_cast<T>(m_data / frac_mul);
-    }
-
-    template <std::floating_point T>
-    consteval explicit operator T() const noexcept {
-        return static_cast<T>(m_data) / frac_mul;
-    }
-
-    constexpr fixed operator+() const noexcept {
-        return __builtin_bit_cast(fixed, static_cast<Rep>(+m_data));
-    }
-
-    constexpr fixed operator-() const noexcept {
-        return __builtin_bit_cast(fixed, static_cast<Rep>(-m_data));
-    }
-
-    constexpr fixed& operator+=(fixed rhs) noexcept {
-        m_data += rhs.m_data;
-        return *this;
-    }
-
-    constexpr fixed& operator+=(std::integral auto rhs) noexcept {
-        m_data += rhs * frac_mul;
-        return *this;
-    }
-
-    constexpr fixed& operator-=(fixed rhs) noexcept {
-        m_data -= rhs.m_data;
-        return *this;
-    }
-
-    constexpr fixed& operator-=(std::integral auto rhs) noexcept {
-        m_data -= rhs * frac_mul;
-        return *this;
-    }
-
-    constexpr fixed& operator*=(fixed rhs) noexcept {
-        auto prod = static_cast<IntermediateRep>(m_data) * static_cast<IntermediateRep>(rhs.m_data);
-        if constexpr (Round) {
-            if constexpr (std::is_signed_v<IntermediateRep>) {
-                const auto half = IntermediateRep{1} << (FracBits - 1);
-                prod += (prod >= 0 ? half : -half);
-            } else {
-                prod += (IntermediateRep{1} << (FracBits - 1));
-            }
-        }
-        m_data = static_cast<Rep>(bits::shift_right(prod, static_cast<int>(FracBits)));
-        return *this;
-    }
-
-    constexpr fixed& operator*=(std::integral auto rhs) noexcept {
-        m_data *= rhs;
-        return *this;
-    }
-
-    constexpr fixed& operator/=(fixed rhs) noexcept {
-        auto num = static_cast<IntermediateRep>(m_data);
-        auto den = static_cast<IntermediateRep>(rhs.m_data);
-        num = bits::shift_left(num, static_cast<int>(FracBits));
-        if constexpr (Round) {
-            if constexpr (std::is_signed_v<IntermediateRep>) {
-                const auto absden = den >= 0 ? den : -den;
-                const auto half = absden / 2;
-                // Add half if num and den have same sign; else subtract
-                if ((num >= 0) == (den >= 0)) {
-                    num += half;
-                } else {
-                    num -= half;
-                }
-            } else {
-                num += den / 2;
-            }
-        }
-        m_data = static_cast<Rep>(num / den);
-        return *this;
-    }
-
-    constexpr fixed& operator/=(std::integral auto rhs) noexcept {
-        m_data /= rhs;
-        return *this;
-    }
-private:
-    Rep m_data;
-};
-
-template<std::integral T>
-fixed(T) -> fixed<T>;
-
-template<std::floating_point F>
-fixed(F) -> fixed<int>;
-
-template<fixed_point U>
-fixed(U) -> fixed<typename fixed_point_traits<U>::underlying_type, fixed_point_traits<U>::fractional_digits>;
-
-template<fixed_point T>
-constexpr std::strong_ordering operator<=>(T lhs, T rhs) noexcept {
-    using rep = typename fixed_point_traits<T>::underlying_type;
-    return __builtin_bit_cast(rep, lhs) <=> __builtin_bit_cast(rep, rhs);
-}
-
-constexpr std::strong_ordering operator<=>(fixed_point auto lhs, std::integral auto rhs) noexcept {
-    return lhs <=> static_cast<decltype(lhs)>(rhs);
-}
-
-template<fixed_point T>
-constexpr bool operator==(T lhs, T rhs) noexcept {
-    using rep = typename fixed_point_traits<T>::underlying_type;
-    return __builtin_bit_cast(rep, lhs) == __builtin_bit_cast(rep, rhs);
-}
-
-constexpr bool operator==(fixed_point auto lhs, std::integral auto rhs) noexcept {
-    return lhs == static_cast<decltype(lhs)>(rhs);
-}
-
-// Binary arithmetic operators for fixed types and integrals
-
-template<fixed_point T>
-constexpr T operator+(T lhs, T rhs) noexcept {
-    lhs += rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator+(T lhs, std::integral auto rhs) noexcept {
-    lhs += rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator+(std::integral auto lhs, T rhs) noexcept {
-    rhs += lhs;
-    return rhs;
-}
-
-template<fixed_point T>
-constexpr T operator-(T lhs, T rhs) noexcept {
-    lhs -= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator-(T lhs, std::integral auto rhs) noexcept {
-    lhs -= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator-(std::integral auto lhs, T rhs) noexcept {
-    T tmp{lhs};
-    tmp -= rhs;
-    return tmp;
-}
-
-template<fixed_point T>
-constexpr T operator*(T lhs, T rhs) noexcept {
-    lhs *= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator*(T lhs, std::integral auto rhs) noexcept {
-    lhs *= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator*(std::integral auto lhs, T rhs) noexcept {
-    rhs *= lhs;
-    return rhs;
-}
-
-template<fixed_point T>
-constexpr T operator/(T lhs, T rhs) noexcept {
-    lhs /= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator/(T lhs, std::integral auto rhs) noexcept {
-    lhs /= rhs;
-    return lhs;
-}
-
-template<fixed_point T>
-constexpr T operator/(std::integral auto lhs, T rhs) noexcept {
-    T tmp{lhs};
-    tmp /= rhs;
-    return tmp;
-}
-
-template<std::integral Rep, unsigned int FracBits, std::integral IntermediateRep, bool Round>
-struct is_fixed_point<fixed<Rep, FracBits, IntermediateRep, Round>> : std::true_type {};
-
-template<typename T>
-inline constexpr auto is_fixed_point_v = is_fixed_point<T>::value;
-
-template<std::integral Rep, unsigned int FracBits, std::integral IntermediateRep, bool Round>
-struct fixed_point_traits<fixed<Rep, FracBits, IntermediateRep, Round>> {
-    static constexpr auto fractional_digits = FracBits;
-    using underlying_type = Rep;
-};
-
-}
-
-namespace std {
-    template<typename T> requires gba::is_fixed_point_v<T>
-    struct is_arithmetic<T> : std::true_type {};
-}
+// Conversion policies
+#include <gba/bits/fixed_point/converters/lhs.hpp>
+#include <gba/bits/fixed_point/converters/rhs.hpp>
+#include <gba/bits/fixed_point/converters/narrowing.hpp>
+#include <gba/bits/fixed_point/converters/widening.hpp>
+#include <gba/bits/fixed_point/converters/average_frac.hpp>
+#include <gba/bits/fixed_point/converters/average_int.hpp>
+#include <gba/bits/fixed_point/converters/next_container.hpp>
+#include <gba/bits/fixed_point/converters/to_signed.hpp>
+#include <gba/bits/fixed_point/converters/to_unsigned.hpp>
+#include <gba/bits/fixed_point/converters/word_storage.hpp>
+#include <gba/bits/fixed_point/converters/with_rounding.hpp>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <gba/angle>
 #include <gba/bits/bios.hpp>
 #include <gba/bits/constexpr_trig.hpp>
 #include <gba/fixed_point>
@@ -113,35 +114,43 @@ constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (st
     return __builtin_bit_cast(decltype(arg), result);
 }
 
+/**
+ * @brief Calculate arctangent
+ * @return 16-bit angle where 0x10000 = 360° (GBA BIOS format)
+ */
 [[nodiscard, gnu::const]]
-constexpr int ArcTan(fixed<int, 14> arg) noexcept {
+constexpr angle16 ArcTan(fixed<int, 14> arg) noexcept {
     if consteval {
-        return bits::arc_tan(__builtin_bit_cast(int, arg));
+        return angle16(static_cast<uint16_t>(bits::arc_tan(__builtin_bit_cast(int, arg))));
     } else {
         // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register auto r0 asm("r0") = __builtin_bit_cast(int, arg);
         asm volatile ("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
-        return r0 << 16 >> 16; // TODO: angle type
+        return angle16(static_cast<uint16_t>(r0));
     }
 }
 
+/**
+ * @brief Calculate arctangent of y/x
+ * @return 16-bit angle where 0x10000 = 360° (GBA BIOS format)
+ */
 [[nodiscard, gnu::const]]
-constexpr int ArcTan2(int x, int y) noexcept {
+constexpr angle16 ArcTan2(int x, int y) noexcept {
     if consteval {
-        return bits::arc_tan2(x, y);
+        return angle16(static_cast<uint16_t>(bits::arc_tan2(x, y)));
     } else {
         // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
         register auto r0 asm("r0") = x;
         register auto r1 asm("r1") = y;
         // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
         asm volatile ("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
-        return r0 << 16 >> 16; // TODO: angle type
+        return angle16(static_cast<uint16_t>(r0));
     }
 }
 
 [[nodiscard, gnu::const]]
-constexpr int ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
-    return ArcTan2(__builtin_bit_cast(typename fixed_point_traits<decltype(x)>::underlying_type, x), __builtin_bit_cast(typename fixed_point_traits<decltype(y)>::underlying_type, y));
+constexpr angle16 ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
+    return ArcTan2(bit_cast(x), bit_cast(y));
 }
 
 struct cpu_set {
@@ -197,7 +206,7 @@ struct background_parameters {
     short scr_y;
     fixed<short> sx;
     fixed<short> sy;
-    int alpha;
+    angle16 alpha;
 };
 
 [[gnu::nonnull(1, 2)]]
@@ -205,7 +214,7 @@ inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
     if consteval {
         for (std::size_t i = 0; i < num; ++i) {
             const auto& bp = src[i];
-            const unsigned int alpha16 = static_cast<unsigned int>(bp.alpha) & 0xFFFFu;
+            const unsigned int alpha16 = static_cast<unsigned int>(gba::as_raw(bp.alpha)) & 0xFFFFu;
             const auto [s, c] = bits::sin_cos(alpha16);
 
             const auto ox = static_cast<long double>(bp.tex_x);
@@ -244,7 +253,7 @@ inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
 struct object_parameters {
     fixed<short> sx;
     fixed<short> sy;
-    int alpha;
+    angle16 alpha;
 };
 
 [[gnu::nonnull(1, 2)]]
@@ -253,7 +262,7 @@ inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fi
         stride /= sizeof(short);
         for (std::size_t i = 0; i < num; ++i) {
             const auto& op = src[i];
-            const unsigned int alpha16 = static_cast<unsigned int>(op.alpha) & 0xFFFFu;
+            const unsigned int alpha16 = static_cast<unsigned int>(gba::as_raw(op.alpha)) & 0xFFFFu;
             const auto [s, c] = bits::sin_cos(alpha16);
 
             const auto sx = static_cast<long double>(op.sx);

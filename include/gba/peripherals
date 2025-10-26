@@ -345,10 +345,10 @@ namespace gba {
     inline constexpr auto reg_dmacnt_l = registral<volatile unsigned short[4]>{0x40000B8, 12};
 
     enum dest_op : unsigned short {
-        dest_opincrement,
-        dest_opdecrement,
+        dest_op_increment,
+        dest_op_decrement,
         dest_op_fixed,
-        dest_opincrement_reload
+        dest_op_increment_reload
     };
 
     enum src_op : unsigned short {

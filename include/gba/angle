@@ -1,0 +1,298 @@
+#pragma once
+
+#include <concepts>
+#include <cstdint>
+#include <limits>
+#include <numbers>
+#include <type_traits>
+#include <utility>
+
+namespace gba {
+
+template<typename>
+struct is_angle : std::false_type {};
+
+template<typename T>
+concept angle_type = is_angle<T>::value;
+
+/**
+ * @brief Lightweight angle type for circular arithmetic with debugger support
+ *
+ * This type represents an angle as an unsigned integer where the full range
+ * of the integer type equals one full rotation (360° or 2π radians).
+ *
+ * Key features:
+ * - Implicit conversion to/from underlying type (eager conversion)
+ * - Pretty-printer support for human-readable debugging
+ * - All standard arithmetic operators with wraparound
+ * - Zero runtime overhead (same as raw integer)
+ *
+ * @tparam Rep Underlying unsigned integer type (uint32_t, uint16_t, etc.)
+ *
+ * Common aliases:
+ * - angle32 = angle<uint32_t>  (32-bit precision)
+ * - angle16 = angle<uint16_t>  (16-bit precision, GBA BIOS format)
+ */
+template<std::unsigned_integral Rep = unsigned int>
+class angle {
+public:
+    using rep = Rep;
+    static constexpr unsigned int bits = std::numeric_limits<Rep>::digits;
+
+    // Default constructor
+    constexpr angle() noexcept : m_value(0) {}
+
+    // Implicit construction from raw value (eager conversion FROM int)
+    constexpr angle(Rep value) noexcept : m_value(value) {}
+
+    // Compile-time construction from radians
+    consteval angle(std::floating_point auto radians) noexcept
+        : m_value(static_cast<Rep>((radians / (2 * std::numbers::pi_v<decltype(radians)>)) * (1ULL << bits))) {}
+
+    // Implicit conversion to raw value (eager conversion TO int)
+    constexpr operator Rep() const noexcept { return m_value; }
+
+    // Arithmetic operators
+    constexpr angle& operator+=(angle rhs) noexcept {
+        m_value += rhs.m_value;
+        return *this;
+    }
+
+    constexpr angle& operator+=(Rep rhs) noexcept {
+        m_value += rhs;
+        return *this;
+    }
+
+    constexpr angle& operator-=(angle rhs) noexcept {
+        m_value -= rhs.m_value;
+        return *this;
+    }
+
+    constexpr angle& operator-=(Rep rhs) noexcept {
+        m_value -= rhs;
+        return *this;
+    }
+
+    constexpr angle& operator<<=(unsigned int shift) noexcept {
+        m_value <<= shift;
+        return *this;
+    }
+
+    constexpr angle& operator>>=(unsigned int shift) noexcept {
+        m_value >>= shift;
+        return *this;
+    }
+
+    constexpr angle operator-() const noexcept {
+        return angle(-m_value);
+    }
+
+    // Friend operators for symmetry
+    friend constexpr angle operator+(angle lhs, angle rhs) noexcept {
+        return angle(lhs.m_value + rhs.m_value);
+    }
+
+    friend constexpr angle operator+(angle lhs, Rep rhs) noexcept {
+        return angle(lhs.m_value + rhs);
+    }
+
+    friend constexpr angle operator+(Rep lhs, angle rhs) noexcept {
+        return angle(lhs + rhs.m_value);
+    }
+
+    friend constexpr angle operator-(angle lhs, angle rhs) noexcept {
+        return angle(lhs.m_value - rhs.m_value);
+    }
+
+    friend constexpr angle operator-(angle lhs, Rep rhs) noexcept {
+        return angle(lhs.m_value - rhs);
+    }
+
+    friend constexpr angle operator-(Rep lhs, angle rhs) noexcept {
+        return angle(lhs - rhs.m_value);
+    }
+
+    friend constexpr angle operator<<(angle lhs, unsigned int shift) noexcept {
+        return angle(lhs.m_value << shift);
+    }
+
+    friend constexpr angle operator>>(angle lhs, unsigned int shift) noexcept {
+        return angle(lhs.m_value >> shift);
+    }
+
+    // Comparison operators (equality only)
+    friend constexpr bool operator==(angle lhs, angle rhs) noexcept = default;
+
+
+
+private:
+    Rep m_value;
+};
+
+// Deduction guide
+template<std::unsigned_integral T>
+angle(T) -> angle<T>;
+
+// Type trait
+template<std::unsigned_integral Rep>
+struct is_angle<angle<Rep>> : std::true_type {};
+
+// Common aliases
+using angle32 = angle<uint32_t>;
+using angle16 = angle<uint16_t>;
+
+// ============================================================================
+// Helper Functions (similar to fixed<> ecosystem)
+// ============================================================================
+
+/**
+ * @brief Extract raw value from angle (canonical way to access underlying bits)
+ *
+ * Use this instead of .value() - the angle type doesn't expose members for inspection.
+ * Alternatively, just use implicit conversion or bit_cast.
+ */
+template<angle_type T>
+constexpr auto as_raw(T value) noexcept {
+    return static_cast<typename T::rep>(value);
+}
+
+/**
+ * @brief Construct angle from raw value (canonical way to construct from bits)
+ */
+template<angle_type T>
+constexpr T bit_cast(typename T::rep value) noexcept {
+    return T(value);
+}
+
+/**
+ * @brief Convert between different angle precisions
+ */
+template<angle_type To, angle_type From>
+constexpr To angle_cast(From value) noexcept {
+    constexpr auto from_bits = From::bits;
+    constexpr auto to_bits = To::bits;
+
+    const auto raw = static_cast<typename From::rep>(value);
+
+    if constexpr (to_bits > from_bits) {
+        return To(static_cast<typename To::rep>(raw) << (to_bits - from_bits));
+    } else if constexpr (to_bits < from_bits) {
+        return To(static_cast<typename To::rep>(raw >> (from_bits - to_bits)));
+    } else {
+        return To(static_cast<typename To::rep>(raw));
+    }
+}
+
+/**
+ * @brief Extract lookup table index from angle
+ *
+ * Automatically calculates shift and mask based on angle precision and table size.
+ *
+ * @tparam TableBits Number of bits in the table (11 for 2048 entries)
+ */
+template<unsigned int TableBits, angle_type T>
+constexpr unsigned int lut_index(T value) noexcept {
+    static_assert(TableBits <= T::bits, "Table size cannot exceed angle precision");
+
+    constexpr auto shift = T::bits - TableBits;
+    constexpr unsigned int mask = (1U << TableBits) - 1;
+
+    const auto raw = static_cast<typename T::rep>(value);
+    return static_cast<unsigned int>((raw >> shift) & mask);
+}
+
+/**
+ * @brief Cast angle to signed for range comparisons
+ */
+template<angle_type T>
+constexpr auto as_signed(T value) noexcept {
+    using signed_t = std::make_signed_t<typename T::rep>;
+    return static_cast<signed_t>(static_cast<typename T::rep>(value));
+}
+
+/**
+ * @brief Check if angle is within a symmetric signed range
+ *
+ * Tests if angle ∈ [negative_limit, positive_limit] using signed comparison.
+ * Commonly used for field-of-view culling.
+ */
+template<angle_type T>
+constexpr bool in_signed_range(T value, T positive_limit, T negative_limit) noexcept {
+    const auto signed_value = as_signed(value);
+    const auto pos_limit = as_signed(positive_limit);
+    const auto neg_limit = as_signed(negative_limit);
+    return signed_value <= pos_limit && signed_value >= neg_limit;
+}
+
+/**
+ * @brief Compile-time angle construction from degrees
+ */
+template<angle_type T>
+consteval T from_degrees(double degrees) noexcept {
+    constexpr auto max_val = 1ULL << T::bits;
+    return T(static_cast<typename T::rep>((degrees / 360.0) * max_val));
+}
+
+/**
+ * @brief Compile-time angle construction from radians
+ */
+template<angle_type T>
+consteval T from_radians(double radians) noexcept {
+    constexpr auto max_val = 1ULL << T::bits;
+    constexpr auto two_pi = 2.0 * std::numbers::pi;
+    return T(static_cast<typename T::rep>((radians / two_pi) * max_val));
+}
+
+// ============================================================================
+// Dedicated helpers for circular comparisons
+// ============================================================================
+
+/**
+ * @brief Counter-clockwise distance from a to b (wrap-aware)
+ */
+template<angle_type T>
+constexpr typename T::rep ccw_distance(T a, T b) noexcept {
+    return as_raw(b - a);
+}
+
+/**
+ * @brief Clockwise distance from a to b (wrap-aware)
+ */
+template<angle_type T>
+constexpr typename T::rep cw_distance(T a, T b) noexcept {
+    return as_raw(a - b);
+}
+
+/**
+ * @brief Signed delta from a to b using the angle's signed representation
+ */
+template<angle_type T>
+constexpr auto signed_delta(T a, T b) noexcept {
+    return as_signed(b - a);
+}
+
+/**
+ * @brief Check if test lies in the counter-clockwise arc from start to end (inclusive)
+ */
+template<angle_type T>
+constexpr bool is_ccw_between(T start, T end, T test) noexcept {
+    return ccw_distance(start, test) <= ccw_distance(start, end);
+}
+
+/**
+ * @brief Shift right using raw bits (avoids ambiguous operator>> conversions)
+ */
+template<angle_type T>
+constexpr T shift_right(T value, unsigned int shift) noexcept {
+    return bit_cast<T>(as_raw(value) >> shift);
+}
+
+/**
+ * @brief Shift left using raw bits (avoids ambiguous operator<< conversions)
+ */
+template<angle_type T>
+constexpr T shift_left(T value, unsigned int shift) noexcept {
+    return bit_cast<T>(as_raw(value) << shift);
+}
+
+} // namespace gba

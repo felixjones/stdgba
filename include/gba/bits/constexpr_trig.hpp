@@ -53,4 +53,13 @@ consteval std::pair<long double, long double> sin_cos(unsigned int alpha16) {
     return {sin_res, cos_res};
 }
 
+// Compute tangent from a 16-bit GBA angle
+consteval long double tan(unsigned int alpha16) {
+    const auto [sine, cosine] = sin_cos(alpha16);
+    if (cosine == 0.0L) {
+        return (sine >= 0.0L) ? 1e20L : -1e20L; // large value for undefined tangent
+    }
+    return sine / cosine;
+}
+
 } // namespace gba::bits

@@ -24,21 +24,21 @@ int main() {
     }
 
     // ArcTan tests
-    ASSERT_EQ(gba::ArcTan(0), 0);
-    ASSERT_EQ(gba::ArcTan(1), 0x2000);
-    ASSERT_EQ(gba::ArcTan(-1), -0x2000);
-    ASSERT_EQ(gba::ArcTan(32767), -0x2000);
-    ASSERT_EQ(gba::ArcTan(-32768), -0x2000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan(0)), 0);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan(1)), 0x2000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan(-1)), 0xE000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan(32767)), 0xE000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan(-32768)), 0xE000);
 
     // ArcTan2 tests
-    ASSERT_EQ(gba::ArcTan2(1, 0), 0);
-    ASSERT_EQ(gba::ArcTan2(0, 1), 0x4000);
-    ASSERT_EQ(gba::ArcTan2(-1, 0), -0x8000);
-    ASSERT_EQ(gba::ArcTan2(0, -1), -0x4000);
-    ASSERT_EQ(gba::ArcTan2(1, 1), 0x2000);
-    ASSERT_EQ(gba::ArcTan2(-1, -1), -0x6000);
-    ASSERT_EQ(gba::ArcTan2(-1, 1), 0x6000);
-    ASSERT_EQ(gba::ArcTan2(1, -1), -0x2000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(1, 0)), 0);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(0, 1)), 0x4000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(-1, 0)), 0x8000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(0, -1)), 0xC000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(1, 1)), 0x2000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(-1, -1)), 0xA000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(-1, 1)), 0x6000);
+    ASSERT_EQ(gba::as_raw(gba::ArcTan2(1, -1)), 0xE000);
 
     // BgAffineSet test
     {

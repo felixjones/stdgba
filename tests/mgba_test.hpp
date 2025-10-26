@@ -1,5 +1,7 @@
 #pragma once
 
+#include <gba/peripherals>
+
 #include <array>
 #include <cstdarg>
 #include <cstdint>
@@ -138,6 +140,52 @@ namespace test {
     template<typename U>
     struct is_registral<gba::registral<U>> : std::true_type {};
 
+    // Trait to detect if a type is gba::fixed<...>
+    template<typename T>
+    struct is_fixed_point : std::false_type {};
+    template<typename Rep, unsigned int FracBits, typename IntermediateRep>
+    struct is_fixed_point<gba::fixed<Rep, FracBits, IntermediateRep>> : std::true_type {};
+
+    // Helper to format fixed-point value as decimal
+    template<typename T>
+    inline void format_fixed_point(char* buf, size_t bufsize, const T& value) {
+        if constexpr (is_fixed_point<T>::value) {
+            // Convert to integer and fractional parts manually
+            auto raw = __builtin_bit_cast(typename gba::fixed_point_traits<T>::rep, value);
+            constexpr auto frac_bits = gba::fixed_point_traits<T>::frac_bits;
+
+            // Extract integer and fractional parts
+            using rep_type = typename gba::fixed_point_traits<T>::rep;
+            constexpr rep_type frac_mask = (1 << frac_bits) - 1;
+
+            // Handle signed types
+            bool is_negative = false;
+            rep_type abs_raw = raw;
+            if constexpr (std::is_signed_v<rep_type>) {
+                if (raw < 0) {
+                    is_negative = true;
+                    abs_raw = -raw;
+                }
+            }
+
+            auto integer_part = abs_raw >> frac_bits;
+            auto frac_part = abs_raw & frac_mask;
+
+            // Convert fractional part to decimal (4 digits)
+            // frac_part / (1 << frac_bits) * 10000
+            unsigned int frac_decimal = (static_cast<unsigned int>(frac_part) * 10000) >> frac_bits;
+
+            // Format as integer.fractional (0xhex)
+            snprintf(buf, bufsize, "%s%u.%04u (0x%X)",
+                is_negative ? "-" : "",
+                static_cast<unsigned int>(integer_part),
+                frac_decimal,
+                static_cast<unsigned int>(raw));
+        } else {
+            snprintf(buf, bufsize, "0x%X", static_cast<unsigned int>(value));
+        }
+    }
+
     // Helper to select log level
     inline int get_log_level(bool abort) {
         return abort ? MGBA_LOG_FATAL : MGBA_LOG_ERROR;
@@ -222,7 +270,13 @@ namespace test {
         if (!(a == b)) {
             failures()++;
             if (const LoggerSession s; s.ok) {
-                mgba_printf_buf(log_level, "[FAIL] %s == %s (LHS=0x%X, RHS=0x%X) @ %s:%d (fail %d)", exprA, exprB, static_cast<unsigned int>(a), static_cast<unsigned int>(b), file, line, failures());
+                // Format values differently for fixed-point types
+                char lhs_buf[64];
+                char rhs_buf[64];
+                format_fixed_point(lhs_buf, sizeof(lhs_buf), a);
+                format_fixed_point(rhs_buf, sizeof(rhs_buf), b);
+                mgba_printf_buf(log_level, "[FAIL] %s == %s (LHS=%s, RHS=%s) @ %s:%d (fail %d)",
+                    exprA, exprB, lhs_buf, rhs_buf, file, line, failures());
             }
             if (abort) {
                 if (const LoggerSession s; s.ok) {
