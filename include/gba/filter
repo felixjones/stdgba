@@ -1,3 +1,57 @@
+/**
+ * @file filter
+ * @brief Compile-time differential filtering for GBA BIOS decompression.
+ *
+ * This header provides consteval differential filter functions that process data
+ * at compile time, producing output compatible with GBA BIOS unfilter routines.
+ * Differential filtering is often combined with other compression algorithms
+ * to improve compression ratios for gradient data.
+ *
+ * @section filter_overview Overview
+ *
+ * Differential filtering stores differences between consecutive values rather
+ * than absolute values. This improves compression for data with gradual changes
+ * (e.g., audio waveforms, gradient graphics).
+ *
+ * - **8-bit filter** - Best for byte-oriented data
+ * - **16-bit filter** - Best for halfword-oriented data
+ *
+ * @section filter_example Example Usage
+ *
+ * @code{.cpp}
+ * // Apply differential filter at compile time, then LZ77 compress
+ * constexpr auto filtered_audio = gba::diff_filter<1>([] {
+ *     return std::array<unsigned char, 512>{
+ *         128, 130, 132, 134, 136, // Gradual changes filter well
+ *         // ...
+ *     };
+ * });
+ *
+ * // Further compress the filtered data
+ * constexpr auto compressed = gba::lz77_compress([] {
+ *     return filtered_audio;
+ * });
+ *
+ * // Decompress and unfilter at runtime
+ * void load_audio() {
+ *     alignas(4) std::array<unsigned char, 512> temp;
+ *     gba::LZ77UnCompWram(compressed, temp.data());
+ *     gba::Diff8bitUnFilterWram(filtered_audio, audio_buffer);
+ * }
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // Filtered/compressed with external tool
+ * extern const u8 audioDiffLZ[];
+ * LZ77UnCompWram(audioDiffLZ, temp);
+ * Diff8bitUnFilterWram(temp, audio_buffer);
+ * @endcode
+ *
+ * @see gba::Diff8bitUnFilterWram
+ * @see gba::Diff8bitUnFilterVram
+ * @see gba::Diff16bitUnFilter
+ */
 #pragma once
 
 #include <gba/bios>
@@ -11,6 +65,16 @@
 
 namespace gba {
 
+    /**
+     * @brief Apply differential filter to data.
+     *
+     * Converts absolute values to differences between consecutive values.
+     * The inverse operation is performed by the BIOS Diff*UnFilter functions.
+     *
+     * @tparam Size Differential unit size in bytes (1 or 2).
+     * @param src Source data range.
+     * @param dest Destination iterator for filtered bytes.
+     */
     template<std::size_t Size = 1> requires (Size == 1 || Size == 2)
     consteval void diff_filter(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) requires std::indirectly_writable<decltype(dest), std::byte> {
         using diff_type = std::conditional_t<Size == 1, std::uint8_t, std::uint16_t>;
@@ -40,6 +104,39 @@ namespace gba {
         }
     }
 
+    /**
+     * @brief Apply differential filter from a supplier lambda at compile time.
+     *
+     * This is the primary interface for compile-time differential filtering.
+     * Pass a lambda that returns the data to filter.
+     *
+     * @tparam Size Differential unit size in bytes (1 or 2, default 1).
+     * @param supplier Lambda returning the data to filter.
+     * @return A combined type containing uncompress_header and filtered data.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Apply 8-bit differential filter at compile time
+     * constexpr auto filtered_gradient = gba::diff_filter<1>([] {
+     *     return std::array<unsigned char, 64>{
+     *         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10,  // Sequential data
+     *         // ... gradients become small differences
+     *     };
+     * });
+     *
+     * // Decompress and unfilter at runtime
+     * void load_gradient() {
+     *     std::array<unsigned char, 64> buffer;
+     *     gba::Diff8bitUnFilterWram(filtered_gradient, buffer.data());
+     * }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * extern const u8 gradientDiff[];
+     * Diff8bitUnFilterWram(gradientDiff, buffer);
+     * @endcode
+     */
     template<std::size_t Size = 1>
     consteval auto diff_filter(auto supplier) {
         using supplied_type = decltype(supplier());
@@ -63,8 +160,38 @@ namespace gba {
         }, std::bit_cast<buffer_type>(buffer)};
     }
 
+    /**
+     * @brief Helper type for unfiltering compressed+filtered data.
+     *
+     * Provides proper header information for data that was first filtered
+     * then compressed. Used to specify the unfilter parameters separately
+     * from the decompression parameters.
+     *
+     * @tparam UnpackedType The type returned from a compression function.
+     * @tparam Size Differential unit size in bytes (1 or 2, default 1).
+     *
+     * Example:
+     * @code{.cpp}
+     * // Compress filtered data
+     * constexpr auto compressed_filtered = gba::lz77_compress([] {
+     *     return gba::diff_filter<1>([] {
+     *         return std::array<unsigned char, 256>{ 0, 1, 2, 3 }; // gradient data
+     *     });
+     * });
+     *
+     * // Create unfilter header
+     * using unfilter_type = gba::filtered_unpacked_array<decltype(compressed_filtered)>;
+     *
+     * void load_data() {
+     *     unfilter_type temp;
+     *     gba::LZ77UnCompWram(compressed_filtered, temp.data());
+     *     gba::Diff8bitUnFilterWram(temp, final_buffer.data());
+     * }
+     * @endcode
+     */
     template<typename UnpackedType, std::size_t Size = 1> requires (Size == 1 || Size == 2)
     struct filtered_unpacked_array : uncompress_header, std::array<typename UnpackedType::unpacked_array::value_type, UnpackedType::unpacked_size::value> {
+        /// @brief Construct with appropriate unfilter header.
         constexpr filtered_unpacked_array() : uncompress_header{
             .src_len = Size,
             .comp_algo = comp_algo_diff,

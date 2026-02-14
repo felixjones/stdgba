@@ -1,3 +1,25 @@
+/**
+ * @file keyinput
+ * @brief GBA keypad input handling.
+ *
+ * This header provides a high-level interface for reading and processing GBA button inputs,
+ * including edge detection (pressed/released) and axis helpers for D-pad movement.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::keypad keys;
+ * keys = gba::reg_keyinput; // Update from hardware
+ * if (keys.pressed(gba::key_a)) { }
+ * int dx = keys.xaxis(); // -1, 0, or 1
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * key_poll();
+ * if (key_hit(KEY_A)) { }
+ * int dx = key_tri_horz();
+ * @endcode
+ */
 #pragma once
 
 #include <gba/peripherals>
@@ -6,13 +28,31 @@
 
 namespace gba {
 
+    /**
+     * @brief Key mask type for combining button flags.
+     *
+     * Use the predefined key constants and combine with operator|.
+     *
+     * Example:
+     * @code{.cpp}
+     * auto combo = gba::key_a | gba::key_b;
+     * @endcode
+     */
     struct key {
+        /// @brief Construct a key mask from a raw bitmask.
+        /// @param data The raw key bitmask.
         explicit constexpr key(const int data) noexcept : m_data{data} {}
 
+        /// @brief Combine two key masks.
+        /// @param rhs The other key mask.
+        /// @return Combined key mask.
         constexpr key operator|(const key rhs) const noexcept {
             return key{m_data | rhs.m_data};
         }
 
+        /// @brief Combine with another key mask in-place.
+        /// @param rhs The other key mask.
+        /// @return Reference to this key mask.
         constexpr key& operator|=(const key rhs) noexcept {
             m_data |= rhs.m_data;
             return *this;
@@ -21,20 +61,58 @@ namespace gba {
         int m_data;
     };
 
-    inline constexpr auto key_a = key{0x0001};
-    inline constexpr auto key_b = key{0x0002};
-    inline constexpr auto key_select = key{0x0004};
-    inline constexpr auto key_start = key{0x0008};
-    inline constexpr auto key_right = key{0x0010};
-    inline constexpr auto key_left = key{0x0020};
-    inline constexpr auto key_up = key{0x0040};
-    inline constexpr auto key_down = key{0x0080};
-    inline constexpr auto key_r = key{0x0100};
-    inline constexpr auto key_l = key{0x0200};
+    inline constexpr auto key_a = key{0x0001};      ///< A button
+    inline constexpr auto key_b = key{0x0002};      ///< B button
+    inline constexpr auto key_select = key{0x0004}; ///< Select button
+    inline constexpr auto key_start = key{0x0008};  ///< Start button
+    inline constexpr auto key_right = key{0x0010};  ///< D-pad right
+    inline constexpr auto key_left = key{0x0020};   ///< D-pad left
+    inline constexpr auto key_up = key{0x0040};     ///< D-pad up
+    inline constexpr auto key_down = key{0x0080};   ///< D-pad down
+    inline constexpr auto key_r = key{0x0100};      ///< R shoulder button
+    inline constexpr auto key_l = key{0x0200};      ///< L shoulder button
 
+    /// @brief Common soft-reset button combination (A+B+Select+Start).
     inline constexpr auto reset_combo = key_a | key_b | key_select | key_start;
 
+    /**
+     * @brief Keypad state tracker with edge detection.
+     *
+     * Tracks current and previous key states to detect pressed/released edges.
+     * Update each frame by assigning the inverted key input register.
+     *
+     * Example:
+     * @code{.cpp}
+     * gba::keypad keys;
+     * // In game loop:
+     * keys = gba::reg_keyinput;
+     * if (keys.pressed(gba::key_a)) { // A just pressed this frame }
+     * if (keys.held(gba::key_b)) { // B is currently held }
+     * if (keys.released(gba::key_start)) { // Start just released }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * key_poll();
+     * if (key_hit(KEY_A)) { }
+     * if (key_is_down(KEY_B)) { }
+     * if (key_released(KEY_START)) { }
+     * @endcode
+     */
     struct keypad {
+        /// @brief Update keypad state from hardware.
+        /// @param keys The current key state from reg_keyinput (active-low handled internally).
+        /// @return Reference to this keypad.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// keys = gba::reg_keyinput;
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// key_poll();
+        /// @endcode
         constexpr keypad& operator=(const key_control keys) noexcept {
             if consteval {
                 const auto data = __builtin_bit_cast(short, keys);
@@ -56,6 +134,21 @@ namespace gba {
             return *this;
         }
 
+        /// @brief Check if keys were just pressed this frame.
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @param keys The key(s) to check.
+        /// @return True if the condition is met.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// if (keys.pressed(gba::key_a)) { } // A just pressed
+        /// if (keys.pressed<std::logical_or>(gba::key_a, gba::key_b)) { } // A or B just pressed
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// if (key_hit(KEY_A)) { }
+        /// @endcode
         template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool pressed(Keys... keys) const noexcept {
@@ -77,6 +170,20 @@ namespace gba {
             }
         }
 
+        /// @brief Check if keys were just released this frame.
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @param keys The key(s) to check.
+        /// @return True if the condition is met.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// if (keys.released(gba::key_a)) { } // A just released
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// if (key_released(KEY_A)) { }
+        /// @endcode
         template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool released(Keys... keys) const noexcept {
@@ -98,6 +205,21 @@ namespace gba {
             }
         }
 
+        /// @brief Check if keys are currently held down.
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @param keys The key(s) to check.
+        /// @return True if the condition is met.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// if (keys.held(gba::key_a)) { } // A is held
+        /// if (keys.held<std::logical_and>(gba::key_l, gba::key_r)) { } // L and R both held
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// if (key_is_down(KEY_A)) { }
+        /// @endcode
         template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool held(Keys... keys) const noexcept {
@@ -115,6 +237,19 @@ namespace gba {
             }
         }
 
+        /// @brief Get horizontal axis value from D-pad.
+        /// @return -1 (left), 0 (none), or 1 (right).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int dx = keys.xaxis();
+        /// player.x += dx;
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// int dx = key_tri_horz();
+        /// @endcode
         [[nodiscard]]
         constexpr int xaxis() const noexcept {
             int keys = m_data;
@@ -126,6 +261,19 @@ namespace gba {
 #endif
         }
 
+        /// @brief Get vertical axis value from D-pad.
+        /// @return -1 (up), 0 (none), or 1 (down).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int dy = keys.yaxis();
+        /// player.y += dy;
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// int dy = key_tri_vert();
+        /// @endcode
         [[nodiscard]]
         constexpr int yaxis() const noexcept {
             int keys = m_data;
@@ -137,6 +285,13 @@ namespace gba {
 #endif
         }
 
+        /// @brief Get inverted horizontal axis value from D-pad.
+        /// @return -1 (right), 0 (none), or 1 (left).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int dx = keys.i_xaxis();
+        /// @endcode
         [[nodiscard]]
         constexpr int i_xaxis() const noexcept {
             int keys = m_data;
@@ -148,6 +303,13 @@ namespace gba {
 #endif
         }
 
+        /// @brief Get inverted vertical axis value from D-pad.
+        /// @return -1 (down), 0 (none), or 1 (up).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int dy = keys.i_yaxis();
+        /// @endcode
         [[nodiscard]]
         constexpr int i_yaxis() const noexcept {
             int keys = m_data;
@@ -159,6 +321,13 @@ namespace gba {
 #endif
         }
 
+        /// @brief Get shoulder button axis value.
+        /// @return -1 (L), 0 (none), or 1 (R).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int lr = keys.lraxis();
+        /// @endcode
         [[nodiscard]]
         constexpr int lraxis() const noexcept {
             int keys = m_data;
@@ -170,6 +339,13 @@ namespace gba {
 #endif
         }
 
+        /// @brief Get inverted shoulder button axis value.
+        /// @return -1 (R), 0 (none), or 1 (L).
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// int lr = keys.i_lraxis();
+        /// @endcode
         [[nodiscard]]
         constexpr int i_lraxis() const noexcept {
             int keys = m_data;

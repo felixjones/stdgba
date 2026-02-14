@@ -1,3 +1,26 @@
+/**
+ * @file video
+ * @brief GBA video memory abstractions and sprite/tile types.
+ *
+ * This header provides C++ abstractions for GBA video memory regions including
+ * palette RAM, VRAM, and OAM, as well as types for colors, tiles, and objects.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Set background color to red
+ * gba::pal_bg_mem[0] = { .red = 31 };
+ * // Create a simple sprite
+ * gba::obj_mem[0] = { .x = 120, .y = 80, .tile_index = 0 };
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * pal_bg_mem[0] = RGB15(31, 0, 0);
+ * obj_mem[0].attr0 = OBJ_Y(80);
+ * obj_mem[0].attr1 = OBJ_X(120);
+ * obj_mem[0].attr2 = 0;
+ * @endcode
+ */
 #pragma once
 
 #include <gba/peripherals>
@@ -6,102 +29,420 @@
 
 namespace gba {
 
+/// @brief Full palette memory (BG + OBJ, 512 colors).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_pal[0] = 0x7FFF; // White
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_mem[0] = 0x7FFF;
+/// @endcode
 inline constexpr auto mem_pal = registral<short[512]>{0x5000000};
+
+/// @brief Background palette memory (256 colors).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_pal_bg[0] = 0x001F; // Red
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_bg_mem[0] = RGB15(31, 0, 0);
+/// @endcode
 inline constexpr auto mem_pal_bg = registral<short[256]>{0x5000000};
+
+/// @brief Object palette memory (256 colors).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_pal_obj[0] = 0x03E0; // Green
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_obj_mem[0] = RGB15(0, 31, 0);
+/// @endcode
 inline constexpr auto mem_pal_obj = registral<short[256]>{0x5000200};
 
+/**
+ * @brief 15-bit BGR color.
+ *
+ * GBA uses 15-bit color with 5 bits per channel in BGR order.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::color white = { .red = 31, .green = 31, .blue = 31 };
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * COLOR white = RGB15(31, 31, 31);
+ * @endcode
+ */
 struct alignas(unsigned short) color {
-    unsigned short red : 5;
-    unsigned short green : 5;
-    unsigned short blue : 5;
-    unsigned short : 1;
-    //TODO: green_lo bit
+    unsigned short red : 5;   ///< Red channel (0-31)
+    unsigned short green : 5; ///< Green channel (0-31)
+    unsigned short blue : 5;  ///< Blue channel (0-31)
+    unsigned short : 1; //TODO: green_lo bit
 };
 static_assert(sizeof(color) == 2);
 static_assert(alignof(color) == 2);
 
+/// @brief Background palette as color array.
+///
+/// Example:
+/// @code{.cpp}
+/// gba::pal_bg_mem[0] = { .red = 31 };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_bg_mem[0] = RGB15(31, 0, 0);
+/// @endcode
 inline constexpr auto pal_bg_mem = registral_cast<color[256]>(mem_pal_bg);
+
+/// @brief Object palette as color array.
+///
+/// Example:
+/// @code{.cpp}
+/// gba::pal_obj_mem[0] = { .green = 31 };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_obj_mem[0] = RGB15(0, 31, 0);
+/// @endcode
 inline constexpr auto pal_obj_mem = registral_cast<color[256]>(mem_pal_obj);
 
+/// @brief Background palette as 16-color banks (for 4bpp modes).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::pal_bg_bank[0][1] = { .blue = 31 }; // Bank 0, color 1
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_bg_bank[0][1] = RGB15(0, 0, 31);
+/// @endcode
 inline constexpr auto pal_bg_bank = registral<color[16][16]>(0x5000000);
+
+/// @brief Object palette as 16-color banks (for 4bpp modes).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::pal_obj_bank[0][1] = { .red = 16, .green = 16 }; // Bank 0, color 1
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_obj_bank[0][1] = RGB15(16, 16, 0);
+/// @endcode
 inline constexpr auto pal_obj_bank = registral<color[16][16]>(0x5000200);
 
+/// @brief Full VRAM (96KB).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_vram[0] = 0x0000;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// vid_mem[0] = 0x0000;
+/// @endcode
 inline constexpr auto mem_vram = registral<short[0xC000]>{0x6000000};
+
+/// @brief Background VRAM (64KB).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_vram_bg[0] = 0x0000;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// vid_mem[0] = 0x0000;
+/// @endcode
 inline constexpr auto mem_vram_bg = registral<short[0x8000]>{0x6000000};
+
+/// @brief Object VRAM (32KB).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_vram_obj[0] = 0x0000;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// tile_mem_obj[0][0] = 0x0000;
+/// @endcode
 inline constexpr auto mem_vram_obj = registral<short[0x4000]>{0x6010000};
 
+/**
+ * @brief Object rendering mode.
+ */
 enum mode : short {
-    mode_normal = 0,
-    mode_blend = 1,
-    mode_window = 2,
+    mode_normal = 0, ///< Normal rendering
+    mode_blend = 1,  ///< Alpha blending enabled
+    mode_window = 2  ///< Object window mode
 };
 
+/**
+ * @brief Object/tile color depth.
+ */
 enum depth : short {
-    depth_4bpp = 0,
-    depth_8bpp = 1,
+    depth_4bpp = 0, ///< 4 bits per pixel (16 colors)
+    depth_8bpp = 1  ///< 8 bits per pixel (256 colors)
 };
 
+/**
+ * @brief Object shape.
+ */
 enum shape : short {
-    shape_square = 0,
-    shape_wide = 1,
-    shape_tall = 2,
+    shape_square = 0, ///< Square (size determines dimensions)
+    shape_wide = 1,   ///< Wider than tall
+    shape_tall = 2    ///< Taller than wide
 };
 
+/**
+ * @brief OAM object (sprite) entry.
+ *
+ * Represents a hardware sprite with position, appearance, and transformation settings.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::obj_mem[0] = { .y = 80, .x = 120, .tile_index = 0 };
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * obj_mem[0].attr0 = OBJ_Y(80);
+ * obj_mem[0].attr1 = OBJ_X(120);
+ * obj_mem[0].attr2 = 0;
+ * @endcode
+ */
 struct alignas(short) object {
     // Attribute 0
-    unsigned short y : 8;
+    unsigned short y : 8;      ///< Y coordinate (0-255)
     bool : 1;
-    bool disable : 1;
-    gba::mode mode : 2;
-    bool mosaic : 1;
-    gba::depth depth : 1;
-    gba::shape shape : 2;
+    bool disable : 1;          ///< Disable object (hide)
+    gba::mode mode : 2;        ///< Rendering mode
+    bool mosaic : 1;           ///< Enable mosaic effect
+    gba::depth depth : 1;      ///< Color depth (4bpp/8bpp)
+    gba::shape shape : 2;      ///< Object shape
 
     // Attribute 1
-    unsigned short x : 9;
+    unsigned short x : 9;      ///< X coordinate (0-511)
     short : 3;
-    bool flip_x : 1;
-    bool flip_y : 1;
-    unsigned short size : 2;
+    bool flip_x : 1;           ///< Horizontal flip
+    bool flip_y : 1;           ///< Vertical flip
+    unsigned short size : 2;   ///< Size (combined with shape)
 
     // Attribute 2
-    unsigned short tile_index : 10;
-    unsigned short background : 2;
-    unsigned short palette_index : 4;
+    unsigned short tile_index : 10;   ///< Base tile index
+    unsigned short background : 2;    ///< Priority relative to BG
+    unsigned short palette_index : 4; ///< Palette bank (4bpp only)
 };
 
 static_assert(sizeof(object) == 6);
 
+/// @brief Raw OAM memory (128 entries as short arrays).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_oam[0][0] = 0x0050; // Y=80
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// oam_mem[0].attr0 = 0x0050;
+/// @endcode
 inline constexpr auto mem_oam = registral<short[128][3]>{0x7000000, sizeof(short[4])};
+
+/// @brief OAM as typed object array.
+///
+/// Example:
+/// @code{.cpp}
+/// gba::obj_mem[0] = { .y = 80, .x = 120, .tile_index = 0 };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_set_attr(&obj_mem[0], OBJ_Y(80), OBJ_X(120), 0);
+/// @endcode
 inline constexpr auto obj_mem = registral_cast<object[128]>(mem_oam);
 
+/// @brief Object affine parameters (all 128 interleaved).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_obj_aff[0] = 1.0_fx; // PA of affine entry 0
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_aff_mem[0].pa = 0x0100;
+/// @endcode
 inline constexpr auto mem_obj_aff = registral<fixed<short>[128]>{0x7000006, 8};
+
+/// @brief Object affine PA parameters (32 entries).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_obj_affa[0] = 1.0_fx; // Scale X
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_aff_mem[0].pa = 0x0100;
+/// @endcode
 inline constexpr auto mem_obj_affa = registral<fixed<short>[32]>{0x7000006, 32};
+
+/// @brief Object affine PB parameters (32 entries).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_obj_affb[0] = 0.0_fx; // Shear X
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_aff_mem[0].pb = 0x0000;
+/// @endcode
 inline constexpr auto mem_obj_affb = registral<fixed<short>[32]>{0x700000E, 32};
+
+/// @brief Object affine PC parameters (32 entries).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_obj_affc[0] = 0.0_fx; // Shear Y
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_aff_mem[0].pc = 0x0000;
+/// @endcode
 inline constexpr auto mem_obj_affc = registral<fixed<short>[32]>{0x7000016, 32};
+
+/// @brief Object affine PD parameters (32 entries).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_obj_affd[0] = 1.0_fx; // Scale Y
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// obj_aff_mem[0].pd = 0x0100;
+/// @endcode
 inline constexpr auto mem_obj_affd = registral<fixed<short>[32]>{0x700001E, 32};
 
+/// @brief Calculate charblock index from a VRAM pointer.
+/// @param ptr Pointer to tile data in VRAM.
+/// @return The charblock index (0-3).
+///
+/// Example:
+/// @code{.cpp}
+/// auto cbb = gba::char_map(tile_data_ptr);
+/// gba::reg_bgcnt[0] = { .charblock = cbb };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// // Manual calculation: ((u32)ptr - MEM_VRAM) / 0x4000
+/// @endcode
 inline constexpr auto char_map(const void* ptr) noexcept {
     return static_cast<unsigned short>(((reinterpret_cast<std::uintptr_t>(ptr) - reinterpret_cast<std::uintptr_t>(memory_map(gba::mem_vram_bg))) / 0x4000u));
 }
 
+/// @brief Calculate screenblock index from a VRAM pointer.
+/// @param ptr Pointer to tilemap data in VRAM.
+/// @return The screenblock index (0-31).
+///
+/// Example:
+/// @code{.cpp}
+/// auto sbb = gba::screen_map(tilemap_ptr);
+/// gba::reg_bgcnt[0] = { .screenblock = sbb };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// // Manual calculation: ((u32)ptr - MEM_VRAM) / 0x800
+/// @endcode
 inline constexpr auto screen_map(const void* ptr) noexcept {
     return static_cast<unsigned short>(((reinterpret_cast<std::uintptr_t>(ptr) - reinterpret_cast<std::uintptr_t>(memory_map(gba::mem_vram_bg))) / 0x800u));
 }
 
+/// @brief 4bpp tile type (32 bytes, 8x8 pixels at 4 bits each).
 using tile4bpp = std::array<unsigned int, 8>;
+
+/// @brief 8bpp tile type (64 bytes, 8x8 pixels at 8 bits each).
 using tile8bpp = std::array<unsigned int, 16>;
 
+/// @brief Tile memory as 4bpp tiles (4 charblocks of 512 tiles each).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_tile_4bpp[0][0] = my_tile_data;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// tile_mem[0][0] = my_tile_data;
+/// @endcode
 inline constexpr auto mem_tile_4bpp = registral<tile4bpp[512][4]>{0x6000000};
+
+/// @brief Tile memory as 8bpp tiles (4 charblocks of 256 tiles each).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_tile_8bpp[0][0] = my_tile_data;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// tile8_mem[0][0] = my_tile_data;
+/// @endcode
 inline constexpr auto mem_tile_8bpp = registral<tile8bpp[256][4]>{0x6000000};
 
+/**
+ * @brief Screen entry (tilemap entry).
+ *
+ * Represents a single tile reference in a background tilemap.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::mem_se[0][0] = { .tile_index = 1, .flip_horizontal = true };
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * se_mem[0][0] = SE_ID(1) | SE_HFLIP;
+ * @endcode
+ */
 struct alignas(short) screen_entry {
-    unsigned short tile_index : 10;
-    bool flip_horizontal : 1;
-    bool flip_vertical : 1;
-    unsigned short palette_index : 4;
+    unsigned short tile_index : 10;    ///< Tile index (0-1023)
+    bool flip_horizontal : 1;          ///< Horizontal flip
+    bool flip_vertical : 1;            ///< Vertical flip
+    unsigned short palette_index : 4;  ///< Palette bank (4bpp only)
 };
 
+/// @brief Screen entry memory (32 screenblocks of 1024 entries each).
+///
+/// Example:
+/// @code{.cpp}
+/// gba::mem_se[31][0] = { .tile_index = 0 };
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// se_mem[31][0] = 0;
+/// @endcode
 inline constexpr auto mem_se = registral<screen_entry[1024][32]>{0x6000000};
 
 }

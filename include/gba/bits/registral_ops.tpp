@@ -93,6 +93,9 @@ inline void write_ops::write(this const Self& lhs, typename Self::value_type&& r
     } else if constexpr (sizeof(value_type) == 2) {
         const auto value = __builtin_bit_cast(std::uint16_t, rhs);
         asm volatile ("strh %[value], [%[address]]" :: [address]"l"(lhs.m_address), [value]"l"(value) : "memory");
+    } else if constexpr (IsRegisterPlex<value_type>) {
+        const auto value = __builtin_bit_cast(std::uint32_t, rhs);
+        asm volatile ("str %[value], [%[address]]" :: [address]"l"(lhs.m_address), [value]"l"(value) : "memory");
     } else if constexpr (sizeof(value_type) == 4) {
         const auto value = __builtin_bit_cast(std::uint32_t, rhs);
         asm volatile ("str %[value], [%[address]]" :: [address]"l"(lhs.m_address), [value]"l"(value) : "memory");
@@ -127,6 +130,9 @@ inline void write_ops::write(this const Self& lhs, const typename Self::value_ty
         asm volatile ("strb %[value], [%[address]]" :: [value]"l"(rhs), [address]"l"(lhs.m_address) : "memory");
     } else if constexpr (sizeof(value_type) == 2) {
         asm volatile ("strh %[value], [%[address]]" :: [value]"l"(rhs), [address]"l"(lhs.m_address) : "memory");
+    } else if constexpr (IsRegisterPlex<value_type>) {
+        const auto value = __builtin_bit_cast(std::uint32_t, rhs);
+        asm volatile ("str %[value], [%[address]]" :: [value]"l"(value), [address]"l"(lhs.m_address) : "memory");
     } else if constexpr (sizeof(value_type) == 4) {
         asm volatile ("str %[value], [%[address]]" :: [value]"l"(rhs), [address]"l"(lhs.m_address) : "memory");
     } else if constexpr (sizeof(value_type) == 8) {

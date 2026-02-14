@@ -2,96 +2,180 @@
 
 /**
  * @file fixed_point
- * @brief Fixed-point arithmetic with flexible conversion policies
+ * @brief Fixed-point arithmetic with flexible conversion policies.
  *
- * This library provides a flexible fixed-point arithmetic implementation with
- * configurable conversion policies through wrapper types.
+ * This header provides a flexible fixed-point arithmetic implementation
+ * optimized for GBA development. Fixed-point arithmetic avoids the overhead
+ * of floating-point emulation on the ARM7TDMI processor.
  *
- * ## Basic Usage
+ * @section basic_usage Basic Usage
  *
- * ```cpp
- * gba::fixed<int, 8> a = 3.5;    // 8 fractional bits
- * gba::fixed<int, 4> b = 1.25;   // 4 fractional bits
- *
- * // Direct operations (same type only)
- * auto same = a + a;  // OK - same type
- *
- * // Different types require conversion wrapper
- * // auto mixed = a + b;  // Error - different types
- * auto mixed = as_lhs(a) + b;  // OK - explicit conversion policy
- *
- * // Implicit conversion only works when safe (no precision loss)
- * fixed<int, 8> c = b;  // OK - widening (4 frac -> 8 frac, safe)
- *
- * // Narrowing conversions not allowed - use converter in operation
- * // fixed<int, 4> d = a;  // Error - would lose precision
- *
- * // For "assignment", add zero with target type
- * auto d = as_narrowing(a) + fixed<int, 4>(0);  // Result: fixed<int, 4>
- * ```
- *
- * ## Fixed-Point Literals (_fx)
- *
- * Use the `_fx` suffix for compile-time fixed-point literals that can convert
- * to any `fixed<>` type. Import just the literal namespace to avoid pulling in
- * all of `gba`:
- *
- * ```cpp
- * // Option 1: Import just the literals namespace
+ * @code{.cpp}
  * using namespace gba::literals;
- * auto a = 1_fx + 2.3_fx;
- * gba::fixed<int, 8> b = a;
  *
- * // Option 2: Import just the _fx operator
- * using gba::literals::operator""_fx;
- * auto c = 5_fx * 2_fx;
+ * // Create fixed-point values (8.8 format by default for short)
+ * gba::fixed<short> a = 3.5_fx;
+ * gba::fixed<short> b = 1.25_fx;
  *
- * // Option 3: Use with full gba namespace
- * using namespace gba;
- * fixed<int, 8> d = 1_fx + 2.3_fx;
+ * // Arithmetic operations
+ * auto sum = a + b;      // 4.75
+ * auto product = a * b;  // 4.375
+ * auto quotient = a / b; // 2.8
  *
- * // Mix with other numeric types
- * fixed<int, 16> e = 1_fx + 2.3f + 4LL;
+ * // Convert to integer (truncates)
+ * int whole = static_cast<int>(a); // 3
+ * @endcode
  *
- * // Complex expressions
- * constexpr auto result = (10_fx / 4_fx) * 2_fx - 1.5_fx;
- * fixed<int, 8> f = result;  // f = 3.5
- * ```
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // TONCLIB uses FIXED typedef (typically 24.8)
+ * FIXED a = float2fx(3.5f);
+ * FIXED b = float2fx(1.25f);
+ * FIXED sum = a + b;
+ * FIXED product = fxmul(a, b);
+ * FIXED quotient = fxdiv(a, b);
+ * int whole = fx2int(a);
+ * @endcode
  *
- * The `_fx` literals are `consteval` only and exist purely at compile-time.
- * They automatically convert to the appropriate `fixed<>` type on assignment.
+ * @section fixed_class The fixed<> Class Template
  *
- * ## Conversion Wrappers
- *
- * ### Performance-oriented (best for most cases)
- * - `as_lhs(x)` - Result matches wrapped operand's type
- * - `as_rhs(x)` - Result matches unwrapped operand's type
- *
- * ### Precision-oriented
- * - `as_narrowing(x)` - Narrow to RHS type (may lose precision)
- * - `as_widening(x)` - Widen to higher precision (never loses data)
- * - `as_average_frac(x)` - Average fractional bits
- * - `as_average_int(x)` - Average integer bits
- *
- * ### Container-oriented
- * - `as_next_container(x)` - Use next larger container type
- * - `as_signed(x)` - Convert to signed (safe promotion if needed)
- * - `as_unsigned(x)` - Convert to unsigned (lossy for negatives)
- * - `as_word_storage(x)` - Use word-sized storage (int/unsigned int) for GBA performance
- *
- * ### Rounding
- * - `with_rounding(converter)` - Add rounding to any converter
- *
- * ## Type Parameters
- *
- * ```cpp
+ * @code{.cpp}
  * template<
- *     std::integral Rep = int,             // Underlying integer type
- *     unsigned int FracBits = ...,         // Number of fractional bits
- *     std::integral IntermediateRep = ...  // Type for intermediate calculations
+ *     std::integral Rep = int,              // Underlying integer type
+ *     unsigned int FracBits = ...,          // Fractional bits (default: half of Rep)
+ *     std::integral IntermediateRep = ...   // Type for intermediate calculations
  * >
  * class fixed;
- * ```
+ * @endcode
+ *
+ * Common configurations:
+ * - `fixed<short>` - 8.8 format (8 integer bits, 8 fractional bits)
+ * - `fixed<int>` - 16.16 format
+ * - `fixed<int, 8>` - 24.8 format (matches TONCLIB FIXED)
+ * - `fixed<short, 4>` - 12.4 format
+ *
+ * @section literals Fixed-Point Literals (_fx)
+ *
+ * The `_fx` suffix creates compile-time fixed-point literals that convert
+ * to any `fixed<>` type:
+ *
+ * @code{.cpp}
+ * using namespace gba::literals;
+ *
+ * gba::fixed<int, 8> a = 3.14159_fx;  // Converts at compile time
+ * auto b = 2_fx * 3_fx;               // Intermediate literal type
+ * gba::fixed<short> c = b;            // Converts on assignment
+ *
+ * // Compile-time constant
+ * constexpr auto pi = 3.14159_fx;
+ * constexpr gba::fixed<int, 16> precise_pi = pi;
+ * @endcode
+ *
+ * @section conversions Type Conversions
+ *
+ * Fixed-point types with different configurations require explicit conversion
+ * policies to avoid accidental precision loss:
+ *
+ * @code{.cpp}
+ * gba::fixed<int, 8> a = 3.5_fx;   // 24.8 format
+ * gba::fixed<int, 4> b = 1.25_fx;  // 28.4 format
+ *
+ * // Direct operations require same type
+ * // auto c = a + b;  // Error: different types
+ *
+ * // Use conversion wrappers for mixed operations
+ * auto c = gba::as_lhs(a) + b;      // Result is fixed<int, 8>
+ * auto d = gba::as_widening(a) + b; // Result uses more precision
+ * @endcode
+ *
+ * @section converters Conversion Wrappers
+ *
+ * ### Performance-oriented (recommended for most cases)
+ *
+ * | Wrapper | Description | Use Case |
+ * |---------|-------------|----------|
+ * | `as_lhs(x)` | Result type matches wrapped operand | When you know the desired type |
+ * | `as_rhs(x)` | Result type matches other operand | When other operand is the target |
+ *
+ * @code{.cpp}
+ * auto result = gba::as_lhs(a) + b; // Result is same type as 'a'
+ * @endcode
+ *
+ * ### Precision-oriented
+ *
+ * | Wrapper | Description | Use Case |
+ * |---------|-------------|----------|
+ * | `as_narrowing(x)` | Converts to smaller precision | Intentional precision loss |
+ * | `as_widening(x)` | Converts to larger precision | Maximum precision |
+ * | `as_average_frac(x)` | Averages fractional bits | Balanced precision |
+ * | `as_average_int(x)` | Averages integer bits | Balanced range |
+ *
+ * @code{.cpp}
+ * // Widen to preserve precision
+ * auto wide = gba::as_widening(low_precision) + high_precision;
+ *
+ * // Narrow when precision not needed
+ * auto narrow = gba::as_narrowing(high_precision) + low_precision;
+ * @endcode
+ *
+ * ### Container-oriented
+ *
+ * | Wrapper | Description | Use Case |
+ * |---------|-------------|----------|
+ * | `as_next_container(x)` | Promotes to larger integer type | Overflow prevention |
+ * | `as_signed(x)` | Converts to signed representation | Sign-aware operations |
+ * | `as_unsigned(x)` | Converts to unsigned representation | Bit manipulation |
+ * | `as_word_storage(x)` | Uses int/unsigned for storage | GBA performance |
+ *
+ * @code{.cpp}
+ * // Use word-sized storage for better ARM performance
+ * auto fast = gba::as_word_storage(small_fixed) + other;
+ * @endcode
+ *
+ * ### Rounding
+ *
+ * @code{.cpp}
+ * // Add rounding to any converter
+ * auto rounded = gba::with_rounding(gba::as_narrowing(x)) + y;
+ * @endcode
+ *
+ * @section bit_access Raw Bit Access
+ *
+ * @code{.cpp}
+ * gba::fixed<short> value = 1.5_fx;
+ *
+ * // Get underlying bits
+ * short raw = gba::bit_cast(value);        // 0x0180 for 8.8 format
+ * int raw_int = gba::bit_cast<int>(value); // Cast to different integer type
+ *
+ * // Useful for hardware register writes
+ * gba::reg_bg2x = gba::bit_cast<int>(x_position);
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // TONCLIB stores fixed values as plain integers
+ * FIXED value = 0x0180; // 1.5 in 24.8 format
+ * REG_BG2X = x_position; // Direct integer assignment
+ * @endcode
+ *
+ * @section traits Type Traits
+ *
+ * @code{.cpp}
+ * // Check if type is fixed-point
+ * static_assert(gba::is_fixed_point_v<gba::fixed<int>>);
+ * static_assert(gba::fixed_point<gba::fixed<short>>); // Concept
+ *
+ * // Access type properties
+ * using T = gba::fixed<int, 8>;
+ * using Traits = gba::fixed_point_traits<T>;
+ * static_assert(Traits::frac_bits == 8);
+ * static_assert(std::is_same_v<Traits::rep, int>);
+ * @endcode
+ *
+ * @see gba::fixed
+ * @see gba::fixed_point_traits
+ * @see gba::is_fixed_point_v
  */
 
 // Core fixed-point implementation

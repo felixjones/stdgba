@@ -2,7 +2,23 @@
 
 #include <concepts>
 
+namespace gba {
+    template<typename...> struct plex;
+}
+
 namespace gba::bits {
+
+/// @brief Type trait to check if a type is a plex specialization.
+template<typename T>
+struct is_plex : std::false_type {};
+
+template<typename... Ts>
+struct is_plex<gba::plex<Ts...>> : std::true_type {};
+
+/// @brief Concept for plex types that can be safely bit-casted to a register-sized integer.
+/// @note Only 32-bit plex types are supported for register writes.
+template<typename T>
+concept IsRegisterPlex = is_plex<T>::value && sizeof(T) == sizeof(unsigned int);
 
 struct read_ops {
     template<typename Self>

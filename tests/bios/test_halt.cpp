@@ -7,6 +7,8 @@
 static bool timerHit;
 
 int main() {
+    using namespace std::chrono_literals;
+
     gba::reg_ie = { .timer0 = true };
     gba::irq_handler = [](auto) static {
         timerHit = true;
@@ -14,7 +16,7 @@ int main() {
     };
     gba::reg_ime = true;
 
-    static constexpr auto one_second_timer = gba::make_timer_after(std::chrono::seconds{1}, true);
+    static constexpr auto one_second_timer = gba::make_timer(1s, true);
     static_assert(one_second_timer.has_value());
 
     timerHit = false;

@@ -1,3 +1,53 @@
+/**
+ * @file compress
+ * @brief Compile-time compression utilities for GBA BIOS decompression.
+ *
+ * This header provides consteval compression functions that compress data at
+ * compile time, producing output compatible with GBA BIOS decompression routines.
+ * This allows embedding compressed assets directly in ROM.
+ *
+ * @section compress_overview Overview
+ *
+ * All compression functions are `consteval` and execute at compile time.
+ * The compressed data includes the appropriate header for BIOS decompression.
+ *
+ * Supported algorithms:
+ * - **LZ77** - Best for data with repeated patterns (graphics, maps)
+ * - **Huffman** - Best for data with skewed symbol frequencies (text)
+ * - **RLE** - Best for data with long runs of identical values
+ * - **BitPack** - Reduces bit depth of data (e.g., 32-bit to 4-bit)
+ *
+ * @section compress_example Example Usage
+ *
+ * @code{.cpp}
+ * // Compress tilemap data at compile time
+ * constexpr auto compressed_map = gba::lz77_compress([] {
+ *     return std::array<unsigned short, 1024>{
+ *         0, 0, 0, 1, 1, 1, 2, 2, 2, // ... tile indices
+ *     };
+ * });
+ *
+ * // Decompress at runtime using BIOS
+ * void load_map() {
+ *     alignas(4) std::array<unsigned short, 1024> buffer;
+ *     gba::LZ77UnCompWram(compressed_map, buffer.data());
+ * }
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // TONCLIB requires external tool compression (grit, etc.)
+ * extern const u8 mapLZ77[];
+ * u16 buffer[1024];
+ * LZ77UnCompWram(mapLZ77, buffer);
+ * @endcode
+ *
+ * @see gba::LZ77UnCompWram
+ * @see gba::LZ77UnCompVram
+ * @see gba::HuffUnComp
+ * @see gba::RLUnCompWram
+ * @see gba::BitUnPack
+ */
 #pragma once
 
 #include <gba/bios>
@@ -16,6 +66,16 @@ namespace gba {
     //TODO: Make these work for suppliers of const char[N]
     //TODO: <gba/bits/supplier_traits.hpp>?
 
+    /**
+     * @brief Pack data to lower bit depth with specified parameters.
+     *
+     * Compresses data by reducing bit depth, compatible with BitUnPack BIOS function.
+     *
+     * @param src Source data range.
+     * @param dest Destination iterator for packed bytes.
+     * @param params Packing parameters specifying bit depths and offset.
+     * @return The packing parameters used.
+     */
     consteval const unpack_parameters& bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, const unpack_parameters& params) requires std::indirectly_writable<decltype(dest), std::byte> {
         if (params.dst_bpp == 32) {
             const auto view = bits::view_integers<std::uint32_t>(src)
@@ -86,6 +146,16 @@ namespace gba {
         throw "Unsupported destination bpp"; // TODO: 4, 2, 1 bpp types
     }
 
+    /**
+     * @brief Pack data to lower bit depth with automatic parameter detection.
+     *
+     * Analyzes the data to determine optimal packing parameters.
+     *
+     * @param src Source data range.
+     * @param dest Destination iterator for packed bytes.
+     * @param bpp Source bits per pixel (8, 16, or 32).
+     * @return The calculated packing parameters.
+     */
     consteval auto bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, int bpp) -> unpack_parameters requires std::indirectly_writable<decltype(dest), std::byte> {
         static constexpr auto src_value_size = sizeof(std::ranges::range_value_t<decltype(src)>);
 
@@ -157,6 +227,32 @@ namespace gba {
         // TODO: 4, 2, 1 bpp
     }
 
+    /**
+     * @brief Pack data from a supplier lambda at compile time.
+     *
+     * This is the primary interface for compile-time bit packing. Pass a lambda
+     * that returns the data to pack.
+     *
+     * @param supplier Lambda returning the data to pack.
+     * @return A combined type containing unpack_parameters header and packed data.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Pack 4-bit palette indices at compile time
+     * constexpr auto packed_indices = gba::bit_pack([] {
+     *     return std::array<unsigned char, 64>{
+     *         0, 1, 2, 3, 4, 5, 6, 7, // Only uses values 0-15
+     *         // ...
+     *     };
+     * });
+     *
+     * // Unpack at runtime
+     * void load_indices() {
+     *     std::array<unsigned char, 64> buffer;
+     *     gba::BitUnPack(packed_indices.data(), buffer.data(), packed_indices);
+     * }
+     * @endcode
+     */
     consteval auto bit_pack(auto supplier) {
         using supplied_type = decltype(supplier());
 
@@ -186,6 +282,13 @@ namespace gba {
         return combined{oversized.first, resizedBuffer};
     }
 
+    /**
+     * @brief LZ77 compress data to a destination iterator.
+     *
+     * @param src Source data range.
+     * @param dest Destination iterator for compressed bytes.
+     * @return Pair of (compressed size, uncompress_header).
+     */
     consteval auto lz77_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
         union block {
             std::uint8_t uncompressed{};
@@ -301,6 +404,38 @@ namespace gba {
         });
     }
 
+    /**
+     * @brief LZ77 compress data from a supplier lambda at compile time.
+     *
+     * This is the primary interface for compile-time LZ77 compression. Pass a
+     * lambda that returns the data to compress.
+     *
+     * @param supplier Lambda returning the data to compress.
+     * @return A combined type containing uncompress_header and compressed data.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Compress tile data at compile time
+     * constexpr auto compressed_tiles = gba::lz77_compress([] {
+     *     return std::array<unsigned int, 256>{
+     *         0x00000000, 0x00000000, 0x11111111, 0x11111111,
+     *         // ... repeated patterns compress well
+     *     };
+     * });
+     *
+     * // Decompress to VRAM at runtime
+     * void load_tiles() {
+     *     gba::LZ77UnCompVram(compressed_tiles, reinterpret_cast<void*>(0x06000000));
+     * }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * // Compressed with external tool
+     * extern const u8 tilesLZ77[];
+     * LZ77UnCompVram(tilesLZ77, tile_mem);
+     * @endcode
+     */
     consteval auto lz77_compress(auto supplier) {
         using supplied_type = decltype(supplier());
         static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
@@ -327,6 +462,14 @@ namespace gba {
         return combined{std::get<1>(oversized), resizedBuffer};
     }
 
+    /**
+     * @brief Huffman compress data to a destination iterator.
+     *
+     * @tparam Bits Symbol size in bits (4 or 8).
+     * @param src Source data range.
+     * @param dest Destination iterator for compressed bytes.
+     * @return Pair of (compressed size, uncompress_header).
+     */
     template<std::size_t Bits = 8>
     consteval auto huffman_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
         static_assert(Bits == 4 || Bits == 8);
@@ -454,6 +597,40 @@ namespace gba {
         });
     }
 
+    /**
+     * @brief Huffman compress data from a supplier lambda at compile time.
+     *
+     * This is the primary interface for compile-time Huffman compression. Pass a
+     * lambda that returns the data to compress. Huffman is best for data with
+     * skewed symbol frequencies (e.g., text, sparse data).
+     *
+     * @tparam Bits Symbol size in bits (4 or 8, default 8).
+     * @param supplier Lambda returning the data to compress.
+     * @return A combined type containing uncompress_header and compressed data.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Compress text data at compile time
+     * constexpr auto compressed_text = gba::huffman_compress([] {
+     *     return std::array<char, 64>{
+     *         'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd', '!',
+     *         // ... text with repeated characters compresses well
+     *     };
+     * });
+     *
+     * // Decompress at runtime
+     * void load_text() {
+     *     alignas(4) std::array<char, 64> buffer;
+     *     gba::HuffUnComp(compressed_text, buffer.data());
+     * }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * extern const u8 textHuff[];
+     * HuffUnComp(textHuff, buffer);
+     * @endcode
+     */
     template<std::size_t Bits = 8>
     consteval auto huffman_compress(auto supplier) {
         using supplied_type = decltype(supplier());
@@ -481,6 +658,15 @@ namespace gba {
         return combined{std::get<1>(oversized), resizedBuffer};
     }
 
+    /**
+     * @brief RLE compress data to a destination iterator.
+     *
+     * Run-length encoding is best for data with long runs of identical values.
+     *
+     * @param src Source data range.
+     * @param dest Destination iterator for compressed bytes.
+     * @return Pair of (compressed size, uncompress_header).
+     */
     consteval auto rle_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
         const auto view = bits::view_integers<std::uint8_t>(src);
 
@@ -532,6 +718,40 @@ namespace gba {
         });
     }
 
+    /**
+     * @brief RLE compress data from a supplier lambda at compile time.
+     *
+     * This is the primary interface for compile-time RLE compression. Pass a
+     * lambda that returns the data to compress. RLE is best for data with
+     * long runs of identical values (e.g., simple sprites, backgrounds).
+     *
+     * @param supplier Lambda returning the data to compress.
+     * @return A combined type containing uncompress_header and compressed data.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Compress sprite with many repeated pixels
+     * constexpr auto compressed_sprite = gba::rle_compress([] {
+     *     return std::array<unsigned char, 256>{
+     *         0, 0, 0, 0, 0, 0, 0, 0,  // Runs of zeros
+     *         1, 1, 1, 1, 1, 1, 1, 1,  // Runs of ones
+     *         // ... RLE compresses runs efficiently
+     *     };
+     * });
+     *
+     * // Decompress at runtime
+     * void load_sprite() {
+     *     std::array<unsigned char, 256> buffer;
+     *     gba::RLUnCompWram(compressed_sprite, buffer.data());
+     * }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * extern const u8 spriteRL[];
+     * RLUnCompWram(spriteRL, buffer);
+     * @endcode
+     */
     consteval auto rle_compress(auto supplier) {
         using supplied_type = decltype(supplier());
         static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,

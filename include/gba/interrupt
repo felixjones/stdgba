@@ -1,3 +1,32 @@
+/**
+ * @file interrupt
+ * @brief GBA interrupt handling utilities.
+ *
+ * This header provides a type-erased interrupt handler system for GBA.
+ * Handlers can be lambdas, function pointers, or callable objects.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Set up VBlank interrupt handler
+ * gba::irq_handler = [](gba::irq irq) {
+ *     // Handle VBlank
+ * };
+ *
+ * // Enable VBlank interrupt
+ * gba::reg_dispstat = { .enable_irq_vblank = true };
+ * gba::reg_ie = { .vblank = true };
+ * gba::reg_ime = true;
+ *
+ * // Clear handler
+ * gba::irq_handler = gba::nullisr;
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * irq_init(NULL);
+ * irq_add(II_VBLANK, vblank_handler);
+ * @endcode
+ */
 #pragma once
 
 #include <gba/bits/handler.hpp>
@@ -5,11 +34,100 @@
 namespace gba {
     struct irq;
 
+    /**
+     * @brief Type-erased interrupt handler.
+     *
+     * A callable wrapper that can hold lambdas, function pointers, or callable objects
+     * with small-buffer optimization (12 bytes of inline storage).
+     *
+     * @tparam Args The argument types passed to the handler when invoked.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Function pointer
+     * gba::handler<gba::irq> h1 = my_handler_func;
+     *
+     * // Lambda
+     * gba::handler<gba::irq> h2 = [](gba::irq) { };
+     *
+     * // Invoke
+     * h1(irq_flags);
+     * @endcode
+     */
     template<typename... Args>
     using handler = bits::handler<Args...>;
 
+    /**
+     * @brief Interrupt service routine manager.
+     *
+     * Manages the global interrupt handler with assignment, query, and reset operations.
+     * This is a singleton-like accessor for the ISR handler storage.
+     *
+     * Members:
+     *   - value_type: handler<irq>
+     *   - operator=(handler): Assign a new interrupt handler
+     *   - operator bool(): Check if a handler is assigned
+     *   - has_value(): Check if a handler is assigned
+     *   - value(): Get the current handler (undefined if empty)
+     *   - swap(handler&): Swap the current handler with another
+     *   - reset(): Clear the current handler
+     *   - operator==(handler): Compare with a handler
+     *
+     * Example:
+     * @code{.cpp}
+     * // Assign a handler
+     * gba::irq_handler = [](gba::irq irq) { };
+     *
+     * // Check if handler is set
+     * if (gba::irq_handler) { }
+     * if (gba::irq_handler.has_value()) { }
+     *
+     * // Get current handler
+     * auto& current = gba::irq_handler.value();
+     *
+     * // Swap handlers
+     * gba::handler<gba::irq> my_handler = [](gba::irq) { };
+     * gba::irq_handler.swap(my_handler);
+     *
+     * // Clear handler
+     * gba::irq_handler.reset();
+     * @endcode
+     */
+    using isr = bits::isr;
+
+    /// @brief Null interrupt handler (no-op).
+    ///
+    /// Use to clear or disable an interrupt handler.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::irq_handler = gba::nullisr; // Disable interrupt handling
+    /// @endcode
     inline constexpr handler<irq> nullisr;
 
-    inline constexpr bits::isr irq_handler;
+    /// @brief Global interrupt service routine handler.
+    ///
+    /// Assign a handler to process interrupts. The handler receives an irq
+    /// bitfield indicating which interrupts fired.
+    ///
+    /// @see isr for available member functions.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::irq_handler = [](gba::irq irq) {
+    ///     if (irq.vblank) {
+    ///         // Handle VBlank
+    ///     }
+    ///     if (irq.hblank) {
+    ///         // Handle HBlank
+    ///     }
+    /// };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// irq_add(II_VBLANK, vblank_handler);
+    /// @endcode
+    inline constexpr isr irq_handler;
 
 }

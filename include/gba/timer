@@ -1,3 +1,30 @@
+/**
+ * @file timer
+ * @brief GBA hardware timer utilities with std::chrono integration.
+ *
+ * This header provides utilities for configuring GBA hardware timers using
+ * standard C++ chrono durations. It handles prescaler selection and timer
+ * cascading automatically.
+ *
+ * Example:
+ * @code{.cpp}
+ * using namespace std::chrono_literals;
+ *
+ * // Create a 1 second timer with IRQ
+ * auto result = gba::make_timer(1s, true);
+ * if (result) {
+ *     auto [timers, count] = *result;
+ *     std::copy_n(timers.begin(), count, gba::reg_tmcnt.begin());
+ * }
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // Manual calculation required for cascading timers
+ * REG_TM0D = reload_value;
+ * REG_TM0CNT = TM_FREQ_1024 | TM_ENABLE;
+ * @endcode
+ */
 #pragma once
 
 #include <gba/peripherals>
@@ -7,18 +34,91 @@
 
 namespace gba {
 
+    /// @brief GBA CPU clock frequency ratio (1 / 16.78MHz).
+    ///
+    /// The GBA CPU runs at 16,777,216 Hz (2^24 Hz).
+    /// Use this ratio with std::chrono::duration to represent GBA clock cycles.
     using clock_ratio = std::ratio<1, 16777216>;
 
+    /// @brief Duration type representing GBA clock cycles (1x prescaler).
+    /// @tparam Rep The representation type (default: unsigned int).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::clock_duration<> cycles{1000}; // 1000 CPU cycles
+    /// auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(cycles);
+    /// @endcode
     template<typename Rep = unsigned int>
     using clock_duration = std::chrono::duration<Rep, clock_ratio>;
 
+    /// @brief Duration type for 64x prescaled cycles.
+    /// @tparam Rep The representation type (default: int).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::clock_duration_64<> ticks{1000}; // 1000 ticks at 64x prescaler
+    /// @endcode
+    template<typename Rep = int>
+    using clock_duration_64 = std::chrono::duration<Rep, std::ratio<64, 16777216>>;
+
+    /// @brief Duration type for 256x prescaled cycles.
+    /// @tparam Rep The representation type (default: int).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::clock_duration_256<> ticks{1000}; // 1000 ticks at 256x prescaler
+    /// @endcode
+    template<typename Rep = int>
+    using clock_duration_256 = std::chrono::duration<Rep, std::ratio<256, 16777216>>;
+
+    /// @brief Duration type for 1024x prescaled cycles.
+    /// @tparam Rep The representation type (default: int).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::clock_duration_1024<> ticks{1000}; // 1000 ticks at 1024x prescaler
+    /// @endcode
+    template<typename Rep = int>
+    using clock_duration_1024 = std::chrono::duration<Rep, std::ratio<1024, 16777216>>;
+
+    /**
+     * @brief Timer creation error codes.
+     */
     enum class timer_error {
-        unrepresentable_duration,
-        not_enough_cascade_timers
+        unrepresentable_duration, ///< Duration cannot be represented with available prescalers
+        not_enough_cascade_timers ///< Duration requires more cascade timers than available
     };
 
+    /**
+     * @brief Create timer configuration for a specific cycle duration.
+     *
+     * Configures one or more cascading timers to count the specified number of
+     * prescaled cycles. The Period must match one of the GBA prescaler values
+     * (1, 64, 256, or 1024 cycles).
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period (must be a valid prescaler ratio).
+     * @param cycles The duration in prescaled cycles.
+     * @param irq Enable overflow IRQ on the final timer.
+     * @param cascadeTimers Maximum number of additional cascade timers to use (0-3).
+     * @return On success: pair of (timer configurations array, number of timers used).
+     *         On failure: timer_error.
+     *
+     * Example:
+     * @code{.cpp}
+     * // Create a timer counting 50000 cycles at 1024x prescaler
+     * using cycles_1024 = std::chrono::duration<int, std::ratio<1024, 16777216>>;
+     * auto result = gba::make_cycle_timer(cycles_1024{50000}, true);
+     * if (result) {
+     *     auto [timers, count] = *result;
+     *     std::copy_n(timers.begin(), count, gba::reg_tmcnt.begin());
+     * } else if (result.error() == gba::timer_error::not_enough_cascade_timers) {
+     *     // Duration requires more cascade timers than available
+     * }
+     * @endcode
+     */
     template<typename Rep, typename Period>
-    constexpr auto make_cycle_timer(std::chrono::duration<Rep, Period> cycles, bool irq = false, std::size_t cascadeTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+    constexpr auto make_cycle_timer(std::chrono::duration<Rep, Period> cycles, bool irq = false, std::size_t cascadeTimers = 3) -> std::expected<std::pair<std::array<timer_config, 4>, std::size_t>, timer_error> {
         static_assert(
             std::ratio_equal_v<Period, clock_ratio> ||
             std::ratio_equal_v<Period, std::ratio_divide<clock_ratio, std::ratio<1, 64>>> ||
@@ -32,7 +132,7 @@ namespace gba {
 
         if (cycles.count() < 0x10000) {
             return {{{
-                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .overflow_irq = irq, .enabled = true })
+                timer_config{static_cast<unsigned short>(-cycles.count()), { .cycles = cycles_constant, .overflow_irq = irq, .enabled = true }}
             }, 1}};
         }
 
@@ -45,8 +145,8 @@ namespace gba {
         cycles -= cascade1;
         if (cascade1.count() < 0x10000) {
             return {{{
-                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
-                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+                timer_config{static_cast<unsigned short>(-cycles.count()), { .cycles = cycles_constant, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade1.count()), { .cascade = true, .overflow_irq = irq, .enabled = true }}
             }, 2}};
         }
 
@@ -59,9 +159,9 @@ namespace gba {
         cascade1 -= cascade2;
         if (cascade2.count() < 0x10000) {
             return {{{
-                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
-                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .enabled = true }),
-                std::make_pair(-cascade2.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+                timer_config{static_cast<unsigned short>(-cycles.count()), { .cycles = cycles_constant, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade1.count()), { .cascade = true, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade2.count()), { .cascade = true, .overflow_irq = irq, .enabled = true }}
             }, 3}};
         }
 
@@ -73,18 +173,48 @@ namespace gba {
         cascade2 -= cascade3;
         if (cascade3.count() < 0x10000) {
             return {{{
-                std::make_pair(-cycles.count(), timer_control{ .cycles = cycles_constant, .enabled = true }),
-                std::make_pair(-cascade1.count(), timer_control{ .cascade = true, .enabled = true }),
-                std::make_pair(-cascade2.count(), timer_control{ .cascade = true, .enabled = true }),
-                std::make_pair(-cascade3.count(), timer_control{ .cascade = true, .overflow_irq = irq, .enabled = true })
+                timer_config{static_cast<unsigned short>(-cycles.count()), { .cycles = cycles_constant, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade1.count()), { .cascade = true, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade2.count()), { .cascade = true, .enabled = true }},
+                timer_config{static_cast<unsigned short>(-cascade3.count()), { .cascade = true, .overflow_irq = irq, .enabled = true }}
             }, 4}};
         }
 
         return std::unexpected{timer_error::not_enough_cascade_timers};
     }
 
+    /**
+     * @brief Create timer configuration for an exact duration.
+     *
+     * Automatically selects the best prescaler to exactly represent the duration.
+     * Returns an error if the duration cannot be exactly represented.
+     *
+     * @note For most use cases, prefer make_timer() which approximates if needed.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period.
+     * @param duration The target duration.
+     * @param irq Enable overflow IRQ on the final timer.
+     * @param extraTimers Maximum number of cascade timers to use (0-3).
+     * @return On success: pair of (timer configurations array, number of timers used).
+     *         On failure: timer_error.
+     *
+     * Example:
+     * @code{.cpp}
+     * using namespace std::chrono_literals;
+     *
+     * // Create an exact 1 second timer (1s is exactly representable)
+     * auto result = gba::make_timer_exact(1s, true);
+     * if (result) {
+     *     auto [timers, count] = *result;
+     *     std::copy_n(timers.begin(), count, gba::reg_tmcnt.begin());
+     * } else if (result.error() == gba::timer_error::unrepresentable_duration) {
+     *     // Duration cannot be exactly represented
+     * }
+     * @endcode
+     */
     template<typename Rep, typename Period>
-    constexpr auto make_timer(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+    constexpr auto make_timer_exact(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<timer_config, 4>, std::size_t>, timer_error> {
         using duration_1024 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 1024>>>;
         using duration_256 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 256>>>;
         using duration_64 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 64>>>;
@@ -115,8 +245,35 @@ namespace gba {
         return std::unexpected{timer_error::unrepresentable_duration};
     }
 
+    /**
+     * @brief Create timer configuration for a duration.
+     *
+     * Selects the prescaler that produces the closest approximation to the target
+     * duration, rounding to the nearest representable value. This is the recommended
+     * function for most use cases.
+     *
+     * @tparam Rep Duration representation type.
+     * @tparam Period Duration period.
+     * @param duration The target duration.
+     * @param irq Enable overflow IRQ on the final timer.
+     * @param extraTimers Maximum number of cascade timers to use (0-3).
+     * @return On success: pair of (timer configurations array, number of timers used).
+     *         On failure: timer_error::not_enough_cascade_timers.
+     *
+     * Example:
+     * @code{.cpp}
+     * using namespace std::chrono_literals;
+     *
+     * // Create a 33ms frame timer
+     * auto result = gba::make_timer(33ms, true);
+     * if (result) {
+     *     auto [timers, count] = *result;
+     *     std::copy_n(timers.begin(), count, gba::reg_tmcnt.begin());
+     * }
+     * @endcode
+     */
     template<typename Rep, typename Period>
-    constexpr auto make_timer_after(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<std::pair<unsigned short, timer_control>, 4>, std::size_t>, timer_error> {
+    constexpr auto make_timer(std::chrono::duration<Rep, Period> duration, bool irq = false, const std::size_t extraTimers = 3) -> std::expected<std::pair<std::array<timer_config, 4>, std::size_t>, timer_error> {
         using duration_1024 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 1024>>>;
         using duration_256 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 256>>>;
         using duration_64 = std::chrono::duration<Rep, std::ratio_divide<clock_ratio, std::ratio<1, 64>>>;

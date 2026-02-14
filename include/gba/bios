@@ -1,3 +1,25 @@
+/**
+ * @file bios
+ * @brief GBA BIOS function wrappers.
+ *
+ * This header provides C++ wrappers for GBA BIOS software interrupts (SWIs).
+ * Functions are constexpr where possible, falling back to BIOS calls at runtime.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Wait for vertical blank interrupt
+ * gba::VBlankIntrWait();
+ *
+ * // Calculate square root
+ * auto result = gba::Sqrt(144u); // Returns 12
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * VBlankIntrWait();
+ * u32 result = Sqrt(144);
+ * @endcode
+ */
 #pragma once
 
 #include <gba/angle>
@@ -8,37 +30,112 @@
 
 namespace gba {
 
+/**
+ * @brief Perform a soft reset, returning to the start of the ROM.
+ *
+ * @note This function never returns.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * SoftReset();
+ * @endcode
+ */
 [[noreturn]]
 inline void SoftReset() noexcept {
     asm volatile ("swi 0x0 << ((1f - . == 4) * -16); 1:");
     __builtin_unreachable();
 }
 
+/**
+ * @brief Flags for RegisterRamReset specifying which memory regions to clear.
+ */
 struct register_ram_mask {
-    bool ewram : 1;
-    bool iwram : 1;
-    bool palette : 1;
-    bool vram : 1;
-    bool oam : 1;
-    bool reg_sio : 1;
-    bool reg_sound : 1;
-    bool reg : 1;
+    bool ewram : 1;     ///< Clear external work RAM (256KB).
+    bool iwram : 1;     ///< Clear internal work RAM (32KB).
+    bool palette : 1;   ///< Clear palette RAM (1KB).
+    bool vram : 1;      ///< Clear video RAM (96KB).
+    bool oam : 1;       ///< Clear object attribute memory (1KB).
+    bool reg_sio : 1;   ///< Reset serial IO registers.
+    bool reg_sound : 1; ///< Reset sound registers.
+    bool reg : 1;       ///< Reset other registers.
 };
 
+/**
+ * @brief Reset specified memory regions and registers.
+ *
+ * @param flags Bitmask specifying which regions to reset.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Clear VRAM and OAM
+ * gba::RegisterRamReset({.vram = true, .oam = true});
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * RegisterRamReset(RESET_VRAM | RESET_OAM);
+ * @endcode
+ */
 inline void RegisterRamReset(register_ram_mask flags) noexcept {
     // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
     register auto r0 asm("r0") = flags;
     asm volatile ("swi 0x1 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3", "memory");
 }
 
+/**
+ * @brief Halt CPU until an interrupt occurs.
+ *
+ * Puts the CPU into low-power mode until any enabled interrupt fires.
+ * More efficient than busy-waiting.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::reg_ie = {.timer0 = true};
+ * gba::reg_ime = true;
+ * gba::Halt(); // Wait for timer interrupt
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * Halt();
+ * @endcode
+ */
 inline void Halt() noexcept {
     asm volatile ("swi 0x2 << ((1f - . == 4) * -16); 1:");
 }
 
+/**
+ * @brief Stop CPU and LCD until an interrupt occurs.
+ *
+ * Puts the system into deep sleep mode. Only certain interrupts
+ * (keypad, cartridge, serial) can wake the system.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * Stop();
+ * @endcode
+ */
 inline void Stop() noexcept {
     asm volatile ("swi 0x3 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
 }
 
+/**
+ * @brief Wait for specified interrupt(s) to occur.
+ *
+ * @param clearCurrent If true, clear any pending matching interrupts before waiting.
+ * @param flags The interrupt(s) to wait for.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Wait for VBlank or HBlank
+ * gba::IntrWait(true, {.vblank = true, .hblank = true});
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * IntrWait(1, IRQ_VBLANK | IRQ_HBLANK);
+ * @endcode
+ */
 inline void IntrWait(bool clearCurrent, irq flags) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto r0 asm("r0") = clearCurrent;
@@ -47,10 +144,50 @@ inline void IntrWait(bool clearCurrent, irq flags) noexcept {
     asm volatile ("swi 0x4 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)  :: "r3");
 }
 
+/**
+ * @brief Wait for vertical blank interrupt.
+ *
+ * Equivalent to IntrWait(true, {.vblank = true}). This is the standard
+ * way to synchronize game logic to the display refresh rate (~60Hz).
+ *
+ * Example:
+ * @code{.cpp}
+ * while (true) {
+ *     update_game();
+ *     render();
+ *     gba::VBlankIntrWait();
+ * }
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * VBlankIntrWait();
+ * @endcode
+ */
 inline void VBlankIntrWait() noexcept {
     asm volatile ("swi 0x5 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
 }
 
+/**
+ * @brief Signed integer division.
+ *
+ * @param number The dividend.
+ * @param denom The divisor.
+ * @return Vector containing [quotient, remainder].
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * auto [quot, rem] = gba::Div(17, 5); // quot=3, rem=2
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * int quot = Div(17, 5);
+ * int rem = DivMod(17, 5);
+ * @endcode
+ */
 [[nodiscard, gnu::const]]
 constexpr auto Div(int number, int denom) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
     if consteval {
@@ -65,6 +202,22 @@ constexpr auto Div(int number, int denom) noexcept -> int [[gnu::vector_size(siz
     }
 }
 
+/**
+ * @brief Signed integer division (ARM calling convention).
+ *
+ * Same as Div but with arguments swapped to match ARM division convention.
+ *
+ * @param denom The divisor.
+ * @param number The dividend.
+ * @return Vector containing [quotient, remainder].
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * int quot = DivArm(5, 17); // Note: args swapped vs Div
+ * @endcode
+ */
 [[nodiscard, gnu::const]]
 constexpr auto DivArm(int denom, int number) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
     if consteval {
@@ -79,6 +232,24 @@ constexpr auto DivArm(int denom, int number) noexcept -> int [[gnu::vector_size(
     }
 }
 
+/**
+ * @brief Calculate integer square root.
+ *
+ * @param arg The value to take the square root of.
+ * @return The integer square root (floor).
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * auto root = gba::Sqrt(144u); // Returns 12
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * u32 root = Sqrt(144);
+ * @endcode
+ */
 [[nodiscard, gnu::const]]
 // ReSharper disable once CppDFAConstantParameter
 constexpr unsigned int Sqrt(unsigned int arg) noexcept {
@@ -107,6 +278,19 @@ constexpr unsigned int Sqrt(unsigned int arg) noexcept {
     }
 }
 
+/**
+ * @brief Calculate square root of a fixed-point value.
+ *
+ * @tparam T Fixed-point type with <= 16 integer bits.
+ * @param arg The fixed-point value.
+ * @return The square root in the same fixed-point format.
+ *
+ * Example:
+ * @code{.cpp}
+ * using namespace gba::literals;
+ * auto root = gba::Sqrt(4.0_fx); // ~2.0
+ * @endcode
+ */
 [[nodiscard, gnu::const]]
 constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (std::numeric_limits<typename fixed_point_traits<decltype(arg)>::underlying_type>::digits <= 16) {
     const auto higherPrecision = __builtin_bit_cast(typename fixed_point_traits<decltype(arg)>::underlying_type, arg) << fixed_point_traits<decltype(arg)>::fractional_digits;
@@ -115,8 +299,23 @@ constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (st
 }
 
 /**
- * @brief Calculate arctangent
- * @return 16-bit angle where 0x10000 = 360° (GBA BIOS format)
+ * @brief Calculate arctangent.
+ *
+ * @param arg The tangent value in 1.14 fixed-point format.
+ * @return 16-bit angle where 0x10000 = 360 degrees.
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * using namespace gba::literals;
+ * auto angle = gba::ArcTan(gba::fixed<int, 14>{1.0_fx}); // ~45 degrees
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * s16 angle = ArcTan(1 << 14); // 1.0 in .14 fixed
+ * @endcode
  */
 [[nodiscard, gnu::const]]
 constexpr angle16 ArcTan(fixed<int, 14> arg) noexcept {
@@ -131,8 +330,26 @@ constexpr angle16 ArcTan(fixed<int, 14> arg) noexcept {
 }
 
 /**
- * @brief Calculate arctangent of y/x
- * @return 16-bit angle where 0x10000 = 360° (GBA BIOS format)
+ * @brief Calculate arctangent of y/x (two-argument arctangent).
+ *
+ * Determines the angle from the positive x-axis to the point (x, y).
+ * Handles all four quadrants correctly.
+ *
+ * @param x The x coordinate.
+ * @param y The y coordinate.
+ * @return 16-bit angle where 0x10000 = 360 degrees.
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * auto angle = gba::ArcTan2(100, 100); // 45 degrees
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * s16 angle = ArcTan2(100, 100);
+ * @endcode
  */
 [[nodiscard, gnu::const]]
 constexpr angle16 ArcTan2(int x, int y) noexcept {
@@ -148,19 +365,52 @@ constexpr angle16 ArcTan2(int x, int y) noexcept {
     }
 }
 
+/**
+ * @brief Calculate arctangent of y/x for fixed-point values.
+ *
+ * @param x The x coordinate (fixed-point).
+ * @param y The y coordinate (fixed-point).
+ * @return 16-bit angle where 0x10000 = 360 degrees.
+ */
 [[nodiscard, gnu::const]]
 constexpr angle16 ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
     return ArcTan2(bit_cast(x), bit_cast(y));
 }
 
+/**
+ * @brief Configuration for CpuSet memory copy/fill operation.
+ */
 struct cpu_set {
-    unsigned int count : 21;
+    unsigned int count : 21; ///< Number of units to copy/fill.
     int : 3;
-    bool fill : 1;
+    bool fill : 1;           ///< If true, fill with first value; if false, copy.
     int : 1;
-    bool set_32bit : 1;
+    bool set_32bit : 1;      ///< If true, use 32-bit transfers; if false, 16-bit.
 };
 
+/**
+ * @brief Copy or fill memory using CPU.
+ *
+ * @param src Source address (or fill value if fill mode).
+ * @param dest Destination address.
+ * @param lenmode Configuration specifying count, fill mode, and transfer size.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Copy 256 halfwords
+ * gba::CpuSet(src, dest, {.count = 256, .fill = false, .set_32bit = false});
+ *
+ * // Fill with 32-bit value
+ * unsigned int fill_val = 0;
+ * gba::CpuSet(&fill_val, dest, {.count = 100, .fill = true, .set_32bit = true});
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * CpuSet(src, dest, 256 | COPY16);
+ * CpuSet(&fill_val, dest, 100 | FILL | COPY32);
+ * @endcode
+ */
 [[gnu::nonnull(1, 2)]]
 inline void CpuSet(const void* __restrict__ src, void* __restrict__ dest, cpu_set lenmode) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
@@ -171,12 +421,37 @@ inline void CpuSet(const void* __restrict__ src, void* __restrict__ dest, cpu_se
     asm volatile ("swi 0xB << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
 }
 
+/**
+ * @brief Configuration for CpuFastSet memory copy/fill operation.
+ *
+ * @note CpuFastSet always uses 32-bit transfers and requires 4-byte alignment.
+ */
 struct cpu_fast_set {
-    unsigned int count : 21;
+    unsigned int count : 21; ///< Number of 32-bit words to copy/fill.
     int : 3;
-    bool fill : 1;
+    bool fill : 1;           ///< If true, fill with first value; if false, copy.
 };
 
+/**
+ * @brief Fast copy or fill memory using CPU.
+ *
+ * Faster than CpuSet but requires 4-byte alignment and copies in multiples of 8 words.
+ *
+ * @param src Source address (or fill value if fill mode). Must be 4-byte aligned.
+ * @param dest Destination address. Must be 4-byte aligned.
+ * @param lenmode Configuration specifying count and fill mode.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Fast copy 1024 words
+ * gba::CpuFastSet(src, dest, {.count = 1024, .fill = false});
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * CpuFastSet(src, dest, 1024);
+ * @endcode
+ */
 [[gnu::nonnull(1, 2)]]
 inline void CpuFastSet(const void* __restrict__ src, void* __restrict__ dest, cpu_fast_set lenmode) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
@@ -187,8 +462,30 @@ inline void CpuFastSet(const void* __restrict__ src, void* __restrict__ dest, cp
     asm volatile ("swi 0xC << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
 }
 
+/**
+ * @brief BIOS functions not considered "documented" by the community.
+ */
 namespace undocumented {
 
+    /**
+     * @brief Get the BIOS checksum value.
+     *
+     * @return The BIOS checksum (0xBAAE187F for official GBA BIOS).
+     *
+     * Example:
+     * @code{.cpp}
+     * auto checksum = gba::undocumented::GetBiosChecksum();
+     * if (checksum == 0xBAAE187F) {
+     *     // Running on official BIOS
+     * }
+     * @endcode
+     *
+     * TONCLIB Equivalent:
+     * @code{.c}
+     * #define SWI_GETBIOSCHECKSUM 0x0D
+     * int checksum = swi_call(SWI_GETBIOSCHECKSUM);
+     * @endcode
+     */
     [[nodiscard, gnu::const]]
     inline int GetBiosChecksum() noexcept {
         // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
@@ -199,16 +496,50 @@ namespace undocumented {
 
 }
 
+/**
+ * @brief Input parameters for BgAffineSet.
+ *
+ * Defines the transformation parameters for affine background calculation.
+ */
 struct background_parameters {
-    fixed<int, 8> tex_x;
-    fixed<int, 8> tex_y;
-    short scr_x;
-    short scr_y;
-    fixed<short> sx;
-    fixed<short> sy;
-    angle16 alpha;
+    fixed<int, 8> tex_x;  ///< Texture space center X (8.8 fixed-point).
+    fixed<int, 8> tex_y;  ///< Texture space center Y (8.8 fixed-point).
+    short scr_x;          ///< Screen space center X.
+    short scr_y;          ///< Screen space center Y.
+    fixed<short> sx;      ///< Scale X (8.8 fixed-point).
+    fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
+    angle16 alpha;        ///< Rotation angle.
 };
 
+/**
+ * @brief Calculate affine background transformation matrices.
+ *
+ * Computes the affine transformation matrix for rotated/scaled backgrounds.
+ *
+ * @param src Array of input parameters.
+ * @param dest Array of output matrices.
+ * @param num Number of transformations to calculate.
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * using namespace gba::literals;
+ * gba::background_parameters params{
+ *     .tex_x = 128.0_fx, .tex_y = 128.0_fx,
+ *     .scr_x = 120, .scr_y = 80,
+ *     .sx = 1.0_fx, .sy = 1.0_fx,
+ *     .alpha = gba::angle16::from_degrees(45)
+ * };
+ * gba::background_matrix matrix;
+ * gba::BgAffineSet(&params, &matrix, 1);
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * BgAffineSet(&src, &dest, 1);
+ * @endcode
+ */
 [[gnu::nonnull(1, 2)]]
 inline constexpr void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest, std::size_t num) noexcept {
     if consteval {
@@ -250,12 +581,46 @@ inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
     }
 }
 
+/**
+ * @brief Input parameters for ObjAffineSet.
+ *
+ * Defines the transformation parameters for affine sprite calculation.
+ */
 struct object_parameters {
-    fixed<short> sx;
-    fixed<short> sy;
-    angle16 alpha;
+    fixed<short> sx;  ///< Scale X (8.8 fixed-point).
+    fixed<short> sy;  ///< Scale Y (8.8 fixed-point).
+    angle16 alpha;    ///< Rotation angle.
 };
 
+/**
+ * @brief Calculate affine sprite transformation matrices.
+ *
+ * Computes the affine transformation matrix for rotated/scaled sprites.
+ * Can write directly to OAM with proper stride.
+ *
+ * @param src Array of input parameters.
+ * @param dest Output location for matrix coefficients.
+ * @param num Number of transformations to calculate.
+ * @param stride Byte stride between matrix elements (2 for packed, 8 for OAM).
+ *
+ * @note This function is constexpr-capable at compile time.
+ *
+ * Example:
+ * @code{.cpp}
+ * using namespace gba::literals;
+ * gba::object_parameters params{
+ *     .sx = 1.0_fx, .sy = 1.0_fx,
+ *     .alpha = gba::angle16::from_degrees(45)
+ * };
+ * gba::fixed<short> matrix[4];
+ * gba::ObjAffineSet(&params, matrix, 1, 2);
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * ObjAffineSet(&src, &dest, 1, 2);
+ * @endcode
+ */
 [[gnu::nonnull(1, 2)]]
 inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest, std::size_t num, std::size_t stride = 2) noexcept {
     if consteval {
@@ -291,19 +656,55 @@ inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fi
     }
 }
 
+/**
+ * @brief Configuration for BitUnPack decompression.
+ *
+ * Specifies how to expand packed bit data to larger bit depths.
+ */
 struct unpack_parameters {
-    unsigned short src_len;
-    unsigned char src_bpp : 4;
-    unsigned char dst_bpp : 6;
-    unsigned int dst_ofs : 31;
-    bool offset_zero : 1;
+    unsigned short src_len;   ///< Source data length in bytes.
+    unsigned char src_bpp : 4; ///< Source bits per pixel (1, 2, 4, or 8).
+    unsigned char dst_bpp : 6; ///< Destination bits per pixel (1, 2, 4, 8, 16, or 32).
+    unsigned int dst_ofs : 31; ///< Offset added to each destination unit.
+    bool offset_zero : 1;      ///< If true, add offset to zero values too.
 
+    /// @brief Calculate destination data length.
+    /// @return The required destination buffer size in bytes.
     [[nodiscard]]
     constexpr auto dst_len() const noexcept {
         return src_len * dst_bpp / src_bpp;
     }
 };
 
+/**
+ * @brief Unpack bit-packed data to larger bit depth.
+ *
+ * Expands data from lower to higher bit depth (e.g., 1bpp to 4bpp).
+ * Useful for decompressing font or tile data.
+ *
+ * @param src Source data.
+ * @param dest Destination buffer.
+ * @param unpack Configuration specifying bit depths and options.
+ *
+ * Example:
+ * @code{.cpp}
+ * // Expand 1bpp font data to 4bpp
+ * gba::unpack_parameters params{
+ *     .src_len = 256,
+ *     .src_bpp = 1,
+ *     .dst_bpp = 4,
+ *     .dst_ofs = 1,      // Color index 1 for set bits
+ *     .offset_zero = false
+ * };
+ * gba::BitUnPack(font_1bpp, font_4bpp, params);
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * BUP bup = {256, 1, 4, 1 << 31};
+ * BitUnPack(font_1bpp, font_4bpp, &bup);
+ * @endcode
+ */
 [[gnu::nonnull(1, 2)]]
 inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest, const unpack_parameters& unpack) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
@@ -314,20 +715,45 @@ inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest, con
     asm volatile ("swi 0x10 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
 }
 
+/**
+ * @brief Compression algorithm identifiers.
+ */
 enum comp_algo : unsigned int {
-    comp_algo_lz77 = 1,
-    comp_algo_huff = 2,
-    comp_algo_rl = 3,
-    comp_algo_diff = 8,
+    comp_algo_lz77 = 1, ///< LZ77 compression.
+    comp_algo_huff = 2, ///< Huffman compression.
+    comp_algo_rl = 3,   ///< Run-length encoding.
+    comp_algo_diff = 8, ///< Differential filter.
 };
 
+/**
+ * @brief Header for compressed data.
+ *
+ * Standard GBA compression header format used by LZ77, Huffman, and RLE.
+ */
 struct uncompress_header {
-    unsigned int src_len : 4;
-    // ReSharper disable once CppRedundantQualifier
-    gba::comp_algo comp_algo : 4;
-    unsigned int dst_len : 24;
+    unsigned int src_len : 4;         ///< Reserved/source unit length.
+    gba::comp_algo comp_algo : 4;     ///< Compression algorithm used.
+    unsigned int dst_len : 24;        ///< Decompressed data length in bytes.
 };
 
+/**
+ * @brief Decompress LZ77 data to work RAM.
+ *
+ * @param src Compressed data with uncompress_header.
+ * @param dest Destination buffer in WRAM or EWRAM.
+ *
+ * Example:
+ * @code{.cpp}
+ * extern const gba::uncompress_header compressed_data;
+ * char buffer[1024];
+ * gba::LZ77UnCompWram(compressed_data, buffer);
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * LZ77UnCompWram(compressed_data, buffer);
+ * @endcode
+ */
 inline void LZ77UnCompWram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -336,6 +762,19 @@ inline void LZ77UnCompWram(const uncompress_header& src, void* dest) noexcept {
     asm volatile ("swi 0x11 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Decompress LZ77 data to video RAM.
+ *
+ * @param src Compressed data with uncompress_header.
+ * @param dest Destination buffer in VRAM (must be 16-bit aligned).
+ *
+ * @note Uses 16-bit writes suitable for VRAM.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * LZ77UnCompVram(compressed_data, vram_dest);
+ * @endcode
+ */
 inline void LZ77UnCompVram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -344,6 +783,17 @@ inline void LZ77UnCompVram(const uncompress_header& src, void* dest) noexcept {
     asm volatile ("swi 0x12 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Decompress Huffman-encoded data.
+ *
+ * @param src Compressed data with uncompress_header.
+ * @param dest Destination buffer (must be 32-bit aligned).
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * HuffUnComp(compressed_data, buffer);
+ * @endcode
+ */
 inline void HuffUnComp(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -352,6 +802,17 @@ inline void HuffUnComp(const uncompress_header& src, void* dest) noexcept {
     asm volatile ("swi 0x13 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Decompress run-length encoded data to work RAM.
+ *
+ * @param src Compressed data with uncompress_header.
+ * @param dest Destination buffer in WRAM or EWRAM.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * RLUnCompWram(compressed_data, buffer);
+ * @endcode
+ */
 inline void RLUnCompWram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -360,6 +821,19 @@ inline void RLUnCompWram(const uncompress_header& src, void* dest) noexcept {
     asm volatile ("swi 0x14 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Decompress run-length encoded data to video RAM.
+ *
+ * @param src Compressed data with uncompress_header.
+ * @param dest Destination buffer in VRAM (must be 16-bit aligned).
+ *
+ * @note Uses 16-bit writes suitable for VRAM.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * RLUnCompVram(compressed_data, vram_dest);
+ * @endcode
+ */
 inline void RLUnCompVram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -368,6 +842,19 @@ inline void RLUnCompVram(const uncompress_header& src, void* dest) noexcept {
     asm volatile ("swi 0x15 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Apply 8-bit differential filter to work RAM.
+ *
+ * Reverses differential encoding on 8-bit data.
+ *
+ * @param src Filtered data with uncompress_header.
+ * @param dest Destination buffer in WRAM or EWRAM.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * Diff8bitUnFilterWram(filtered_data, buffer);
+ * @endcode
+ */
 inline void Diff8bitUnFilterWram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -376,6 +863,21 @@ inline void Diff8bitUnFilterWram(const uncompress_header& src, void* dest) noexc
     asm volatile ("swi 0x16 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Apply 8-bit differential filter to video RAM.
+ *
+ * Reverses differential encoding on 8-bit data.
+ *
+ * @param src Filtered data with uncompress_header.
+ * @param dest Destination buffer in VRAM (must be 16-bit aligned).
+ *
+ * @note Uses 16-bit writes suitable for VRAM.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * Diff8bitUnFilterVram(filtered_data, vram_dest);
+ * @endcode
+ */
 inline void Diff8bitUnFilterVram(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;
@@ -384,6 +886,19 @@ inline void Diff8bitUnFilterVram(const uncompress_header& src, void* dest) noexc
     asm volatile ("swi 0x17 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
+/**
+ * @brief Apply 16-bit differential filter.
+ *
+ * Reverses differential encoding on 16-bit data.
+ *
+ * @param src Filtered data with uncompress_header.
+ * @param dest Destination buffer.
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * Diff16bitUnFilter(filtered_data, buffer);
+ * @endcode
+ */
 inline void Diff16bitUnFilter(const uncompress_header& src, void* dest) noexcept {
     // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
     register auto* r0 asm("r0") = &src;

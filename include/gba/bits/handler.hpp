@@ -15,8 +15,7 @@ namespace gba::bits {
         constexpr handler() noexcept : m_callable{nullptr} {};
 
         template<typename T>
-        // ReSharper disable once CppNonExplicitConvertingConstructor
-        handler(T&& t) noexcept; // NOLINT(*-forwarding-reference-overload, *-explicit-constructor)
+        explicit(false) handler(T&& t) noexcept; // NOLINT(*-forwarding-reference-overload, *-explicit-constructor)
 
         handler(const handler& other) noexcept;
 
