@@ -1,15 +1,14 @@
 #include <gba/fixed_point>
+
 #include <mgba_test.hpp>
 
 int main() {
     using namespace gba;
-    using namespace gba::literals;  // Import _fx literals
+    using namespace gba::literals; // Import _fx literals
     using fix8 = fixed<int, 8>;
     using fix16 = fixed<int, 16>;
 
-    // ========================================
     // Test: Basic _fx literal usage
-    // ========================================
     {
         // Integer literal
         constexpr auto a = 5_fx;
@@ -24,9 +23,7 @@ int main() {
         EXPECT_EQ(b, fix8(3.5));
     }
 
-    // ========================================
     // Test: Arithmetic with _fx literals
-    // ========================================
     {
         // _fx + _fx
         constexpr auto result = 1_fx + 2.3_fx;
@@ -38,12 +35,10 @@ int main() {
         // Complex expression
         constexpr auto result = 1_fx + 2.3_fx - 0.5_fx * 2_fx;
         constexpr fix16 a = result;
-        EXPECT_EQ(a, fix16(2.3));  // 1 + 2.3 - 1.0 = 2.3
+        EXPECT_EQ(a, fix16(2.3)); // 1 + 2.3 - 1.0 = 2.3
     }
 
-    // ========================================
     // Test: Mixing _fx with numeric types
-    // ========================================
     {
         // _fx + int
         constexpr auto result = 1_fx + 2;
@@ -65,9 +60,7 @@ int main() {
         EXPECT_EQ(a, fix8(7));
     }
 
-    // ========================================
     // Test: Direct assignment to different fixed types
-    // ========================================
     {
         constexpr auto lit = 3.625_fx;
 
@@ -79,13 +72,11 @@ int main() {
         EXPECT_EQ(b, fix16(3.625));
     }
 
-    // ========================================
     // Test: One-liner complex expressions
-    // ========================================
     {
         // Everything in one expression
         constexpr fix8 result = 1_fx + 2.3f + 4LL - 0.5_fx;
-        EXPECT_EQ(result, fix8(6.8));  // 1 + 2.3 + 4 - 0.5 = 6.8
+        EXPECT_EQ(result, fix8(6.8)); // 1 + 2.3 + 4 - 0.5 = 6.8
     }
 
     {
@@ -94,9 +85,7 @@ int main() {
         EXPECT_EQ(result, fix16(2.5));
     }
 
-    // ========================================
     // Test: Unary operators
-    // ========================================
     {
         constexpr auto pos = +3.5_fx;
         constexpr fix8 a = pos;

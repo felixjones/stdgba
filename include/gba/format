@@ -1,0 +1,71 @@
+/// @file gba/format
+/// @brief Constexpr string formatting for GBA.
+///
+/// High-performance formatting library designed for GBA constraints:
+/// - Compile-time format string parsing
+/// - MSB-first digit emission for typewriter effects
+/// - Lazy argument evaluation
+/// - User-provided workspace memory
+/// - Word boundary lookahead for line wrapping
+///
+/// ## Basic Usage
+///
+/// @code{.cpp}
+/// #include <gba/format>
+///
+/// // With literals
+/// using namespace gba::literals;
+/// constexpr auto fmt = "HP: {hp}/{max}"_fmt;
+/// char buf[32];
+/// fmt.to(buf, "hp"_arg = 42, "max"_arg = 100);
+///
+/// // Without literals
+/// constexpr auto fmt2 = gba::format::make_format<"HP: {hp}/{max}">();
+/// constexpr auto hp = gba::format::make_arg<"hp">();
+/// constexpr auto max = gba::format::make_arg<"max">();
+/// fmt2.to(buf, hp = 42, max = 100);
+/// @endcode
+///
+/// ## Typewriter Generator
+///
+/// @code{.cpp}
+/// auto gen = fmt.generator("hp"_arg = player.hp, "max"_arg = player.max_hp);
+/// while (auto ch = gen()) {
+///     draw_char(*ch);
+///     wait_frames(2);
+/// }
+/// @endcode
+///
+/// ## Format Specifiers
+///
+/// | Syntax | Meaning |
+/// |--------|---------|
+/// | `{x}` | Default format |
+/// | `{x:d}` | Decimal integer |
+/// | `{x:x}` | Hex lowercase |
+/// | `{x:X}` | Hex uppercase |
+///
+/// ## Word Boundary Lookahead
+///
+/// @code{.cpp}
+/// auto gen = fmt.generator(...);
+/// int col = 0;
+/// while (auto ch = gen()) {
+///     if (col + gen.until_break() > 30) {
+///         newline();
+///         col = 0;
+///     }
+///     draw_char(*ch);
+///     ++col;
+/// }
+/// @endcode
+///
+/// @see gba::format::compiled_format
+/// @see gba::format::format_generator
+/// @see gba::format::make_format
+/// @see gba::format::make_arg
+#pragma once
+
+#include <gba/bits/format/fixed_string.hpp>
+#include <gba/bits/format/parse.hpp>
+#include <gba/bits/format/generator.hpp>

@@ -23,21 +23,24 @@ namespace gba::bits {
             return node;
         }
 
-        consteval const auto& front() const {
-            return heap.front();
+        consteval const auto& front() const { return heap.front(); }
+
+        [[nodiscard]]
+        consteval bool empty() const {
+            return heap.empty();
         }
 
         [[nodiscard]]
-        consteval bool empty() const { return heap.empty(); }
-
-        [[nodiscard]]
-        consteval std::size_t size() const { return heap.size(); }
+        consteval std::size_t size() const {
+            return heap.size();
+        }
     };
 
     struct huffman_node {
         consteval huffman_node(const std::uint8_t s, const std::size_t f) : symbol{s}, frequency{f} {}
 
-        consteval huffman_node(std::unique_ptr<huffman_node> l, std::unique_ptr<huffman_node> r) : symbol{}, frequency{l->frequency + r->frequency}, left{std::move(l)}, right{std::move(r)} {}
+        consteval huffman_node(std::unique_ptr<huffman_node> l, std::unique_ptr<huffman_node> r)
+            : symbol{}, frequency{l->frequency + r->frequency}, left{std::move(l)}, right{std::move(r)} {}
 
         consteval bool operator>(const huffman_node& other) const {
             if (frequency == other.frequency) {
@@ -82,4 +85,4 @@ namespace gba::bits {
         std::unique_ptr<huffman_node> right;
     };
 
-}
+} // namespace gba::bits

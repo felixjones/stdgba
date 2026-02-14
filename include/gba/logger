@@ -1,0 +1,356 @@
+/// @file gba/logger
+/// @brief Logging system with pluggable backends for emulators and custom output.
+///
+/// Supports multiple emulator debug APIs:
+/// - mGBA (0x4FFF780 debug registers)
+/// - no$gba (0x4FFFA00 signature-based)
+/// - Custom user-provided loggers
+///
+/// ## Basic Usage
+///
+/// @code{.cpp}
+/// #include <gba/logger>
+/// using namespace gba::literals;
+///
+/// int main() {
+///     // Auto-detect emulator and initialize
+///     if (gba::log::init()) {
+///         gba::log::info("Game started!");
+///         gba::log::info("HP: {hp}"_fmt, "hp"_arg = 42);
+///         gba::log::warn("Low memory");
+///     }
+/// }
+/// @endcode
+///
+/// ## Runtime Log Level Selection
+///
+/// Use `write()` when the log level is determined at runtime:
+///
+/// @code{.cpp}
+/// gba::log::level lvl = config.verbose ? gba::log::level::debug : gba::log::level::info;
+/// gba::log::write(lvl, "Message with runtime level");
+/// gba::log::write(lvl, "Value: {x}"_fmt, "x"_arg = 42);
+/// @endcode
+///
+/// ## Custom Logger
+///
+/// @code{.cpp}
+/// struct screen_logger : gba::log::backend {
+///     int line = 0;
+///     std::size_t write(gba::log::level lvl, const char* msg, std::size_t len) override {
+///         draw_text(0, line++, msg);
+///         return len;
+///     }
+/// };
+///
+/// screen_logger my_logger;
+/// gba::log::set_backend(&my_logger);
+/// @endcode
+#pragma once
+
+#include <gba/format>
+
+#include <cstddef>
+#include <cstdint>
+
+namespace gba::log {
+
+    /// @brief Log severity level.
+    ///
+    /// Lower numeric values indicate higher severity. Messages with a level
+    /// higher (less severe) than the current minimum are silently discarded.
+    enum class level : std::uint8_t {
+        fatal = 0, ///< Unrecoverable errors
+        error = 1, ///< Recoverable errors
+        warn = 2,  ///< Warnings
+        info = 3,  ///< Informational messages
+        debug = 4  ///< Debug/trace messages
+    };
+
+    namespace bits {
+        inline constexpr std::size_t buffer_size = 256;
+
+        inline volatile std::uint16_t& mgba_enable() {
+            return *reinterpret_cast<volatile std::uint16_t*>(0x4FFF780);
+        }
+
+        inline volatile std::uint16_t& mgba_flags() {
+            return *reinterpret_cast<volatile std::uint16_t*>(0x4FFF700);
+        }
+
+        inline char* mgba_buffer() {
+            return reinterpret_cast<char*>(0x4FFF600);
+        }
+
+        inline volatile std::uint16_t& nocash_enable() {
+            return *reinterpret_cast<volatile std::uint16_t*>(0x4FFFA00);
+        }
+
+        inline char* nocash_buffer() {
+            return reinterpret_cast<char*>(0x4FFFA10);
+        }
+
+        inline volatile std::uint8_t& nocash_char() {
+            return *reinterpret_cast<volatile std::uint8_t*>(0x4FFFA1C);
+        }
+    } // namespace bits
+
+    /// @brief Abstract logging backend.
+    ///
+    /// Subclass to implement custom output (screen, serial, file, etc.).
+    ///
+    /// @par Example
+    /// @code{.cpp}
+    /// struct screen_logger : gba::log::backend {
+    ///     std::size_t write(gba::log::level, const char* msg, std::size_t len) override {
+    ///         draw_text(0, line++, msg);
+    ///         return len;
+    ///     }
+    ///     int line = 0;
+    /// };
+    /// @endcode
+    struct backend {
+        virtual ~backend() = default;
+        virtual std::size_t write(level lvl, const char* msg, std::size_t len) = 0;
+        virtual void flush() {}
+    };
+
+    /// @brief mGBA emulator debug console backend.
+    ///
+    /// Writes to the mGBA debug register at 0x4FFF600. Messages are
+    /// truncated to 255 characters.
+    struct mgba_backend final : backend {
+        std::size_t write(level lvl, const char* msg, std::size_t len) override {
+            char* dest = bits::mgba_buffer();
+            std::size_t i = 0;
+            while (i < len && i < bits::buffer_size - 1) {
+                dest[i] = msg[i];
+                ++i;
+            }
+            dest[i] = '\0';
+            bits::mgba_flags() = static_cast<std::uint16_t>(lvl) | 0x100;
+            return i;
+        }
+    };
+
+    /// @brief no$gba emulator debug console backend.
+    ///
+    /// Writes characters individually to the no$gba debug port at 0x4FFFA1C.
+    struct nocash_backend final : backend {
+        std::size_t write(level, const char* msg, std::size_t len) override {
+            for (std::size_t i = 0; i < len; ++i) {
+                bits::nocash_char() = static_cast<std::uint8_t>(msg[i]);
+            }
+            bits::nocash_char() = '\n';
+            return len;
+        }
+    };
+
+    /// @brief Discard-all backend (no output).
+    struct null_backend final : backend {
+        std::size_t write(level, const char*, std::size_t len) override { return len; }
+    };
+
+    namespace bits {
+        [[gnu::section(".ewram.logger")]]
+        inline backend* current_backend = nullptr;
+        [[gnu::section(".ewram.logger")]]
+        inline level min_level = level::debug;
+        [[gnu::section(".ewram.logger")]]
+        inline mgba_backend mgba_instance;
+        [[gnu::section(".ewram.logger")]]
+        inline nocash_backend nocash_instance;
+        [[gnu::section(".ewram.logger")]]
+        inline null_backend null_instance;
+    } // namespace bits
+
+    /// @brief Detect whether running under the mGBA emulator.
+    /// @return true if mGBA debug registers respond correctly.
+    inline bool detect_mgba() {
+        bits::mgba_enable() = 0xC0DE;
+        return bits::mgba_enable() == 0x1DEA;
+    }
+
+    /// @brief Detect whether running under the no$gba emulator.
+    /// @return true if the no$gba signature is present at 0x4FFFA00.
+    inline bool detect_nocash() {
+        const char sig[] = "ings are v";
+        volatile const char* ptr = reinterpret_cast<volatile const char*>(0x4FFFA00);
+        for (int i = 0; i < 10; ++i) {
+            if (ptr[i] != sig[i]) return false;
+        }
+        return true;
+    }
+
+    /// @brief Auto-detect emulator and initialize the logging backend.
+    ///
+    /// Tries mGBA first, then no$gba. Falls back to null_backend if
+    /// neither is detected.
+    ///
+    /// @return true if an emulator backend was detected, false if using null.
+    ///
+    /// @par Example
+    /// @code{.cpp}
+    /// if (gba::log::init()) {
+    ///     gba::log::info("Running in emulator");
+    /// }
+    /// @endcode
+    inline bool init() {
+        if (detect_mgba()) {
+            bits::current_backend = &bits::mgba_instance;
+            return true;
+        }
+        if (detect_nocash()) {
+            bits::current_backend = &bits::nocash_instance;
+            return true;
+        }
+        bits::current_backend = &bits::null_instance;
+        return false;
+    }
+
+    /// @brief Set the active logging backend.
+    /// @param b Pointer to a backend instance (caller owns the lifetime).
+    inline void set_backend(backend* b) {
+        bits::current_backend = b;
+    }
+
+    /// @brief Get the current logging backend.
+    /// @return Pointer to the active backend, or nullptr if not initialized.
+    inline backend* get_backend() {
+        return bits::current_backend;
+    }
+
+    /// @brief Set the minimum log level.
+    ///
+    /// Messages with a level higher (less severe) than lvl are discarded.
+    /// @param lvl Minimum severity to output.
+    inline void set_level(level lvl) {
+        bits::min_level = lvl;
+    }
+
+    /// @brief Get the current minimum log level.
+    /// @return The current minimum severity threshold.
+    inline level get_level() {
+        return bits::min_level;
+    }
+
+    /// @brief Write a null-terminated string at the given log level.
+    /// @param lvl Severity level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written, or 0 if filtered/no backend.
+    inline std::size_t write(level lvl, const char* msg) {
+        if (!bits::current_backend) return 0;
+        if (static_cast<std::uint8_t>(lvl) > static_cast<std::uint8_t>(bits::min_level)) return 0;
+        std::size_t len = 0;
+        while (msg[len]) ++len;
+        return bits::current_backend->write(lvl, msg, len);
+    }
+
+    /// @brief Write a string with explicit length at the given log level.
+    /// @param lvl Severity level.
+    /// @param msg Message buffer (not required to be null-terminated).
+    /// @param len Number of characters to write.
+    /// @return Number of characters written, or 0 if filtered/no backend.
+    inline std::size_t write(level lvl, const char* msg, std::size_t len) {
+        if (!bits::current_backend) return 0;
+        if (static_cast<std::uint8_t>(lvl) > static_cast<std::uint8_t>(bits::min_level)) return 0;
+        return bits::current_backend->write(lvl, msg, len);
+    }
+
+    /// @brief Write a formatted message at the given log level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param lvl Severity level.
+    /// @param fmt Compiled format object (from `"..."_fmt` literal).
+    /// @param args Named arguments (from `"name"_arg = value`).
+    /// @return Number of characters written, or 0 if filtered/no backend.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t write(level lvl, format::compiled_format<Fmt> fmt, Args... args) {
+        if (!bits::current_backend) return 0;
+        if (static_cast<std::uint8_t>(lvl) > static_cast<std::uint8_t>(bits::min_level)) return 0;
+        char buf[bits::buffer_size];
+        std::size_t len = fmt.to(buf, std::move(args)...);
+        return bits::current_backend->write(lvl, buf, len);
+    }
+
+    /// @brief Log at fatal level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written.
+    inline std::size_t fatal(const char* msg) { return write(level::fatal, msg); }
+
+    /// @brief Log at error level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written.
+    inline std::size_t error(const char* msg) { return write(level::error, msg); }
+
+    /// @brief Log at warn level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written.
+    inline std::size_t warn(const char* msg) { return write(level::warn, msg); }
+
+    /// @brief Log at info level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written.
+    inline std::size_t info(const char* msg) { return write(level::info, msg); }
+
+    /// @brief Log at debug level.
+    /// @param msg Null-terminated message string.
+    /// @return Number of characters written.
+    inline std::size_t debug(const char* msg) { return write(level::debug, msg); }
+
+    /// @brief Log a formatted message at fatal level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param fmt Compiled format object.
+    /// @param args Named arguments.
+    /// @return Number of characters written.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t fatal(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::fatal, fmt, std::move(args)...);
+    }
+
+    /// @brief Log a formatted message at error level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param fmt Compiled format object.
+    /// @param args Named arguments.
+    /// @return Number of characters written.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t error(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::error, fmt, std::move(args)...);
+    }
+
+    /// @brief Log a formatted message at warn level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param fmt Compiled format object.
+    /// @param args Named arguments.
+    /// @return Number of characters written.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t warn(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::warn, fmt, std::move(args)...);
+    }
+
+    /// @brief Log a formatted message at info level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param fmt Compiled format object.
+    /// @param args Named arguments.
+    /// @return Number of characters written.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t info(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::info, fmt, std::move(args)...);
+    }
+
+    /// @brief Log a formatted message at debug level.
+    /// @tparam Fmt Compile-time format string.
+    /// @tparam Args Named argument types.
+    /// @param fmt Compiled format object.
+    /// @param args Named arguments.
+    /// @return Number of characters written.
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t debug(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::debug, fmt, std::move(args)...);
+    }
+
+} // namespace gba::log

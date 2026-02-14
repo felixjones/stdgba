@@ -60,4 +60,4 @@ namespace gba::bits {
         return 0xC000 - arc_tan((x << 14) / y);
     }
 
-}
+} // namespace gba::bits

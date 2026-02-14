@@ -5,9 +5,9 @@
 #include <gba/bios>
 #include <gba/compress>
 
-#include <mgba_test.hpp>
-
 #include <array>
+
+#include <mgba_test.hpp>
 
 // Test data with long runs (compresses well with RLE)
 static constexpr auto test_data = std::array<unsigned char, 64>{
@@ -22,9 +22,7 @@ static constexpr auto test_data = std::array<unsigned char, 64>{
 };
 
 // Compress at compile time
-static constexpr auto compressed = gba::rle_compress([] {
-    return test_data;
-});
+static constexpr auto compressed = gba::rle_compress([] { return test_data; });
 
 int main() {
     // Verify compression reduced size significantly (runs compress well)

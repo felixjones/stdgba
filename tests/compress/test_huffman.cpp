@@ -5,9 +5,9 @@
 #include <gba/bios>
 #include <gba/compress>
 
-#include <mgba_test.hpp>
-
 #include <array>
+
+#include <mgba_test.hpp>
 
 // Test data with skewed frequencies (compresses well with Huffman)
 static constexpr auto test_data = std::array<unsigned char, 64>{
@@ -22,9 +22,7 @@ static constexpr auto test_data = std::array<unsigned char, 64>{
 };
 
 // Compress at compile time with 8-bit symbols
-static constexpr auto compressed = gba::huffman_compress<8>([] {
-    return test_data;
-});
+static constexpr auto compressed = gba::huffman_compress<8>([] { return test_data; });
 
 int main() {
     // Verify header is correct

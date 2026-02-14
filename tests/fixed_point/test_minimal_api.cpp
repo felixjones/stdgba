@@ -1,4 +1,5 @@
 #include <gba/fixed_point>
+
 #include <mgba_test.hpp>
 
 int main() {
@@ -7,15 +8,13 @@ int main() {
     using fix4 = fixed<int, 4>;
     using ufix8 = fixed<unsigned int, 8>;
 
-    // ========================================
     // Test: fixed<> has minimal API like fundamental types
-    // ========================================
 
     // Construction
     {
-        fix8 a;           // Default constructor
-        fix8 b = 3;       // From integer
-        fix8 c = 3.5;     // From float (consteval only)
+        fix8 a;       // Default constructor
+        fix8 b = 3;   // From integer
+        fix8 c = 3.5; // From float (consteval only)
 
         EXPECT_EQ(b, fix8(3));
         EXPECT_EQ(c, fix8(3.5));
@@ -24,7 +23,7 @@ int main() {
     // Conversion to integral (explicit)
     {
         fix8 a = 3.75;
-        int i = static_cast<int>(a);  // Explicit cast required
+        int i = static_cast<int>(a); // Explicit cast required
         EXPECT_EQ(i, 3);
     }
 
@@ -33,16 +32,16 @@ int main() {
         fix8 a = 3.5;
         fix8 b = 2.0;
 
-        auto c = +a;  // Unary +
-        auto d = -a;  // Unary -
+        auto c = +a; // Unary +
+        auto d = -a; // Unary -
 
         EXPECT_EQ(c, fix8(3.5));
         EXPECT_EQ(d, fix8(-3.5));
 
-        auto e = a + b;  // Binary +
-        auto f = a - b;  // Binary -
-        auto g = a * b;  // Binary *
-        auto h = a / b;  // Binary /
+        auto e = a + b; // Binary +
+        auto f = a - b; // Binary -
+        auto g = a * b; // Binary *
+        auto h = a / b; // Binary /
 
         EXPECT_EQ(e, fix8(5.5));
         EXPECT_EQ(f, fix8(1.5));
@@ -88,17 +87,15 @@ int main() {
     {
         fix8 a = 3.5;
 
-        auto b = a << 1;  // Left shift
-        auto c = a >> 1;  // Right shift
+        auto b = a << 1; // Left shift
+        auto c = a >> 1; // Right shift
 
         // Shifting by 1 doubles/halves the underlying representation
         EXPECT_EQ(b, fix8(7.0));
         EXPECT_EQ(c, fix8(1.75));
     }
 
-    // ========================================
     // Test: Access to bits ONLY via __builtin_bit_cast
-    // ========================================
     {
         fix8 a = 3.5;
 

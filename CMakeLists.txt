@@ -3,10 +3,13 @@ cmake_minimum_required(VERSION 3.18)
 project(stdgba LANGUAGES CXX VERSION 2025.6.0)
 
 add_library(stdgba INTERFACE
+        include/gba/angle
         include/gba/bios
         include/gba/compress
         include/gba/filter
         include/gba/fixed_point
+        include/gba/format
+        include/gba/functional
         include/gba/interrupt
         include/gba/keyinput
         include/gba/memory

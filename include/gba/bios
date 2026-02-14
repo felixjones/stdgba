@@ -318,14 +318,14 @@ constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (st
  * @endcode
  */
 [[nodiscard, gnu::const]]
-constexpr angle16 ArcTan(fixed<int, 14> arg) noexcept {
+constexpr packed_angle16 ArcTan(fixed<int, 14> arg) noexcept {
     if consteval {
-        return angle16(static_cast<uint16_t>(bits::arc_tan(__builtin_bit_cast(int, arg))));
+        return packed_angle16{static_cast<std::uint16_t>(bits::arc_tan(__builtin_bit_cast(int, arg)))};
     } else {
         // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register auto r0 asm("r0") = __builtin_bit_cast(int, arg);
         asm volatile ("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
-        return angle16(static_cast<uint16_t>(r0));
+        return packed_angle16{static_cast<std::uint16_t>(r0)};
     }
 }
 
@@ -352,16 +352,16 @@ constexpr angle16 ArcTan(fixed<int, 14> arg) noexcept {
  * @endcode
  */
 [[nodiscard, gnu::const]]
-constexpr angle16 ArcTan2(int x, int y) noexcept {
+constexpr packed_angle16 ArcTan2(int x, int y) noexcept {
     if consteval {
-        return angle16(static_cast<uint16_t>(bits::arc_tan2(x, y)));
+        return packed_angle16{static_cast<std::uint16_t>(bits::arc_tan2(x, y))};
     } else {
         // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
         register auto r0 asm("r0") = x;
         register auto r1 asm("r1") = y;
         // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
         asm volatile ("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
-        return angle16(static_cast<uint16_t>(r0));
+        return packed_angle16{static_cast<std::uint16_t>(r0)};
     }
 }
 
@@ -373,7 +373,7 @@ constexpr angle16 ArcTan2(int x, int y) noexcept {
  * @return 16-bit angle where 0x10000 = 360 degrees.
  */
 [[nodiscard, gnu::const]]
-constexpr angle16 ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
+constexpr packed_angle16 ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
     return ArcTan2(bit_cast(x), bit_cast(y));
 }
 
@@ -482,8 +482,7 @@ namespace undocumented {
      *
      * TONCLIB Equivalent:
      * @code{.c}
-     * #define SWI_GETBIOSCHECKSUM 0x0D
-     * int checksum = swi_call(SWI_GETBIOSCHECKSUM);
+     * int checksum = swi_call(0x0D);
      * @endcode
      */
     [[nodiscard, gnu::const]]
@@ -508,7 +507,7 @@ struct background_parameters {
     short scr_y;          ///< Screen space center Y.
     fixed<short> sx;      ///< Scale X (8.8 fixed-point).
     fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
-    angle16 alpha;        ///< Rotation angle.
+    packed_angle16 alpha;        ///< Rotation angle.
 };
 
 /**
@@ -529,7 +528,7 @@ struct background_parameters {
  *     .tex_x = 128.0_fx, .tex_y = 128.0_fx,
  *     .scr_x = 120, .scr_y = 80,
  *     .sx = 1.0_fx, .sy = 1.0_fx,
- *     .alpha = gba::angle16::from_degrees(45)
+ *     .alpha = 45_deg
  * };
  * gba::background_matrix matrix;
  * gba::BgAffineSet(&params, &matrix, 1);
@@ -545,7 +544,7 @@ inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
     if consteval {
         for (std::size_t i = 0; i < num; ++i) {
             const auto& bp = src[i];
-            const unsigned int alpha16 = static_cast<unsigned int>(gba::as_raw(bp.alpha)) & 0xFFFFu;
+            const unsigned int alpha16 = static_cast<unsigned int>(gba::bit_cast(bp.alpha)) & 0xFFFFu;
             const auto [s, c] = bits::sin_cos(alpha16);
 
             const auto ox = static_cast<long double>(bp.tex_x);
@@ -589,7 +588,7 @@ inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
 struct object_parameters {
     fixed<short> sx;  ///< Scale X (8.8 fixed-point).
     fixed<short> sy;  ///< Scale Y (8.8 fixed-point).
-    angle16 alpha;    ///< Rotation angle.
+    packed_angle16 alpha;    ///< Rotation angle.
 };
 
 /**
@@ -610,7 +609,7 @@ struct object_parameters {
  * using namespace gba::literals;
  * gba::object_parameters params{
  *     .sx = 1.0_fx, .sy = 1.0_fx,
- *     .alpha = gba::angle16::from_degrees(45)
+ *     .alpha = 45_deg
  * };
  * gba::fixed<short> matrix[4];
  * gba::ObjAffineSet(&params, matrix, 1, 2);
@@ -627,7 +626,7 @@ inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fi
         stride /= sizeof(short);
         for (std::size_t i = 0; i < num; ++i) {
             const auto& op = src[i];
-            const unsigned int alpha16 = static_cast<unsigned int>(gba::as_raw(op.alpha)) & 0xFFFFu;
+            const unsigned int alpha16 = static_cast<unsigned int>(gba::bit_cast(op.alpha)) & 0xFFFFu;
             const auto [s, c] = bits::sin_cos(alpha16);
 
             const auto sx = static_cast<long double>(op.sx);
@@ -907,22 +906,43 @@ inline void Diff16bitUnFilter(const uncompress_header& src, void* dest) noexcept
     asm volatile ("swi 0x18 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
 }
 
-//TODO:
-// SoundBiasSet
-// SoundBiasReset
-// SoundDriverInit
-// SoundDriverMode
-// SoundDriverMain
-// SoundDriverVSync
-// SoundChannelClear
-// SoundDriverVSyncOff
-// SoundDriverVSyncOn
-// MidiKey2Freq
-// MusicPlayerOpen
-// MusicPlayerStart
-// MusicPlayerStop
-// MusicPlayerContinue
-// MusicPlayerFadeOut
-// MultiBoot
+/**
+ * @brief Configuration for SoundBias BIOS function.
+ */
+struct sound_bias_config {
+    unsigned int delay_shift : 2; ///< Delay between bias changes (0-3). Higher = slower transition.
+    unsigned int : 29;
+    bool enable : 1;      ///< If true, set bias to 0x200; if false, set to 0.
+};
+
+/**
+ * @brief Gradually adjust sound bias level.
+ *
+ * Changes SOUNDBIAS to 0x200 (normal) or 0 over a delay period.
+ * Call with enable=false before Stop() to prevent audio popping,
+ * and enable=true after Stop() to restore sound output.
+ *
+ * @param bias Configuration specifying delay and enable/disable.
+ *
+ * Example:
+ * @code{.cpp}
+ * gba::SoundBias({.delay_shift = 0, .enable = true});  // Enable sound bias
+ * gba::SoundBias({.delay_shift = 0, .enable = false}); // Disable before Stop()
+ * gba::Stop();
+ * @endcode
+ *
+ * TONCLIB Equivalent:
+ * @code{.c}
+ * // r0 = delay_shift | (enable << 31)
+ * swi_call(0x19);
+ * @endcode
+ */
+inline void SoundBias(sound_bias_config bias) noexcept {
+    // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
+    register auto r0 asm("r0") = __builtin_bit_cast(unsigned int, bias);
+    asm volatile ("swi 0x19 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+}
+
+//TODO: MultiBoot (0x25) - Multi-boot cable transfer
 
 }

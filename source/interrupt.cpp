@@ -10,7 +10,7 @@ void irq_user_handler();
 [[gnu::target("arm"), gnu::section(".iwram._stdgba_irq_empty_handler"), gnu::naked]]
 void irq_empty_handler();
 
-namespace gba::bits {
+namespace gba {
 
     const isr& isr::operator=(const value_type& value) const noexcept { // NOLINT(*-unconventional-assign-operator)
         if (value == nullisr) {
@@ -55,16 +55,16 @@ namespace gba::bits {
     }
 
     bool isr::operator==(const value_type& value) const noexcept {
-        if (registral<void(*)()>{0x3007FFC} == irq_empty_handler) {
+        if (registral<void (*)()>{0x3007FFC} == irq_empty_handler) {
             return value == nullisr;
         }
-        if (registral<void(*)()>{0x3007FFC} != irq_user_handler) [[unlikely]] {
+        if (registral<void (*)()>{0x3007FFC} != irq_user_handler) [[unlikely]] {
             return false;
         }
         return this->value() == value;
     }
 
-}
+} // namespace gba
 
 void irq_user_handler() {
     static constexpr auto call_op = &decltype(user_handler)::operator();

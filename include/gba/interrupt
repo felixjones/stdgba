@@ -29,7 +29,7 @@
  */
 #pragma once
 
-#include <gba/bits/handler.hpp>
+#include <gba/functional>
 
 namespace gba {
     struct irq;
@@ -55,45 +55,57 @@ namespace gba {
      * @endcode
      */
     template<typename... Args>
-    using handler = bits::handler<Args...>;
+    using handler = function<void(Args...)>;
 
-    /**
-     * @brief Interrupt service routine manager.
-     *
-     * Manages the global interrupt handler with assignment, query, and reset operations.
-     * This is a singleton-like accessor for the ISR handler storage.
-     *
-     * Members:
-     *   - value_type: handler<irq>
-     *   - operator=(handler): Assign a new interrupt handler
-     *   - operator bool(): Check if a handler is assigned
-     *   - has_value(): Check if a handler is assigned
-     *   - value(): Get the current handler (undefined if empty)
-     *   - swap(handler&): Swap the current handler with another
-     *   - reset(): Clear the current handler
-     *   - operator==(handler): Compare with a handler
-     *
-     * Example:
-     * @code{.cpp}
-     * // Assign a handler
-     * gba::irq_handler = [](gba::irq irq) { };
-     *
-     * // Check if handler is set
-     * if (gba::irq_handler) { }
-     * if (gba::irq_handler.has_value()) { }
-     *
-     * // Get current handler
-     * auto& current = gba::irq_handler.value();
-     *
-     * // Swap handlers
-     * gba::handler<gba::irq> my_handler = [](gba::irq) { };
-     * gba::irq_handler.swap(my_handler);
-     *
-     * // Clear handler
-     * gba::irq_handler.reset();
-     * @endcode
-     */
-    using isr = bits::isr;
+    /// @brief Interrupt service routine manager.
+    ///
+    /// Manages the global interrupt handler with assignment, query, and reset operations.
+    /// This is a singleton-like accessor for the ISR handler storage.
+    ///
+    /// Members:
+    ///   - value_type: handler<irq>
+    ///   - operator=(handler): Assign a new interrupt handler
+    ///   - operator bool(): Check if a handler is assigned
+    ///   - has_value(): Check if a handler is assigned
+    ///   - value(): Get the current handler (undefined if empty)
+    ///   - swap(handler&): Swap the current handler with another
+    ///   - reset(): Clear the current handler
+    ///   - operator==(handler): Compare with a handler
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Assign a handler
+    /// gba::irq_handler = [](gba::irq irq) { };
+    ///
+    /// // Check if handler is set
+    /// if (gba::irq_handler) { }
+    /// if (gba::irq_handler.has_value()) { }
+    ///
+    /// // Get current handler
+    /// auto& current = gba::irq_handler.value();
+    ///
+    /// // Swap handlers
+    /// gba::handler<gba::irq> my_handler = [](gba::irq) { };
+    /// gba::irq_handler.swap(my_handler);
+    ///
+    /// // Clear handler
+    /// gba::irq_handler.reset();
+    /// @endcode
+    struct isr {
+        using value_type = handler<irq>;
+
+        const isr& operator=(const value_type& value) const noexcept;
+
+        explicit operator bool() const noexcept { return has_value(); }
+
+        [[nodiscard]] bool has_value() const noexcept;
+        [[nodiscard]] const value_type& value() const;
+
+        void swap(value_type& value) const noexcept;
+        void reset() const noexcept;
+
+        bool operator==(const value_type& value) const noexcept;
+    };
 
     /// @brief Null interrupt handler (no-op).
     ///

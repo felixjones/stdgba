@@ -1,5 +1,6 @@
 #pragma once
 
+
 /**
  * @file fixed_point
  * @brief Fixed-point arithmetic with flexible conversion policies.
@@ -173,6 +174,34 @@
  * static_assert(std::is_same_v<Traits::rep, int>);
  * @endcode
  *
+ * @section overflow_warning Multiplication Overflow Warning
+ *
+ * @warning For performance, multiplication uses a default intermediate type that
+ * may overflow for certain configurations. Specifically, `fixed<int, 16>` (16.16 format)
+ * uses `int` as the intermediate type, which can overflow when multiplying values
+ * where `|a * b| > 32767`.
+ *
+ * This trade-off prioritizes speed on ARM7TDMI (avoiding 64-bit operations) over
+ * correctness for edge cases. For applications requiring full precision, use
+ * `precise<>` type aliases:
+ *
+ * @code{.cpp}
+ * // Default: fast but may overflow for large values
+ * gba::fixed<int, 16> a = 100.0_fx;
+ * gba::fixed<int, 16> b = 400.0_fx;
+ * auto c = a * b;  // May overflow!
+ *
+ * // Safe: uses 64-bit intermediate, slower on GBA
+ * gba::precise<int, 16> a = 100.0_fx;
+ * gba::precise<int, 16> b = 400.0_fx;
+ * auto c = a * b;  // Correct result: 40000.0
+ * @endcode
+ *
+ * Safe configurations (no overflow risk):
+ * - `fixed<short>` / `fixed<short, N>` - 16-bit values use 32-bit intermediate
+ * - `fixed<int, 8>` (24.8 format) - smaller fractional part reduces overflow risk
+ *
+ * @see gba::precise
  * @see gba::fixed
  * @see gba::fixed_point_traits
  * @see gba::is_fixed_point_v
@@ -198,3 +227,33 @@
 #include <gba/bits/fixed_point/converters/to_unsigned.hpp>
 #include <gba/bits/fixed_point/converters/word_storage.hpp>
 #include <gba/bits/fixed_point/converters/with_rounding.hpp>
+
+namespace gba {
+
+/**
+ * @brief Fixed-point type with full-precision intermediate calculations.
+ *
+ * Unlike `fixed<>`, this type alias uses a 64-bit intermediate for multiplication
+ * and division, preventing overflow at the cost of performance on ARM7TDMI.
+ *
+ * Use this when correctness is more important than speed, or when working with
+ * large values that would overflow the default intermediate type.
+ *
+ * @tparam Rep Underlying integer representation type.
+ * @tparam FracBits Number of fractional bits (default: half of Rep's bits).
+ *
+ * @code{.cpp}
+ * // 16.16 format with 64-bit intermediate - safe for large multiplications
+ * gba::precise<int, 16> a = 1000.5_fx;
+ * gba::precise<int, 16> b = 2000.25_fx;
+ * auto c = a * b;  // Correct: uses long long intermediate
+ * @endcode
+ *
+ * @see gba::fixed
+ */
+template<std::integral Rep = int,
+         unsigned int FracBits = std::numeric_limits<std::make_unsigned_t<Rep>>::digits / 2>
+using precise = fixed<Rep, FracBits,
+    std::conditional_t<std::is_signed_v<Rep>, long long, unsigned long long>>;
+
+} // namespace gba

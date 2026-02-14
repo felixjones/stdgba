@@ -9,7 +9,7 @@ static bool timerHit;
 int main() {
     using namespace std::chrono_literals;
 
-    gba::reg_ie = { .timer0 = true };
+    gba::reg_ie = {.timer0 = true};
     gba::irq_handler = [](auto) static {
         timerHit = true;
         gba::reg_tmcnt_h[0] = {};

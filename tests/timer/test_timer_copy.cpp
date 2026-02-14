@@ -1,16 +1,14 @@
 #include <gba/timer>
 
-#include <mgba_test.hpp>
-
 #include <algorithm>
+
+#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;
     using namespace std::chrono_literals;
 
-    // ========================================
     // Test: std::copy_n with timer - verify timer runs
-    // ========================================
 
     {
         // Use a longer duration so we can observe counter changes
@@ -42,9 +40,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test: std::copy_n with cascading timers
-    // ========================================
 
     {
         // Use timer0 as fast clock, timer1 as cascade counter
@@ -52,9 +48,9 @@ int main() {
 
         // Set up: timer0 overflows fast, timer1 counts overflows
         reg_tmcnt_l[0] = 0xFFF0; // Start near overflow
-        reg_tmcnt_h[0] = { .cycles = cycles_1, .enabled = true };
+        reg_tmcnt_h[0] = {.cycles = cycles_1, .enabled = true};
         reg_tmcnt_l[1] = 0;
-        reg_tmcnt_h[1] = { .cascade = true, .enabled = true };
+        reg_tmcnt_h[1] = {.cascade = true, .enabled = true};
 
         // Wait for timer0 to overflow a few times
         while (reg_tmcnt_l_stat[1] < 5) {}
@@ -67,9 +63,7 @@ int main() {
         reg_tmcnt_h[1] = {};
     }
 
-    // ========================================
     // Test: make_timer result copied correctly
-    // ========================================
 
     {
         auto result = make_timer(10us, false);
@@ -98,9 +92,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test: constexpr make_timer with copy
-    // ========================================
 
     {
         static constexpr auto timer_config = make_timer(1ms, false);

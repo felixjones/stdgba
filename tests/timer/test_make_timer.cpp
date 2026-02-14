@@ -1,15 +1,14 @@
 #include <gba/timer>
-#include <mgba_test.hpp>
 
 #include <chrono>
+
+#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;
     using namespace std::chrono_literals;
 
-    // ========================================
     // Test: make_timer with various durations
-    // ========================================
 
     // 1 second timer (uses cascading)
     {
@@ -28,9 +27,7 @@ int main() {
         EXPECT_TRUE(count >= 1);
     }
 
-    // ========================================
     // Test: make_timer with IRQ flag
-    // ========================================
 
     // Last timer should have overflow_irq set when irq=true
     {
@@ -49,9 +46,7 @@ int main() {
         EXPECT_FALSE(timers[count - 1].second.overflow_irq);
     }
 
-    // ========================================
     // Test: make_timer cascade behavior
-    // ========================================
 
     // Short duration should use 1 timer
     {
@@ -78,9 +73,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test: make_timer_exact with limited cascade timers
-    // ========================================
 
     // Restricting to 0 extra timers for a long duration should fail
     // At 1024x prescaler, max single timer = 65535 * 1024 / 16777216 ~= 4 seconds
@@ -92,9 +85,7 @@ int main() {
         EXPECT_EQ(result.error(), timer_error::not_enough_cascade_timers);
     }
 
-    // ========================================
     // Test: make_timer_exact representation check
-    // ========================================
 
     // make_timer_exact returns error for unrepresentable durations
     {
@@ -106,9 +97,7 @@ int main() {
         // Either way is fine - we just test the API
     }
 
-    // ========================================
     // Test: make_timer approximation
-    // ========================================
 
     // make_timer should always succeed (unless cascade limit hit)
     {
@@ -124,9 +113,7 @@ int main() {
         ASSERT_TRUE(result.has_value());
     }
 
-    // ========================================
     // Test: make_cycle_timer with specific prescaler
-    // ========================================
 
     // 1024x prescaler duration
     {
@@ -164,9 +151,7 @@ int main() {
         EXPECT_EQ(timers[0].second.cycles, cycles_1);
     }
 
-    // ========================================
     // Test: make_cycle_timer requiring cascade
-    // ========================================
 
     // Large cycle count requiring cascade (> 0xFFFF)
     {
@@ -176,9 +161,7 @@ int main() {
         EXPECT_TRUE(count >= 2);
     }
 
-    // ========================================
     // Test: make_cycle_timer cascade limit error
-    // ========================================
 
     // Very large count with no cascade timers allowed
     {
@@ -187,9 +170,7 @@ int main() {
         EXPECT_EQ(result.error(), timer_error::not_enough_cascade_timers);
     }
 
-    // ========================================
     // Test: clock_duration conversions
-    // ========================================
 
     // clock_duration should convert to/from chrono types
     {

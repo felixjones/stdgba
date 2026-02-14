@@ -8,20 +8,20 @@ int main() {
     for (auto entry : gba::mem_pal) {
         entry = -1;
     }
-    gba::RegisterRamReset({ .palette = true });
+    gba::RegisterRamReset({.palette = true});
     EXPECT_ZERO(gba::mem_pal);
 
     // Video memory
     for (auto entry : gba::mem_vram) {
         entry = -1;
     }
-    gba::RegisterRamReset({ .vram = true });
+    gba::RegisterRamReset({.vram = true});
     EXPECT_ZERO(gba::mem_vram);
 
     // Object attribute memory
     for (auto entry : gba::mem_oam) {
         entry = {-1, -1, -1};
     }
-    gba::RegisterRamReset({ .oam = true });
+    gba::RegisterRamReset({.oam = true});
     EXPECT_ZERO(gba::mem_oam);
 }

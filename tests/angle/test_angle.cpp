@@ -1,150 +1,162 @@
-#include <mgba_test.hpp>
-
 #include <gba/angle>
 
 #include <numbers>
 
+#include <mgba_test.hpp>
+
 int main() {
     using namespace gba;
+    using namespace gba::literals;
 
-    // ========================================================================
-    // Construction tests
-    // ========================================================================
+    // angle (32-bit intermediate) construction tests
 
     {
         // Default construction
-        angle32 a;
-        ASSERT_EQ(static_cast<uint32_t>(a), 0u);
+        angle a;
+        ASSERT_EQ(bit_cast(a), 0u);
     }
 
     {
         // Construction from raw value
-        angle32 a = 0x40000000u;  // 90 degrees
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x40000000u);
+        angle a{0x40000000u}; // 90 degrees
+        ASSERT_EQ(bit_cast(a), 0x40000000u);
     }
 
     {
         // Compile-time construction from radians
-        static constexpr auto angle_90 = angle32(std::numbers::pi / 2.0);
-        ASSERT_EQ(static_cast<uint32_t>(angle_90), 0x40000000u);
+        static constexpr angle angle_90 = std::numbers::pi / 2.0;
+        ASSERT_EQ(bit_cast(angle_90), 0x40000000u);
 
-        static constexpr auto angle_180 = angle32(std::numbers::pi);
-        ASSERT_EQ(static_cast<uint32_t>(angle_180), 0x80000000u);
+        static constexpr angle angle_180 = std::numbers::pi;
+        ASSERT_EQ(bit_cast(angle_180), 0x80000000u);
 
-        static constexpr auto angle_270 = angle32(3.0 * std::numbers::pi / 2.0);
-        ASSERT_EQ(static_cast<uint32_t>(angle_270), 0xC0000000u);
+        static constexpr angle angle_270 = 3.0 * std::numbers::pi / 2.0;
+        ASSERT_EQ(bit_cast(angle_270), 0xC0000000u);
     }
 
     {
-        // Different precisions
-        angle16 a16 = 0x4000u;  // 90 degrees in 16-bit
-        ASSERT_EQ(static_cast<uint16_t>(a16), 0x4000u);
+        // Construction from literals
+        static constexpr angle a = 90_deg;
+        ASSERT_EQ(bit_cast(a), 0x40000000u);
+
+        static constexpr angle b = 180_deg;
+        ASSERT_EQ(bit_cast(b), 0x80000000u);
+
+        // Radians literal - use exact value for comparison
+        static constexpr angle c = 1.5707963267948966_rad; // pi/2
+        ASSERT_EQ(bit_cast(c), 0x40000000u);
     }
 
-    // ========================================================================
-    // Implicit conversion tests
-    // ========================================================================
+    // packed_angle (storage) tests
 
     {
-        // angle -> uint (implicit)
-        angle32 a = 0x12345678u;
-        uint32_t raw = a;  // Should compile (implicit conversion)
-        ASSERT_EQ(raw, 0x12345678u);
+        // packed_angle<16> storage
+        packed_angle16 a16 = 90_deg;
+        ASSERT_EQ(bit_cast(a16), 0x4000u);
+
+        // packed_angle<8> storage
+        packed_angle8 a8 = 90_deg;
+        ASSERT_EQ(bit_cast(a8), 0x40u);
     }
 
     {
-        // uint -> angle (implicit)
-        uint32_t raw = 0x87654321u;
-        angle32 a = raw;  // Should compile (implicit conversion)
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x87654321u);
+        // Conversion packed_angle -> angle (implicit)
+        packed_angle16 stored = 90_deg;
+        angle full = stored;
+        ASSERT_EQ(bit_cast(full), 0x40000000u);
     }
 
-    // ========================================================================
-    // Arithmetic tests
-    // ========================================================================
+    {
+        // Conversion angle -> packed_angle (implicit assignment)
+        angle full{0x40000000u};
+        packed_angle16 stored = full;
+        ASSERT_EQ(bit_cast(stored), 0x4000u);
+    }
+
+    // Arithmetic tests (on angle intermediate type)
 
     {
         // Addition with wraparound
-        angle32 a = 0xFFFFFFFFu;
-        a += 2u;
-        ASSERT_EQ(static_cast<uint32_t>(a), 1u);  // Wraps around
+        angle a{0xFFFFFFFFu};
+        a += angle{2u};
+        ASSERT_EQ(bit_cast(a), 1u); // Wraps around
     }
 
     {
         // Subtraction with wraparound
-        angle32 a = 1u;
-        a -= 2u;
-        ASSERT_EQ(static_cast<uint32_t>(a), 0xFFFFFFFFu);  // Wraps around
+        angle a{1u};
+        a -= angle{2u};
+        ASSERT_EQ(bit_cast(a), 0xFFFFFFFFu); // Wraps around
     }
 
     {
         // Addition operator
-        angle32 a = 0x40000000u;  // 90 degrees
-        angle32 b = 0x40000000u;  // 90 degrees
-        angle32 c = a + b;
-        ASSERT_EQ(static_cast<uint32_t>(c), 0x80000000u);  // 180 degrees
+        angle a = 90_deg;
+        angle b = 90_deg;
+        angle c = a + b;
+        ASSERT_EQ(bit_cast(c), 0x80000000u); // 180 degrees
     }
 
     {
         // Subtraction operator
-        angle32 a = 0x80000000u;  // 180 degrees
-        angle32 b = 0x40000000u;  // 90 degrees
-        angle32 c = a - b;
-        ASSERT_EQ(static_cast<uint32_t>(c), 0x40000000u);  // 90 degrees
+        angle a = 180_deg;
+        angle b = 90_deg;
+        angle c = a - b;
+        ASSERT_EQ(bit_cast(c), 0x40000000u); // 90 degrees
     }
 
     {
         // Negation
-        angle32 a = 0x40000000u;  // 90 degrees
-        angle32 b = -a;
-        ASSERT_EQ(static_cast<uint32_t>(b), 0xC0000000u);  // -90 = 270 degrees
+        angle a = 90_deg;
+        angle b = -a;
+        ASSERT_EQ(bit_cast(b), 0xC0000000u); // -90 = 270 degrees
     }
 
     {
-        // Mixed angle/int arithmetic (use explicit rep to avoid ambiguity)
-        angle32 a = 0x40000000u;
-        a += static_cast<angle32::rep>(0x40000000u);
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x80000000u);
-
-        angle32 b = gba::bit_cast<angle32>(gba::as_raw(a) + static_cast<angle32::rep>(0x40000000u));
-        ASSERT_EQ(static_cast<uint32_t>(b), 0xC0000000u);
+        // Scalar multiplication
+        angle a = 45_deg;
+        angle b = a * 2;
+        ASSERT_EQ(bit_cast(b), 0x40000000u); // 90 degrees
     }
 
-    // ========================================================================
+    {
+        // Scalar division
+        angle a = 90_deg;
+        angle b = a / 2;
+        ASSERT_EQ(bit_cast(b), 0x20000000u); // 45 degrees
+    }
+
     // Bit shift tests
-    // ========================================================================
 
     {
         // Left shift
-        angle32 a = 0x00000001u;
+        angle a{0x00000001u};
         a <<= 8;
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x00000100u);
+        ASSERT_EQ(bit_cast(a), 0x00000100u);
     }
 
     {
         // Right shift
-        angle32 a = 0x00000100u;
+        angle a{0x00000100u};
         a >>= 8;
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x00000001u);
+        ASSERT_EQ(bit_cast(a), 0x00000001u);
     }
 
     {
-        // Shift operators (non-assignment) via helpers to avoid ambiguity
-        angle32 a = 0x12345678u;
-        angle32 b = shift_left(a, 4);
-        angle32 c = shift_right(a, 4);
-        ASSERT_EQ(static_cast<uint32_t>(b), 0x23456780u);
-        ASSERT_EQ(static_cast<uint32_t>(c), 0x01234567u);
+        // Shift operators
+        angle a{0x12345678u};
+        angle b = a << 4;
+        angle c = a >> 4;
+        ASSERT_EQ(bit_cast(b), 0x23456780u);
+        ASSERT_EQ(bit_cast(c), 0x01234567u);
     }
 
-    // ========================================================================
     // Comparison tests
-    // ========================================================================
 
     {
-        angle32 a = 100u;
-        angle32 b = 100u;
-        angle32 c = 200u;
+        angle a = 90_deg;
+        angle b = 90_deg;
+        angle c = 180_deg;
 
         ASSERT_TRUE(a == b);
         ASSERT_FALSE(a == c);
@@ -152,118 +164,82 @@ int main() {
     }
 
     {
-        // Comparison with raw int (equality via raw helper)
-        angle32 a = 100u;
-        ASSERT_TRUE(gba::as_raw(a) == 100u);
-        ASSERT_FALSE(gba::as_raw(a) == 200u);
+        // Comparison with raw value
+        angle a = 90_deg;
+        ASSERT_EQ(bit_cast(a), 0x40000000u);
     }
 
-    // ========================================================================
     // Helper function tests
-    // ========================================================================
-
-    {
-        // bit_cast (construct from raw)
-        uint32_t raw = 0x12345678u;
-        angle32 a = bit_cast<angle32>(raw);
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x12345678u);
-    }
-
-    {
-        // as_raw (extract raw)
-        angle32 a = 0x87654321u;
-        uint32_t raw = as_raw(a);
-        ASSERT_EQ(raw, 0x87654321u);
-    }
-
-    {
-        // angle_cast (precision conversion)
-        angle16 a16 = 0x4000u;  // 90 degrees in 16-bit (0x4000 / 0x10000 = 0.25 turns)
-        angle32 a32 = angle_cast<angle32>(a16);
-        ASSERT_EQ(static_cast<uint32_t>(a32), 0x40000000u);  // 90 degrees in 32-bit
-
-        // Downscale
-        angle32 b32 = 0x40000000u;
-        angle16 b16 = angle_cast<angle16>(b32);
-        ASSERT_EQ(static_cast<uint16_t>(b16), 0x4000u);
-    }
 
     {
         // lut_index
-        angle32 a = 0x08000000u;  // 45 degrees
-        // For 11-bit table (2048 entries): shift by (32-11)=21 bits
-        // 0x08000000 >> 21 = 0x040 = 64 (which is 45°/360° * 2048 = 256/4 = 64... wait let me recalculate)
-        // 0x08000000 = 134217728
-        // 134217728 / 2^32 = 0.03125 turns = 11.25 degrees
-        // For an 11-bit LUT: 0.03125 * 2048 = 64
+        angle a = 45_deg;
+        // 45 degrees = 0.125 turns = 0x20000000
+        // For 11-bit table: 0x20000000 >> 21 = 256
         unsigned int idx = lut_index<11>(a);
-        ASSERT_EQ(idx, 64u);
+        ASSERT_EQ(idx, 256u);
 
-        // Another test: 180 degrees
-        angle32 b = 0x80000000u;
+        // 180 degrees
+        angle b = 180_deg;
         idx = lut_index<11>(b);
-        ASSERT_EQ(idx, 1024u);  // Half of 2048
+        ASSERT_EQ(idx, 1024u); // Half of 2048
     }
 
     {
         // as_signed
-        angle32 a = 0x7FFFFFFFu;  // Just below half-rotation (positive when signed)
-        int32_t s = as_signed(a);
+        angle a{0x7FFFFFFFu}; // Just below half-rotation (positive when signed)
+        int s = as_signed(a);
         ASSERT_EQ(s, 0x7FFFFFFF);
 
-        angle32 b = 0x80000000u;  // Exactly half-rotation (negative when signed)
+        angle b{0x80000000u}; // Exactly half-rotation (negative when signed)
         s = as_signed(b);
-        ASSERT_EQ(s, static_cast<int32_t>(0x80000000u));
+        ASSERT_EQ(s, static_cast<int>(0x80000000u));
     }
 
     {
-        // in_signed_range
-        angle32 center = 0u;  // 0 degrees
-        angle32 pos_limit = 0x10000000u;  // ~22.5 degrees
-        angle32 neg_limit = 0xF0000000u;  // ~-22.5 degrees (as signed)
+        // ccw_distance / cw_distance
+        angle start = 0_deg;
+        angle end = 90_deg;
 
-        angle32 in_range = 0x08000000u;  // ~11.25 degrees
-        angle32 out_range = 0x40000000u;  // 90 degrees
+        unsigned int ccw = ccw_distance(start, end);
+        unsigned int cw = cw_distance(start, end);
 
-        ASSERT_TRUE(in_signed_range(in_range, pos_limit, neg_limit));
-        ASSERT_FALSE(in_signed_range(out_range, pos_limit, neg_limit));
+        ASSERT_EQ(ccw, 0x40000000u); // 90 degrees CCW
+        ASSERT_EQ(cw, 0xC0000000u);  // 270 degrees CW
     }
 
     {
-        // from_degrees
-        auto a = from_degrees<angle32>(90.0);
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x40000000u);
+        // is_ccw_between
+        angle start = 0_deg;
+        angle end = 180_deg;
+        angle test_in = 90_deg;
+        angle test_out = 270_deg;
 
-        auto b = from_degrees<angle32>(180.0);
-        ASSERT_EQ(static_cast<uint32_t>(b), 0x80000000u);
+        ASSERT_TRUE(is_ccw_between(start, end, test_in));
+        ASSERT_FALSE(is_ccw_between(start, end, test_out));
+    }
 
-        auto c = from_degrees<angle32>(270.0);
-        ASSERT_EQ(static_cast<uint32_t>(c), 0xC0000000u);
+    // Type alias tests
+
+    {
+        // Ensure type aliases are correct
+        static_assert(std::is_same_v<packed_angle32, packed_angle<32>>);
+        static_assert(std::is_same_v<packed_angle16, packed_angle<16>>);
+        static_assert(std::is_same_v<packed_angle8, packed_angle<8>>);
     }
 
     {
-        // from_radians
-        auto a = from_radians<angle32>(std::numbers::pi / 2.0);
-        ASSERT_EQ(static_cast<uint32_t>(a), 0x40000000u);
-
-        auto b = from_radians<angle32>(std::numbers::pi);
-        ASSERT_EQ(static_cast<uint32_t>(b), 0x80000000u);
-    }
-
-    // ========================================================================
-    // Type aliases tests
-    // ========================================================================
-
-    {
-        // Ensure angle32 and angle16 are the expected types
-        static_assert(std::is_same_v<angle32, angle<uint32_t>>);
-        static_assert(std::is_same_v<angle16, angle<uint16_t>>);
+        // Test bits
+        static_assert(angle::bits == 32);
+        static_assert(packed_angle16::bits == 16);
+        static_assert(packed_angle8::bits == 8);
     }
 
     {
-        // Test that angle32::bits is correct
-        static_assert(angle32::bits == 32);
-        static_assert(angle16::bits == 16);
+        // Storage types
+        static_assert(sizeof(packed_angle16) == 2);
+        static_assert(sizeof(packed_angle8) == 1);
+        static_assert(sizeof(angle) == 4);
     }
 
     return 0;

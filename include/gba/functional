@@ -1,0 +1,207 @@
+/// @file functional
+/// @brief Type-erased callable wrapper for GBA.
+///
+/// Provides `gba::function<Retval(Args...)>`, a lightweight alternative to
+/// `std::function` optimized for embedded systems with small-buffer
+/// optimization (12 bytes of inline storage) and no heap allocation.
+///
+/// Example:
+/// @code{.cpp}
+/// gba::function<void(int)> fn = [&counter](int x) { counter += x; };
+/// fn(42);
+/// @endcode
+#pragma once
+
+#include <array>
+#include <cstddef>
+#include <new>
+#include <type_traits>
+#include <utility>
+
+namespace gba {
+
+    /// @brief Type-erased callable wrapper (primary template, intentionally undefined).
+    template<typename>
+    struct function;
+
+    /// @brief Type-erased callable wrapper optimized for embedded systems.
+    ///
+    /// Uses function pointers instead of virtual dispatch for lower overhead.
+    /// Supports small buffer optimization for callables up to 12 bytes.
+    ///
+    /// @tparam Retval The return type of the callable.
+    /// @tparam Args The argument types for the callable.
+    template<typename Retval, typename... Args>
+    struct function<Retval(Args...)> {
+        constexpr function() noexcept : m_invoke{nullptr}, m_ops{nullptr}, m_storage{} {}
+
+        explicit(false) constexpr function(std::nullptr_t) noexcept : function() {}
+
+        template<typename T>
+            requires(!std::is_same_v<std::decay_t<T>, function> && !std::is_same_v<std::decay_t<T>, std::nullptr_t>)
+        explicit(false) function(T&& t) noexcept;
+
+        function(const function& other) noexcept;
+        function(function&& other) noexcept;
+
+        constexpr ~function() noexcept {
+            if (m_ops) {
+                m_ops->destroy(storage());
+            }
+        }
+
+        function& operator=(const function& other) noexcept;
+        function& operator=(function&& other) noexcept;
+
+        constexpr function& operator=(std::nullptr_t) noexcept {
+            if (m_ops) {
+                m_ops->destroy(storage());
+            }
+            m_invoke = nullptr;
+            m_ops = nullptr;
+            return *this;
+        }
+
+        Retval operator()(Args... args) const noexcept {
+            return m_invoke(const_cast<void*>(static_cast<const void*>(storage())), std::forward<Args>(args)...);
+        }
+
+        constexpr bool operator==(const function& other) const noexcept {
+            return m_invoke == other.m_invoke && m_ops == other.m_ops;
+        }
+
+        constexpr bool operator==(std::nullptr_t) const noexcept {
+            return m_invoke == nullptr;
+        }
+
+        constexpr operator bool() const noexcept {
+            return m_invoke != nullptr;
+        }
+    private:
+        static constexpr std::size_t storage_size = 12u;
+        using storage_type = std::array<std::byte, storage_size>;
+
+        using invoke_fn = Retval(*)(void*, Args...);
+
+        struct ops_table {
+            void (*destroy)(void*) noexcept;
+            void (*copy)(void* dst, const void* src);
+            void (*move)(void* dst, void* src) noexcept;
+        };
+
+        template<typename Callable>
+        static constexpr ops_table make_ops_table() noexcept {
+            return {
+                [](void* p) noexcept {
+                    static_cast<Callable*>(p)->~Callable();
+                },
+                [](void* dst, const void* src) {
+                    new (dst) Callable(*static_cast<const Callable*>(src));
+                },
+                [](void* dst, void* src) noexcept {
+                    new (dst) Callable(std::move(*static_cast<Callable*>(src)));
+                }
+            };
+        }
+
+        template<typename Callable>
+        static Retval invoke_impl(void* ctx, Args... args) {
+            if constexpr (std::is_void_v<Retval>) {
+                (*static_cast<Callable*>(ctx))(std::forward<Args>(args)...);
+            } else {
+                return (*static_cast<Callable*>(ctx))(std::forward<Args>(args)...);
+            }
+        }
+
+        template<typename Callable>
+        static constexpr const ops_table* get_ops() noexcept {
+            static constexpr ops_table table = make_ops_table<Callable>();
+            return &table;
+        }
+
+        invoke_fn m_invoke;
+        const ops_table* m_ops;
+        storage_type m_storage;
+
+        [[nodiscard]] constexpr void* storage() noexcept { return m_storage.data(); }
+        [[nodiscard]] constexpr const void* storage() const noexcept { return m_storage.data(); }
+    };
+
+    static_assert(sizeof(function<void(short)>) == 20u);
+
+    /// @brief Convenience alias for void-returning function wrappers.
+    ///
+    /// `handler<Args...>` is equivalent to `function<void(Args...)>`.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::handler<int> h = [](int x) { process(x); };
+    /// h(42);
+    /// @endcode
+    template<typename... Args>
+    using handler = function<void(Args...)>;
+
+    template<typename Retval, typename... Args>
+    template<typename T>
+        requires(!std::is_same_v<std::decay_t<T>, function<Retval(Args...)>> && !std::is_same_v<std::decay_t<T>, std::nullptr_t>)
+    function<Retval(Args...)>::function(T&& t) noexcept {
+        using Callable = std::decay_t<T>;
+        static_assert(sizeof(Callable) <= storage_size, "Callable too large for small buffer optimization");
+        static_assert(std::is_nothrow_move_constructible_v<Callable>, "Callable must be nothrow move constructible");
+
+        new (storage()) Callable(std::forward<T>(t));
+        m_invoke = &invoke_impl<Callable>;
+        m_ops = get_ops<Callable>();
+    }
+
+    template<typename Retval, typename... Args>
+    function<Retval(Args...)>::function(const function& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+        if (m_ops) {
+            m_ops->copy(storage(), other.storage());
+        }
+    }
+
+    template<typename Retval, typename... Args>
+    function<Retval(Args...)>::function(function&& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+        if (m_ops) {
+            m_ops->move(storage(), other.storage());
+            other.m_ops->destroy(other.storage());
+            other.m_invoke = nullptr;
+            other.m_ops = nullptr;
+        }
+    }
+
+    template<typename Retval, typename... Args>
+    function<Retval(Args...)>& function<Retval(Args...)>::operator=(const function& other) noexcept {
+        if (this != &other) {
+            if (m_ops) {
+                m_ops->destroy(storage());
+            }
+            m_invoke = other.m_invoke;
+            m_ops = other.m_ops;
+            if (m_ops) {
+                m_ops->copy(storage(), other.storage());
+            }
+        }
+        return *this;
+    }
+
+    template<typename Retval, typename... Args>
+    function<Retval(Args...)>& function<Retval(Args...)>::operator=(function&& other) noexcept {
+        if (this != &other) {
+            if (m_ops) {
+                m_ops->destroy(storage());
+            }
+            m_invoke = other.m_invoke;
+            m_ops = other.m_ops;
+            if (m_ops) {
+                m_ops->move(storage(), other.storage());
+                other.m_ops->destroy(other.storage());
+                other.m_invoke = nullptr;
+                other.m_ops = nullptr;
+            }
+        }
+        return *this;
+    }
+
+} // namespace gba
