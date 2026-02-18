@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(stdgba LANGUAGES CXX VERSION 2025.6.0)
+project(stdgba LANGUAGES CXX ASM VERSION 2025.6.0)
 
 add_library(stdgba INTERFACE
         include/gba/angle
@@ -20,6 +20,8 @@ add_library(stdgba INTERFACE
 target_include_directories(stdgba INTERFACE include)
 target_compile_features(stdgba INTERFACE cxx_std_23)
 target_sources(stdgba INTERFACE
+        source/assert.cpp
+        source/assert_entry.s
         source/interrupt.cpp)
 
 enable_testing()

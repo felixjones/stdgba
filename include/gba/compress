@@ -63,9 +63,6 @@
 
 namespace gba {
 
-    //TODO: Make these work for suppliers of const char[N]
-    //TODO: <gba/bits/supplier_traits.hpp>?
-
     /**
      * @brief Pack data to lower bit depth with specified parameters.
      *
@@ -143,7 +140,121 @@ namespace gba {
             return params;
         }
 
-        throw "Unsupported destination bpp"; // TODO: 4, 2, 1 bpp types
+        if (params.dst_bpp == 4) {
+            // Extract nibbles (4 bits each) from source bytes
+            const auto view = bits::view_integers<std::uint8_t>(src);
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            int nibbleIndex = 0; // 0 = low nibble, 1 = high nibble
+            std::uint8_t currentByte = 0;
+
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    // Extract current nibble from source byte
+                    std::uint8_t nibble = (currentByte >> (nibbleIndex * 4)) & 0x0F;
+
+                    // Apply offset transformation
+                    if (nibble || params.offset_zero) {
+                        nibble = static_cast<std::uint8_t>(nibble - params.dst_ofs);
+                    }
+
+                    buffer |= nibble << (i * params.src_bpp);
+
+                    // Advance to next nibble
+                    ++nibbleIndex;
+                    if (nibbleIndex >= 2) {
+                        nibbleIndex = 0;
+                        if (iter != std::ranges::end(view)) {
+                            currentByte = *iter;
+                            ++iter;
+                        }
+                    }
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        if (params.dst_bpp == 2) {
+            // Extract bit pairs (2 bits each) from source bytes
+            const auto view = bits::view_integers<std::uint8_t>(src);
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            int pairIndex = 0; // 0-3 for each bit pair in a byte
+            std::uint8_t currentByte = 0;
+
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    // Extract current bit pair from source byte
+                    std::uint8_t pair = (currentByte >> (pairIndex * 2)) & 0x03;
+
+                    // Apply offset transformation
+                    if (pair || params.offset_zero) {
+                        pair = static_cast<std::uint8_t>(pair - params.dst_ofs);
+                    }
+
+                    buffer |= pair << (i * params.src_bpp);
+
+                    // Advance to next bit pair
+                    ++pairIndex;
+                    if (pairIndex >= 4) {
+                        pairIndex = 0;
+                        if (iter != std::ranges::end(view)) {
+                            currentByte = *iter;
+                            ++iter;
+                        }
+                    }
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        if (params.dst_bpp == 1) {
+            // Extract single bits from source bytes
+            const auto view = bits::view_integers<std::uint8_t>(src);
+            const auto bufferLimit = 8 / params.src_bpp;
+
+            auto iter = std::ranges::begin(view);
+            int bitIndex = 0; // 0-7 for each bit in a byte
+            std::uint8_t currentByte = 0;
+
+            while (iter != std::ranges::end(view)) {
+                std::uint8_t buffer = 0;
+                for (auto i = 0; i < bufferLimit; ++i) {
+                    // Extract current bit from source byte
+                    std::uint8_t bit = (currentByte >> bitIndex) & 0x01;
+
+                    // Apply offset transformation
+                    if (bit || params.offset_zero) {
+                        bit = static_cast<std::uint8_t>(bit - params.dst_ofs);
+                    }
+
+                    buffer |= bit << (i * params.src_bpp);
+
+                    // Advance to next bit
+                    ++bitIndex;
+                    if (bitIndex >= 8) {
+                        bitIndex = 0;
+                        if (iter != std::ranges::end(view)) {
+                            currentByte = *iter;
+                            ++iter;
+                        }
+                    }
+                }
+                *dest++ = std::byte{buffer};
+            }
+
+            return params;
+        }
+
+        throw "Unsupported destination bpp";
     }
 
     /**
@@ -223,8 +334,6 @@ namespace gba {
             .dst_ofs = offset,
             .offset_zero = !hasZero
         });
-
-        // TODO: 4, 2, 1 bpp
     }
 
     /**
