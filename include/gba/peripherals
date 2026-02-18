@@ -175,7 +175,7 @@ namespace gba {
      * @brief Concept for arrays of trivially copyable types.
      */
     template<typename T>
-    concept IsArrayOfTriviallyCopiable = std::is_array_v<T> && std::is_trivially_copyable_v<std::remove_extent_t<T>>;
+    concept IsArrayOfTriviallyCopiable = std::is_array_v<T> && std::is_trivially_copyable_v<std::remove_cv_t<std::remove_extent_t<T>>>;
 
     /**
      * @brief Register wrapper for arrays of trivially copyable types.

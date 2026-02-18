@@ -1,0 +1,98 @@
+/// @file save
+/// @brief GBA save memory APIs.
+///
+/// Provides access to all three GBA save memory types:
+///
+/// ## SRAM (32KB)
+///
+/// Byte-addressable static RAM at 0x0E000000. Accessed directly via
+/// the `gba::mem_sram` registral -- no special protocol needed.
+///
+/// @code{.cpp}
+/// #include <gba/save>
+///
+/// gba::mem_sram[0] = std::byte{0x42};
+/// auto val = gba::mem_sram[0];
+/// @endcode
+///
+/// @par tonclib equivalent
+/// @code{.c}
+/// sram_mem[0] = 0x42;
+/// @endcode
+///
+/// ## Flash (64KB / 128KB)
+///
+/// Sector-erased NOR flash. Two separate APIs for the two chip families:
+/// - `gba::flash::standard` -- Macronix, Panasonic, Sanyo, SST
+/// - `gba::flash::atmel` -- Atmel (128-byte page writes, no erase)
+///
+/// Both use consteval-compiled command sequences. See
+/// `<gba/bits/flash/standard.hpp>` and `<gba/bits/flash/atmel.hpp>`.
+///
+/// @code{.cpp}
+/// #include <gba/save>
+///
+/// namespace sf = gba::flash::standard;
+///
+/// void fill(sf::sector_span buf) { buf[0] = std::byte{0x42}; }
+/// void recv(sf::const_sector_span buf) { /* ... */ }
+///
+/// constexpr auto cmds = sf::compile(
+///     sf::erase_sector(0),
+///     sf::write_sector(0, fill),
+///     sf::read_sector(0, recv)
+/// );
+/// auto err = cmds.execute();
+/// @endcode
+///
+/// ## EEPROM (512B / 8KB)
+///
+/// Serial EEPROM accessed via DMA3 in 8-byte blocks. Two separate APIs:
+/// - `gba::eeprom::eeprom_512b` -- 64 blocks, 6-bit addressing
+/// - `gba::eeprom::eeprom_8k` -- 1024 blocks, 14-bit addressing
+///
+/// Both provide raw block access and sequential stream types.
+///
+/// @code{.cpp}
+/// #include <gba/save>
+///
+/// namespace ee = gba::eeprom::eeprom_512b;
+///
+/// ee::ostream out;
+/// ee::block data = {std::byte{0xAA}};
+/// out.write(&data, 1);
+///
+/// ee::istream in;
+/// ee::block buf;
+/// in.read(&buf, 1);
+/// @endcode
+#pragma once
+
+#include <gba/peripherals>
+
+#include <gba/bits/flash/operations.hpp>
+#include <gba/bits/flash/standard.hpp>
+#include <gba/bits/flash/atmel.hpp>
+#include <gba/bits/eeprom/eeprom_512b.hpp>
+#include <gba/bits/eeprom/eeprom_8k.hpp>
+
+namespace gba {
+
+/// @brief SRAM save memory (32KB, byte-addressable).
+///
+/// Directly accessible at 0x0E000000. Read and write individual bytes.
+/// SRAM must be accessed one byte at a time (no 16/32-bit access).
+///
+/// @code{.cpp}
+/// gba::mem_sram[0] = std::byte{0x42};
+/// auto val = gba::mem_sram[0];
+/// @endcode
+///
+/// @par tonclib equivalent
+/// @code{.c}
+/// sram_mem[0] = 0x42;
+/// u8 val = sram_mem[0];
+/// @endcode
+inline constexpr auto mem_sram = registral<std::byte[0x8000]>{0x0E000000};
+
+} // namespace gba
