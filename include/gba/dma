@@ -1,0 +1,400 @@
+/**
+ * @file dma
+ * @brief GBA DMA (Direct Memory Access) transfer utilities.
+ *
+ * This header provides type-safe abstractions for the GBA's four DMA channels,
+ * including raw register access and high-level factory functions for common
+ * transfer patterns.
+ *
+ * ## Raw Register Access
+ *
+ * @code{.cpp}
+ * #include <gba/dma>
+ *
+ * // Configure DMA3 manually
+ * gba::reg_dmasad[3] = src;
+ * gba::reg_dmadad[3] = dst;
+ * gba::reg_dmacnt_l[3] = 256;
+ * gba::reg_dmacnt_h[3] = { .dma_type = gba::dma_type::word, .enable = true };
+ * @endcode
+ *
+ * ## Factory Functions
+ *
+ * @code{.cpp}
+ * #include <gba/dma>
+ *
+ * // Immediate 32-bit copy
+ * gba::reg_dma[3] = gba::dma::copy(src, dst, 256);
+ *
+ * // Immediate 16-bit copy
+ * gba::reg_dma[3] = gba::dma::copy16(palette_src, pal_mem, 256);
+ *
+ * // Fill memory with a value
+ * static constexpr unsigned int black = 0;
+ * gba::reg_dma[3] = gba::dma::fill(&black, vram, 240*160/2);
+ *
+ * // VBlank-triggered repeating transfer (e.g., OAM shadow copy)
+ * gba::reg_dma[3] = gba::dma::on_vblank(oam_buffer, oam_mem, 128);
+ *
+ * // HBlank-triggered repeating transfer (HDMA effects)
+ * gba::reg_dma[0] = gba::dma::on_hblank(scroll_table, &bg_hofs, 1);
+ *
+ * // DirectSound FIFO streaming
+ * gba::reg_dma[1] = gba::dma::to_fifo_a(pcm_samples);
+ * gba::reg_dma[2] = gba::dma::to_fifo_b(pcm_samples);
+ * @endcode
+ *
+ * @par tonclib equivalent
+ * @code{.c}
+ * dma3_cpy(dst, src, size);
+ * dma3_fill(dst, 0, size);
+ * @endcode
+ */
+#pragma once
+
+#include <gba/peripherals>
+
+namespace gba {
+
+    /// @brief DMA source address registers (DMA0SAD-DMA3SAD).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dmasad[3] = src_data;
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DMA3SAD = (u32)src_data;
+    /// @endcode
+    inline constexpr auto reg_dmasad = registral<const void* volatile[4]>{0x40000B0, 12};
+
+    /// @brief DMA destination address registers (DMA0DAD-DMA3DAD).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dmadad[3] = (void*)0x06000000; // VRAM
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DMA3DAD = (u32)vid_mem;
+    /// @endcode
+    inline constexpr auto reg_dmadad = registral<void* volatile[4]>{0x40000B4, 12};
+
+    /// @brief DMA word count registers (DMA0CNT_L-DMA3CNT_L).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dmacnt_l[3] = 240 * 160; // Full screen
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DMA3CNT_L = 240 * 160;
+    /// @endcode
+    inline constexpr auto reg_dmacnt_l = registral<volatile unsigned short[4]>{0x40000B8, 12};
+
+    /**
+     * @brief DMA destination address control.
+     */
+    enum dest_op : unsigned short {
+        dest_op_increment,       ///< Increment after each transfer
+        dest_op_decrement,       ///< Decrement after each transfer
+        dest_op_fixed,           ///< Fixed address
+        dest_op_increment_reload ///< Increment, reload after transfer
+    };
+
+    /**
+     * @brief DMA source address control.
+     */
+    enum src_op : unsigned short {
+        src_op_increment, ///< Increment after each transfer
+        src_op_decrement, ///< Decrement after each transfer
+        src_op_fixed      ///< Fixed address
+    };
+
+    /**
+     * @brief DMA transfer unit type.
+     */
+    enum class dma_type : bool {
+        half = false, ///< 16-bit transfer
+        word = true   ///< 32-bit transfer
+    };
+
+    /**
+     * @brief DMA start timing condition.
+     */
+    enum dma_cond : unsigned short {
+        dma_cond_now = 0,          ///< Start immediately
+        dma_cond_vblank = 1,       ///< Start at VBlank
+        dma_cond_hblank = 2,       ///< Start at HBlank
+        dma_cond_sound_fifo = 3,   ///< Sound FIFO (DMA1/DMA2 only)
+        dma_cond_video_capture = 3 ///< Video capture (DMA3 only)
+    };
+
+    /**
+     * @brief DMA control bitfield (DMACNT_H).
+     */
+    struct dma_control {
+        short : 5;
+        // ReSharper disable CppRedundantQualifier
+        gba::dest_op dest_op : 2; ///< Destination address control
+        gba::src_op src_op : 2;   ///< Source address control
+        // ReSharper restore CppRedundantQualifier
+        bool repeat : 1;          ///< Repeat transfer
+        // ReSharper disable once CppRedundantQualifier
+        gba::dma_type dma_type : 1; ///< Transfer unit type
+        bool gamepak_drq : 1;     ///< Game Pak DRQ
+        // ReSharper disable once CppRedundantQualifier
+        gba::dma_cond dma_cond : 2; ///< Start timing
+        bool irq_on_finish : 1;   ///< IRQ on completion
+        bool enable : 1;          ///< Enable DMA
+    };
+
+    /// @brief DMA control registers (DMA0CNT_H-DMA3CNT_H).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dmacnt_h[3] = { .dma_type = gba::dma_type::half, .enable = true };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DMA3CNT_H = DMA_ENABLE;
+    /// @endcode
+    inline constexpr auto reg_dmacnt_h = registral<dma_control[4]>{0x40000BA, 12};
+
+    /**
+     * @brief DMA transfer descriptor.
+     *
+     * Combines source, destination, count, and control for a DMA channel.
+     * Static member functions provide factory methods for common configurations.
+     *
+     * Example:
+     * @code{.cpp}
+     * gba::reg_dma[3] = gba::dma::copy(src, dst, 256);
+     * gba::reg_dma[3] = gba::dma::fill(&value, dst, 256);
+     * gba::reg_dma[3] = gba::dma::on_vblank(oam_buffer, oam_mem, 128);
+     * @endcode
+     */
+    struct dma {
+        const void* source;      ///< Source address
+        void* destination;       ///< Destination address
+        unsigned short units;    ///< Number of units to transfer
+        dma_control control;     ///< DMA control settings
+
+        /**
+         * @brief Create an immediate 32-bit copy configuration.
+         *
+         * @param src Source address.
+         * @param dst Destination address.
+         * @param count Number of 32-bit words to copy.
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * Example:
+         * @code{.cpp}
+         * gba::reg_dma[3] = gba::dma::copy(tile_data, vram, 256);
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * dma3_cpy(vram, tile_data, 256);
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma copy(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.dma_type = dma_type::word, .enable = true}};
+        }
+
+        /**
+         * @brief Create an immediate 16-bit copy configuration.
+         *
+         * @param src Source address.
+         * @param dst Destination address.
+         * @param count Number of 16-bit halfwords to copy.
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * Example:
+         * @code{.cpp}
+         * gba::reg_dma[3] = gba::dma::copy16(palette_data, pal_mem, 256);
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * DMA_TRANSFER(pal_mem, palette_data, 256, 3, DMA_CPY16);
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma copy16(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.dma_type = dma_type::half, .enable = true}};
+        }
+
+        /**
+         * @brief Create a 32-bit fill configuration.
+         *
+         * Fills destination with copies of the value at the source address.
+         *
+         * @param src Address of fill value (must remain valid during transfer).
+         * @param dst Destination address.
+         * @param count Number of 32-bit words to fill.
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * @warning The source address must remain valid until the transfer completes.
+         *
+         * Example:
+         * @code{.cpp}
+         * static constexpr unsigned int black = 0;
+         * gba::reg_dma[3] = gba::dma::fill(&black, vram, 240*160/2);
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * dma3_fill(vram, 0, 240*160/2);
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma fill(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.src_op = src_op_fixed, .dma_type = dma_type::word, .enable = true}};
+        }
+
+        /**
+         * @brief Create a 16-bit fill configuration.
+         *
+         * @param src Address of 16-bit fill value.
+         * @param dst Destination address.
+         * @param count Number of 16-bit halfwords to fill.
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * DMA_TRANSFER(dst, &fill_value, count, 3, DMA_FILL16);
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma fill16(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.src_op = src_op_fixed, .dma_type = dma_type::half, .enable = true}};
+        }
+
+        /**
+         * @brief Create a VBlank-triggered repeating transfer.
+         *
+         * The DMA runs automatically at the start of each VBlank period.
+         *
+         * @param src Source address (must remain valid while active).
+         * @param dst Destination address.
+         * @param count Number of 32-bit words per transfer.
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * Example:
+         * @code{.cpp}
+         * gba::reg_dma[3] = gba::dma::on_vblank(oam_buffer, oam_mem, 128);
+         * // ... game loop ...
+         * gba::reg_dmacnt_h[3] = {};  // Stop
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * REG_DMA3SAD = (u32)oam_buffer;
+         * REG_DMA3DAD = (u32)oam_mem;
+         * REG_DMA3CNT = 128 | DMA_AT_VBLANK | DMA_REPEAT | DMA_32 | DMA_DST_RELOAD | DMA_ENABLE;
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma on_vblank(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.dest_op = dest_op_increment_reload, .repeat = true, .dma_type = dma_type::word, .dma_cond = dma_cond_vblank, .enable = true}};
+        }
+
+        /**
+         * @brief Create an HBlank-triggered repeating transfer (HDMA).
+         *
+         * The DMA runs automatically at the start of each HBlank period.
+         *
+         * @param src Source address (table of values, one per scanline).
+         * @param dst Destination address (typically a register).
+         * @param count Number of 16-bit halfwords per HBlank (usually 1).
+         * @return DMA configuration ready to assign to reg_dma[N].
+         *
+         * @note DMA0 has highest priority and is recommended for HDMA effects.
+         *
+         * Example:
+         * @code{.cpp}
+         * gba::reg_dma[0] = gba::dma::on_hblank(scroll_table, memory_map(gba::reg_bg0hofs), 1);
+         * // ... game loop ...
+         * gba::reg_dmacnt_h[0] = {};  // Stop
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * REG_DMA0SAD = (u32)scroll_table;
+         * REG_DMA0DAD = (u32)&REG_BG0HOFS;
+         * REG_DMA0CNT = 1 | DMA_AT_HBLANK | DMA_REPEAT | DMA_16 | DMA_DST_RELOAD | DMA_ENABLE;
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma on_hblank(const void* src, void* dst, std::size_t count) noexcept {
+            return {src, dst, static_cast<unsigned short>(count), {.dest_op = dest_op_increment_reload, .repeat = true, .dma_type = dma_type::half, .dma_cond = dma_cond_hblank, .enable = true}};
+        }
+
+        /**
+         * @brief Create audio streaming configuration for FIFO A.
+         *
+         * Sets up continuous DMA to DirectSound FIFO A. Use with DMA1.
+         *
+         * @param samples Source PCM sample data.
+         * @return DMA configuration ready to assign to reg_dma[1].
+         *
+         * Example:
+         * @code{.cpp}
+         * gba::reg_dma[1] = gba::dma::to_fifo_a(pcm_data);
+         * @endcode
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * REG_DMA1SAD = (u32)pcm_data;
+         * REG_DMA1DAD = (u32)&REG_FIFO_A;
+         * REG_DMA1CNT = 1 | DMA_DST_FIXED | DMA_REPEAT | DMA_32 | DMA_AT_FIFO | DMA_ENABLE;
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma to_fifo_a(const void* samples) noexcept {
+            return {samples, reinterpret_cast<void*>(0x40000A0), 1, {.dest_op = dest_op_fixed, .repeat = true, .dma_type = dma_type::word, .dma_cond = dma_cond_sound_fifo, .enable = true}};
+        }
+
+        /**
+         * @brief Create audio streaming configuration for FIFO B.
+         *
+         * Sets up continuous DMA to DirectSound FIFO B. Use with DMA2.
+         *
+         * @param samples Source PCM sample data.
+         * @return DMA configuration ready to assign to reg_dma[2].
+         *
+         * TONCLIB Equivalent:
+         * @code{.c}
+         * REG_DMA2SAD = (u32)pcm_data;
+         * REG_DMA2DAD = (u32)&REG_FIFO_B;
+         * REG_DMA2CNT = 1 | DMA_DST_FIXED | DMA_REPEAT | DMA_32 | DMA_AT_FIFO | DMA_ENABLE;
+         * @endcode
+         */
+        [[nodiscard]]
+        static constexpr dma to_fifo_b(const void* samples) noexcept {
+            return {samples, reinterpret_cast<void*>(0x40000A4), 1, {.dest_op = dest_op_fixed, .repeat = true, .dma_type = dma_type::word, .dma_cond = dma_cond_sound_fifo, .enable = true}};
+        }
+    };
+
+    /// @brief DMA channel registers (combined view).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dma[3] = { .source = src, .destination = dst, .units = 128, .control = { .enable = true } };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DMA3SAD = (u32)src;
+    /// REG_DMA3DAD = (u32)dst;
+    /// REG_DMA3CNT = 128 | DMA_ENABLE;
+    /// @endcode
+    inline constexpr auto reg_dma = registral<volatile struct dma[4]>{0x40000B0, 12};
+
+} // namespace gba

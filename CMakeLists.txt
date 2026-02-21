@@ -6,6 +6,7 @@ add_library(stdgba INTERFACE
         include/gba/angle
         include/gba/bios
         include/gba/compress
+        include/gba/dma
         include/gba/filter
         include/gba/fixed_point
         include/gba/format

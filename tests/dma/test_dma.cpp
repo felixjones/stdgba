@@ -1,5 +1,4 @@
-#include <gba/peripherals>
-#include <gba/video>
+#include <gba/dma>
 
 #include <mgba_test.hpp>
 
