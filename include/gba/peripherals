@@ -1276,8 +1276,8 @@ namespace gba {
     ///
     /// Example:
     /// @code{.cpp}
-    /// auto [timers, count] = *gba::make_timer(1s, true);
-    /// std::copy_n(timers.begin(), count, gba::reg_tmcnt.begin());
+    /// constexpr auto timer = gba::compile_timer(1s, true);
+    /// std::copy(timer.begin(), timer.end(), gba::reg_tmcnt.begin());
     /// @endcode
     ///
     /// TONCLIB Equivalent:

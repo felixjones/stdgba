@@ -16,17 +16,17 @@ int main() {
     };
     gba::reg_ime = true;
 
-    static constexpr auto one_second_timer = gba::make_timer(1s, true);
-    static_assert(one_second_timer.has_value());
+    static constexpr auto one_second_timer = gba::compile_timer(1s, true);
+    static_assert(one_second_timer.size() == 1);
 
     timerHit = false;
-    gba::reg_tmcnt[0] = one_second_timer.value().first[0];
+    gba::reg_tmcnt[0] = one_second_timer[0];
     gba::Halt();
 
     ASSERT_TRUE(timerHit);
 
     timerHit = false;
-    gba::reg_tmcnt[0] = one_second_timer.value().first[0];
+    gba::reg_tmcnt[0] = one_second_timer[0];
     gba::IntrWait(true, {.timer0 = true});
 
     ASSERT_TRUE(timerHit);
