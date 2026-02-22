@@ -6,13 +6,17 @@ file(GLOB_RECURSE TEST_SOURCES test_*.cpp)
 # Tests that require manual testing (excluded from ctest)
 set(MANUAL_TESTS
     test_assert
+    test_divzero
     test_pretty_printers
 )
+
 foreach(test_src ${TEST_SOURCES})
     get_filename_component(test_name ${test_src} NAME_WE)
     add_executable(${test_name} ${test_src} mgba.c)
     target_link_libraries(${test_name} PRIVATE librom stdgba)
     target_include_directories(${test_name} PRIVATE .)
     target_compile_options(${test_name} PUBLIC -g3 -Wno-psabi)
-    add_test(NAME ${test_name} COMMAND ${MGBA_HEADLESS} -S 0xFF -R r0 $<TARGET_FILE:${test_name}>)
+    if(NOT ${test_name} IN_LIST MANUAL_TESTS)
+        add_test(NAME ${test_name} COMMAND ${MGBA_HEADLESS} -S 0xFF -R r0 $<TARGET_FILE:${test_name}>)
+    endif()
 endforeach()

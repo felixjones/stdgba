@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(stdgba LANGUAGES CXX ASM VERSION 2026.2.0)
+project(stdgba LANGUAGES C CXX ASM VERSION 2026.2.0)
 
 add_library(stdgba INTERFACE
         include/gba/angle
@@ -24,11 +24,17 @@ target_compile_features(stdgba INTERFACE cxx_std_23)
 target_sources(stdgba INTERFACE
         source/assert.cpp
         source/assert_entry.s
+        source/div.s
+        source/ldiv.s
+        source/divzero.cpp
+        source/divzero_entry.s
         source/flash_ops.cpp
         source/flash.s
         source/interrupt.cpp)
 
 set_source_files_properties(source/flash.s PROPERTIES COMPILE_FLAGS "-fPIC")
 
-enable_testing()
-add_subdirectory(tests)
+if(STDGBA_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()
