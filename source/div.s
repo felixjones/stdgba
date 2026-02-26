@@ -16,8 +16,9 @@
 @ Runs in IWRAM (ARM, 32-bit bus, 1-cycle access) for maximum throughput.
 @
 @ Layout: signed entry is placed first so the common both-positive fast
-@ path falls through to .Lunsigned_checked without a branch (saves 2
-@ cycles vs bpl). The unsigned entry trampolines with a 3-cycle branch.
+@ path falls through to the shared unsigned body without a branch (saves 2
+@ cycles vs bpl). The unsigned entry branches forward with bne (3 cycles),
+@ which is 1 cycle faster than the old beq+b trampoline (4 cycles).
 @
 @===============================================================================
 .syntax unified
@@ -39,7 +40,7 @@ __aeabi_idivmod:
 __aeabi_idiv:
     cmp     r1, #0
     beq     __aeabi_idiv0
-    @ Fast path: both operands non-negative → fall through to unsigned body
+    @ Fast path: both operands non-negative -> fall through to unsigned body
     @ orrs sets N if either r0 or r1 has bit 31 set (negative)
     orrs    r12, r0, r1
     bmi     .Lsigned_slow       @ 1 cycle (not taken) for common case
@@ -49,11 +50,16 @@ __aeabi_idiv:
 @ Input:  r0 = numerator, r1 = denominator (known non-zero)
 @ Output: r0 = quotient, r1 = remainder
 @ Clobbers: r2, r3
+@
+@ The n<d check uses branchless conditional moves (3 cycles regardless of
+@ outcome). When n >= d, the movlo instructions execute as 1-cycle NOPs,
+@ and the bxlo is not taken (1 cycle), flowing into the main algorithm.
 @ =============================================================================
 .Lunsigned_checked:
-    @ Quick out: numerator < denominator → cold path
+    @ Quick out: numerator < denominator
     cmp     r0, r1
     blo     .Luidiv_num_lt_denom
+.Lunsigned_body:
     @ Negate denominator early for binary search (cmn) and loop (adcs)
     rsb     r2, r1, #0          @ r2 = -denominator
     mov     r3, #28             @ initial guess for bit difference
@@ -84,7 +90,7 @@ __aeabi_idiv:
     .endr
     bx      lr
 .Luidiv_num_lt_denom:
-    @ Cold path: numerator < denominator → quotient = 0, remainder = numerator
+    @ numerator < denominator: quotient = 0, remainder = numerator
     mov     r1, r0
     mov     r0, #0
     bx      lr
@@ -100,7 +106,7 @@ __aeabi_idiv:
     cmp     r1, #0
     rsblt   r1, r1, #0          @ r1 = abs(denominator)
     orrlt   r12, #1 << 31
-    @ Unsigned division of absolute values (skip redundant div0 check)
+    @ Unsigned division of absolute values
     bl      .Lunsigned_checked
     @ Move packed sign bits into CPSR flags
     msr     cpsr_f, r12
@@ -115,9 +121,9 @@ __aeabi_idiv:
 @ =============================================================================
 @ Unsigned division: __aeabi_uidivmod / __aeabi_uidiv
 @
-@ Trampoline: branches to the shared body above.
-@ Costs +3 cycles vs the old inline entry, but frees the signed fast path
-@ to fall through (saving 2 cycles on the more common signed call).
+@ Falls through to the same shared body -- no trampoline branch.
+@ The signed entry checks idiv0 + sign, this entry checks uidiv0 and
+@ falls through directly.
 @ =============================================================================
     .global __aeabi_uidivmod
     .type __aeabi_uidivmod, %function
@@ -126,6 +132,6 @@ __aeabi_uidivmod:
     .type __aeabi_uidiv, %function
 __aeabi_uidiv:
     cmp     r1, #0
-    beq     __aeabi_idiv0
-    b       .Lunsigned_checked
+    bne     .Lunsigned_checked
+    b       __aeabi_idiv0
     .size __aeabi_uidivmod, . - __aeabi_uidivmod

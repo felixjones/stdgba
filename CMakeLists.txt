@@ -26,11 +26,24 @@ target_sources(stdgba INTERFACE
         source/assert_entry.s
         source/div.s
         source/ldiv.s
+        source/lmul.s
         source/divzero.cpp
         source/divzero_entry.s
         source/flash_ops.cpp
         source/flash.s
-        source/interrupt.cpp)
+        source/interrupt.cpp
+        source/memchr.s
+        source/memcmp.cpp
+        source/memcmp.s
+        source/memcpy.cpp
+        source/memcpy.s
+        source/memmove.cpp
+        source/memmove.s
+        source/memset.cpp
+        source/memset.s
+        source/strchr.s
+        source/strcmp.s
+        source/strlen.s)
 
 set_source_files_properties(source/flash.s PROPERTIES COMPILE_FLAGS "-fPIC")
 
