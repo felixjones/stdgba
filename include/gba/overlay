@@ -1,0 +1,171 @@
+/// @file overlay
+/// @brief GBA EWRAM/IWRAM overlay section metadata.
+///
+/// The GBA toolchain linker script defines 10 EWRAM overlays (.ewram0-.ewram9)
+/// and 10 IWRAM overlays (.iwram0-.iwram9) that share the same RAM address
+/// space. Only one EWRAM overlay and one IWRAM overlay can be active at a time.
+///
+/// To place data or code into an overlay section, use the section attribute:
+/// @code{.cpp}
+/// // Level data in EWRAM overlay 0
+/// [[gnu::section(".ewram0")]] int level1_map[1024] = { /* ... */ };
+///
+/// // Level data in EWRAM overlay 1
+/// [[gnu::section(".ewram1")]] int level2_map[1024] = { /* ... */ };
+///
+/// // Fast code in IWRAM overlay 0
+/// [[gnu::section(".iwram0"), gnu::noinline, gnu::long_call]]
+/// void physics_update() { /* ... */ }
+/// @endcode
+///
+/// Alternatively, name source files with the overlay pattern (e.g.
+/// `level1.ewram0.cpp`) and the linker will place their .text sections
+/// into the corresponding overlay automatically.
+///
+/// Loading overlays:
+/// @code{.cpp}
+/// #include <gba/overlay>
+/// #include <cstring>
+///
+/// // Get overlay metadata
+/// auto ov = gba::overlay::ewram<0>;
+///
+/// // Load with memcpy
+/// std::memcpy(ov.wram, ov.rom, ov.bytes);
+///
+/// // Or with CpuSet (BIOS)
+/// gba::CpuSet(ov.rom, ov.wram, {.count = ov.bytes / 4, .set_32bit = true});
+///
+/// // Or with DMA
+/// gba::reg_dma[3] = gba::dma::copy(ov.rom, ov.wram, ov.bytes / 4);
+/// @endcode
+///
+/// @par tonclib equivalent
+/// There is no direct tonclib equivalent. Overlay loading requires manual
+/// copying from ROM to RAM, typically using CpuSet or CpuFastSet.
+#pragma once
+
+#include <cstdint>
+
+namespace gba::overlay {
+
+/// Describes a memory overlay section with its ROM source and WRAM destination.
+///
+/// Each overlay section has initialization data stored in ROM (at the load
+/// memory address) that is copied into a shared WRAM region (at the virtual
+/// memory address) when the overlay is loaded. All overlays of the same
+/// type (EWRAM or IWRAM) share the same WRAM destination, so loading one
+/// overlay overwrites any previously loaded overlay in that region.
+struct section {
+    const void* rom;    ///< Load memory address (source data in ROM).
+    void* wram;         ///< Virtual memory address (destination in WRAM).
+    unsigned int bytes; ///< Size of the section in bytes.
+};
+
+namespace detail {
+    // Linker-generated overlay symbols.
+    // The OVERLAY directive in the linker script automatically generates
+    // __load_start_<name> and __load_stop_<name> for each overlay section.
+    // __ewram_overlay_start and __iwram_overlay_start are the VMA base
+    // addresses for the overlay regions.
+    extern "C" {
+        extern const char __load_start_ewram0[], __load_stop_ewram0[];
+        extern const char __load_start_ewram1[], __load_stop_ewram1[];
+        extern const char __load_start_ewram2[], __load_stop_ewram2[];
+        extern const char __load_start_ewram3[], __load_stop_ewram3[];
+        extern const char __load_start_ewram4[], __load_stop_ewram4[];
+        extern const char __load_start_ewram5[], __load_stop_ewram5[];
+        extern const char __load_start_ewram6[], __load_stop_ewram6[];
+        extern const char __load_start_ewram7[], __load_stop_ewram7[];
+        extern const char __load_start_ewram8[], __load_stop_ewram8[];
+        extern const char __load_start_ewram9[], __load_stop_ewram9[];
+
+        extern const char __load_start_iwram0[], __load_stop_iwram0[];
+        extern const char __load_start_iwram1[], __load_stop_iwram1[];
+        extern const char __load_start_iwram2[], __load_stop_iwram2[];
+        extern const char __load_start_iwram3[], __load_stop_iwram3[];
+        extern const char __load_start_iwram4[], __load_stop_iwram4[];
+        extern const char __load_start_iwram5[], __load_stop_iwram5[];
+        extern const char __load_start_iwram6[], __load_stop_iwram6[];
+        extern const char __load_start_iwram7[], __load_stop_iwram7[];
+        extern const char __load_start_iwram8[], __load_stop_iwram8[];
+        extern const char __load_start_iwram9[], __load_stop_iwram9[];
+
+        extern char __ewram_overlay_start[];
+        extern char __iwram_overlay_start[];
+    }
+} // namespace detail
+
+/// EWRAM overlay section variable template.
+///
+/// Provides metadata for each EWRAM overlay section. The template parameter
+/// provides compile-time bounds checking.
+///
+/// @tparam N Overlay index (0-9).
+///
+/// @code{.cpp}
+/// auto ov = gba::overlay::ewram<0>;
+/// std::memcpy(ov.wram, ov.rom, ov.bytes);
+/// @endcode
+template<int N> requires (N >= 0 && N <= 9)
+inline const section ewram{};
+
+/// IWRAM overlay section variable template.
+///
+/// Provides metadata for each IWRAM overlay section. IWRAM code runs
+/// significantly faster than ROM or EWRAM code due to the 32-bit bus
+/// width and zero wait states, making IWRAM overlays ideal for swapping
+/// performance-critical code modules.
+///
+/// @tparam N Overlay index (0-9).
+///
+/// @code{.cpp}
+/// auto ov = gba::overlay::iwram<0>;
+/// std::memcpy(ov.wram, ov.rom, ov.bytes);
+/// @endcode
+template<int N> requires (N >= 0 && N <= 9)
+inline const section iwram{};
+
+#define GBA_DETAIL_EWRAM_(n) \
+    template<> \
+    inline const section ewram<n> = { \
+        detail::__load_start_ewram##n, \
+        detail::__ewram_overlay_start, \
+        static_cast<unsigned int>(detail::__load_stop_ewram##n - detail::__load_start_ewram##n) \
+    };
+
+GBA_DETAIL_EWRAM_(0)
+GBA_DETAIL_EWRAM_(1)
+GBA_DETAIL_EWRAM_(2)
+GBA_DETAIL_EWRAM_(3)
+GBA_DETAIL_EWRAM_(4)
+GBA_DETAIL_EWRAM_(5)
+GBA_DETAIL_EWRAM_(6)
+GBA_DETAIL_EWRAM_(7)
+GBA_DETAIL_EWRAM_(8)
+GBA_DETAIL_EWRAM_(9)
+
+#undef GBA_DETAIL_EWRAM_
+
+#define GBA_DETAIL_IWRAM_(n) \
+    template<> \
+    inline const section iwram<n> = { \
+        detail::__load_start_iwram##n, \
+        detail::__iwram_overlay_start, \
+        static_cast<unsigned int>(detail::__load_stop_iwram##n - detail::__load_start_iwram##n) \
+    };
+
+GBA_DETAIL_IWRAM_(0)
+GBA_DETAIL_IWRAM_(1)
+GBA_DETAIL_IWRAM_(2)
+GBA_DETAIL_IWRAM_(3)
+GBA_DETAIL_IWRAM_(4)
+GBA_DETAIL_IWRAM_(5)
+GBA_DETAIL_IWRAM_(6)
+GBA_DETAIL_IWRAM_(7)
+GBA_DETAIL_IWRAM_(8)
+GBA_DETAIL_IWRAM_(9)
+
+#undef GBA_DETAIL_IWRAM_
+
+} // namespace gba::overlay

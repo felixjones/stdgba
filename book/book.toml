@@ -1,0 +1,13 @@
+[book]
+title = "stdgba"
+description = "A modern C++ standard library for the Game Boy Advance"
+authors = ["Felix Jones"]
+language = "en"
+src = "src"
+
+[build]
+build-dir = "output"
+
+[output.html]
+git-repository-url = "https://github.com/felixjones/stdgba"
+additional-css = ["src/custom.css"]

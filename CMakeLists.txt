@@ -14,6 +14,8 @@ add_library(stdgba INTERFACE
         include/gba/interrupt
         include/gba/keyinput
         include/gba/memory
+        include/gba/music
+        include/gba/overlay
         include/gba/peripherals
         include/gba/save
         include/gba/timer
@@ -43,7 +45,8 @@ target_sources(stdgba INTERFACE
         source/memset.s
         source/strchr.s
         source/strcmp.s
-        source/strlen.s)
+        source/strlen.s
+)
 
 set_source_files_properties(source/flash.s PROPERTIES COMPILE_FLAGS "-fPIC")
 

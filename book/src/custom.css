@@ -1,0 +1,27 @@
+/* Custom styles for stdgba book */
+
+/* Inline code in prose */
+code {
+    font-size: 0.9em;
+}
+
+/* Tonc/tonclib comparison blocks */
+.tonc-comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1em;
+}
+
+/* GBA screenshots at 2x integer scale with pixel-perfect rendering */
+img[src$=".png"] {
+    width: 480px;
+    height: auto;
+    image-rendering: pixelated;
+}
+
+/* Keep green-low-bit comparison shots aspect-correct across PNG/JPG inputs */
+.green-lo-shot {
+    width: 480px;
+    height: auto;
+    image-rendering: pixelated;
+}
