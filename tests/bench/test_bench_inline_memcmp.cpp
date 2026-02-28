@@ -1,17 +1,15 @@
-/**
- * @file tests/bench/test_bench_inline_memcmp.cpp
- * @brief Benchmark the compile-time specialisation paths in memcmp.cpp
- *        to determine optimal inlining thresholds.
- *
- * Tests three questions:
- *   1. What is the crossover for inline byte compares vs __stdgba_memcmp?
- *   2. What is the crossover for inline word XOR vs __stdgba_memcmp?
- *   3. Does the memcmp wrapper (with all specialisations) beat a raw call?
- *
- * All from ROM/Thumb context (the common case that determines the cap).
- *
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- */
+/// @file tests/bench/test_bench_inline_memcmp.cpp
+/// @brief Benchmark the compile-time specialisation paths in memcmp.cpp
+/// to determine optimal inlining thresholds.
+///
+/// Tests three questions:
+/// 1. What is the crossover for inline byte compares vs __stdgba_memcmp?
+/// 2. What is the crossover for inline word XOR vs __stdgba_memcmp?
+/// 3. Does the memcmp wrapper (with all specialisations) beat a raw call?
+///
+/// All from ROM/Thumb context (the common case that determines the cap).
+///
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
 
 #include <cstddef>
 #include <cstdint>

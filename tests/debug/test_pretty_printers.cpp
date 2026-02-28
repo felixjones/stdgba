@@ -1,14 +1,12 @@
-/**
- * @file tests/debug/test_pretty_printers.cpp
- * @brief Test file for GDB pretty printers.
- *
- * This file creates instances of all types with GDB pretty printers.
- * To test: set a breakpoint at the "// BREAKPOINT HERE" comment and
- * inspect variables in the debugger.
- *
- * Load pretty printers with:
- *   source D:/CLionProjects/stdgba/gdb/stdgba.py
- */
+/// @file tests/debug/test_pretty_printers.cpp
+/// @brief Test file for GDB pretty printers.
+///
+/// This file creates instances of all types with GDB pretty printers.
+/// To test: set a breakpoint at the "// BREAKPOINT HERE" comment and
+/// inspect variables in the debugger.
+///
+/// Load pretty printers with:
+/// source D:/CLionProjects/stdgba/gdb/stdgba.py
 
 #include <gba/angle>
 #include <gba/fixed_point>

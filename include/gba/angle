@@ -1,62 +1,60 @@
-/**
- * @file angle
- * @brief Circular angle types with wraparound arithmetic.
- *
- * This header provides type-safe angle representations optimized for GBA:
- * - **`angle`**: 32-bit intermediate type for arithmetic (register-sized)
- * - **`packed_angle<Bits>`**: Compact storage types with specific precision
- *
- * @section angle_design Design Philosophy
- *
- * **Intermediate type (`angle`):**
- * - Always 32-bit (`unsigned int`) for efficient ARM operations
- * - Uses natural overflow for wraparound (no masking)
- * - Full 360 degrees = 2^32 steps
- *
- * **Storage types (`packed_angle<Bits>`):**
- * - Minimal memory footprint (8, 12, 16, 24 bits, etc.)
- * - Implicit conversion to `angle` for arithmetic
- * - Assignment from `angle` truncates to storage precision
- *
- * @section angle_usage Basic Usage
- *
- * @code{.cpp}
- * using namespace gba::literals;
- *
- * // Storage types for memory efficiency
- * gba::packed_angle<16> stored_heading;  // 2 bytes
- * gba::packed_angle<8> coarse_dir;       // 1 byte
- *
- * // Convert to angle for arithmetic
- * gba::angle heading = stored_heading;
- * heading += 45_deg;
- * heading = heading * 2;
- *
- * // Store back (truncates to precision)
- * stored_heading = heading;
- * @endcode
- *
- * @section angle_hardware Hardware Integration
- *
- * The GBA BIOS uses 16-bit angles where 0x10000 = 360 degrees.
- * Use `packed_angle16` storage for BIOS function results.
- *
- * @code{.cpp}
- * // BIOS returns angle, store as 16-bit
- * gba::packed_angle16 stored_dir = gba::ArcTan2(dx, dy);
- *
- * // Or keep full precision for arithmetic
- * gba::angle dir = gba::ArcTan2(dx, dy);
- * @endcode
- *
- * TONCLIB Equivalent:
- * @code{.c}
- * u16 dir = ArcTan2(dx, dy);
- * @endcode
- *
- * @see gba::ArcTan
- * @see gba::ArcTan2
- */
+/// @file angle
+/// @brief Circular angle types with wraparound arithmetic.
+///
+/// This header provides type-safe angle representations optimized for GBA:
+/// - **`angle`**: 32-bit intermediate type for arithmetic (register-sized)
+/// - **`packed_angle<Bits>`**: Compact storage types with specific precision
+///
+/// @section angle_design Design Philosophy
+///
+/// **Intermediate type (`angle`):**
+/// - Always 32-bit (`unsigned int`) for efficient ARM operations
+/// - Uses natural overflow for wraparound (no masking)
+/// - Full 360 degrees = 2^32 steps
+///
+/// **Storage types (`packed_angle<Bits>`):**
+/// - Minimal memory footprint (8, 12, 16, 24 bits, etc.)
+/// - Implicit conversion to `angle` for arithmetic
+/// - Assignment from `angle` truncates to storage precision
+///
+/// @section angle_usage Basic Usage
+///
+/// @code{.cpp}
+/// using namespace gba::literals;
+///
+/// // Storage types for memory efficiency
+/// gba::packed_angle<16> stored_heading;  // 2 bytes
+/// gba::packed_angle<8> coarse_dir;       // 1 byte
+///
+/// // Convert to angle for arithmetic
+/// gba::angle heading = stored_heading;
+/// heading += 45_deg;
+/// heading = heading * 2;
+///
+/// // Store back (truncates to precision)
+/// stored_heading = heading;
+/// @endcode
+///
+/// @section angle_hardware Hardware Integration
+///
+/// The GBA BIOS uses 16-bit angles where 0x10000 = 360 degrees.
+/// Use `packed_angle16` storage for BIOS function results.
+///
+/// @code{.cpp}
+/// // BIOS returns angle, store as 16-bit
+/// gba::packed_angle16 stored_dir = gba::ArcTan2(dx, dy);
+///
+/// // Or keep full precision for arithmetic
+/// gba::angle dir = gba::ArcTan2(dx, dy);
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// u16 dir = ArcTan2(dx, dy);
+/// @endcode
+///
+/// @see gba::ArcTan
+/// @see gba::ArcTan2
 #pragma once
 
 // Core angle types

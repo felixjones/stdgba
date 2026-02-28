@@ -1,11 +1,9 @@
-/**
- * @file tests/memory/test_memcmp.cpp
- * @brief Unit tests for optimized memcmp and bcmp implementations.
- */
+/// @file tests/memory/test_memcmp.cpp
+/// @brief Unit tests for optimized memcmp and bcmp implementations.
 
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 extern "C" {
     int memcmp(const void*, const void*, std::size_t);

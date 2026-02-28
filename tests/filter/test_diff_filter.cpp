@@ -1,7 +1,5 @@
-/**
- * @file test_diff_filter.cpp
- * @brief Tests for compile-time differential filtering and BIOS unfilter.
- */
+/// @file test_diff_filter.cpp
+/// @brief Tests for compile-time differential filtering and BIOS unfilter.
 #include <gba/bios>
 #include <gba/filter>
 

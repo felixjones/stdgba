@@ -1,25 +1,22 @@
-/**
- * @file peripherals
- * @brief GBA hardware register abstractions and memory-mapped IO.
- *
- * This header provides C++ abstractions for GBA hardware registers using the `registral` template.
- * Registers are defined as `inline constexpr` variables, matching their hardware addresses.
- *
- * Example:
- * @code{.cpp}
- * // Set video mode 3, enable BG2
- * gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
- * @endcode
- *
- * TONCLIB/LIBTONC Equivalent:
- * @code{.c}
- * REG_DISPCNT = DCNT_MODE3 | DCNT_BG2;
- * @endcode
- */
+/// @file peripherals
+/// @brief GBA hardware register abstractions and memory-mapped IO.
+///
+/// This header provides C++ abstractions for GBA hardware registers using the `registral` template.
+/// Registers are defined as `inline constexpr` variables, matching their hardware addresses.
+///
+/// Example:
+/// @code{.cpp}
+/// // Set video mode 3, enable BG2
+/// gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
+/// @endcode
+///
+/// TONCLIB/LIBTONC Equivalent:
+/// @code{.c}
+/// REG_DISPCNT = DCNT_MODE3 | DCNT_BG2;
+/// @endcode
 #pragma once
 
 #include <gba/bits/registral_ops.hpp>
-
 #include <gba/fixed_point>
 #include <gba/memory>
 
@@ -31,118 +28,87 @@
 
 namespace gba {
 
-    /**
-     * @brief Template for memory-mapped hardware registers.
-     * @tparam ValueType The type of the register (e.g., struct, integral, array).
-     */
+    /// @brief Template for memory-mapped hardware registers.
+    /// @tparam ValueType The type of the register (e.g., struct, integral, array).
     template<typename>
     struct registral {};
 
-    /**
-     * @brief Concept for non-array, trivially copyable types.
-     */
+    /// @brief Concept for non-array, trivially copyable types.
     template<typename T>
     concept IsNonArrayTriviallyCopiable = !std::is_array_v<T> && std::is_trivially_copyable_v<T>;
 
-    /**
-     * @brief Register wrapper for non-array, trivially copyable types.
-     *
-     * Provides type-safe read/write access to GBA hardware registers.
-     * - Read-only if ValueType is const (inherits bits::read_ops)
-     * - Write-only if ValueType is volatile (inherits bits::write_ops)
-     * - Read/Write otherwise (inherits bits::read_write_ops)
-     *
-     * Inherited operations from bits::read_ops:
-     * - value() - Returns the current register value
-     *
-     * Inherited operations from bits::write_ops:
-     * - write(value) - Writes a value to the register
-     * - write_integer(value) - Writes an integer value to the register
-     *
-     * Inherited operations from bits::read_write_ops:
-     * - All of the above, plus bitwise compound assignment operators
-     *
-     * Example:
-     * @code{.cpp}
-     * // Read from a register
-     * auto value = gba::reg_dispcnt;
-     * // Write to a register
-     * gba::reg_dispcnt = { .video_mode = 3 };
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * // Read from a register
-     * u16 value = REG_DISPCNT;
-     * // Write to a register
-     * REG_DISPCNT = DCNT_MODE3;
-     * @endcode
-     */
+    /// Register wrapper for non-array, trivially copyable types.
+    ///
+    /// Read-only if ValueType is const, write-only if volatile, read/write otherwise.
+    ///
+    /// @code{.cpp}
+    /// gba::reg_dispcnt = { .video_mode = 3 };
+    /// auto value = gba::reg_dispcnt;
+    /// @endcode
+    ///
+    /// @par tonclib equivalent
+    /// @code{.c}
+    /// REG_DISPCNT = DCNT_MODE3;
+    /// u16 value = REG_DISPCNT;
+    /// @endcode
     template<IsNonArrayTriviallyCopiable ValueType>
-    struct registral<ValueType> : std::conditional_t<std::is_const_v<ValueType>, std::conditional_t<std::is_volatile_v<ValueType>, void, bits::read_ops>, std::conditional_t<std::is_volatile_v<ValueType>, bits::write_ops, bits::read_write_ops>> {
+    struct registral<ValueType>
+        : std::conditional_t<std::is_const_v<ValueType>,
+                             std::conditional_t<std::is_volatile_v<ValueType>, void, bits::read_ops>,
+                             std::conditional_t<std::is_volatile_v<ValueType>, bits::write_ops, bits::read_write_ops>> {
         friend bits::read_ops;
         friend bits::write_ops;
         friend bits::read_write_ops;
 
-        /// @brief The underlying value type (cv-qualifiers removed).
         using value_type = std::remove_cvref_t<ValueType>;
 
-        /// @brief Copy constructor.
         registral(const registral&) = default;
-
-        /// @brief Construct a register wrapper for the given hardware address.
-        /// @param address The memory-mapped register address.
         explicit constexpr registral(const std::uintptr_t address) noexcept : m_address{address} {}
 
-        /// @brief Implicitly read the register value.
-        /// @return The current value of the register.
-        /// @note Only available for read-capable registers (const or read/write).
         [[gnu::always_inline]]
-        explicit(false) operator value_type() const noexcept requires std::derived_from<registral, bits::read_ops> {
+        explicit(false) operator value_type() const noexcept
+            requires std::derived_from<registral, bits::read_ops>
+        {
             return this->value();
         }
 
-        /// @brief Write a value to the register (move).
-        /// @param value The value to write.
-        /// @return Reference to this register.
-        /// @note Only available for write-capable registers (volatile or read/write).
         [[gnu::always_inline]]
-        const registral& operator=(value_type&& value) const noexcept requires std::derived_from<registral, bits::write_ops> { // NOLINT(*-unconventional-assign-operator)
+        const registral& operator=(value_type&& value) const noexcept
+            requires std::derived_from<registral, bits::write_ops>
+        { // NOLINT(*-unconventional-assign-operator)
             bits::write_ops::write(static_cast<value_type&&>(value));
             return *this;
         }
 
-        /// @brief Write a value to the register (copy).
-        /// @param value The value to write.
-        /// @return Reference to this register.
-        /// @note Only available for write-capable registers (volatile or read/write).
         [[gnu::always_inline]]
-        const registral& operator=(const value_type& value) const noexcept requires std::derived_from<registral, bits::write_ops> { // NOLINT(*-unconventional-assign-operator)
+        const registral& operator=(const value_type& value) const noexcept
+            requires std::derived_from<registral, bits::write_ops>
+        { // NOLINT(*-unconventional-assign-operator)
             bits::write_ops::write(value);
             return *this;
         }
 
-        /// @brief Write an integer value to the register.
-        /// @param value The integer value to write.
-        /// @return Reference to this register.
-        /// @note Only available for non-integral, non-fixed_point register types.
+        /// Assign an integer value directly (for non-integral, non-fixed_point register types).
         [[gnu::always_inline]]
-        const registral& operator=(std::integral auto&& value) const noexcept requires (std::derived_from<registral, bits::write_ops> && !std::integral<value_type> && !fixed_point<value_type>) { // NOLINT(*-unconventional-assign-operator)
+        const registral& operator=(std::integral auto&& value) const noexcept
+            requires(std::derived_from<registral, bits::write_ops> && !std::integral<value_type> &&
+                     !fixed_point<value_type>)
+        { // NOLINT(*-unconventional-assign-operator)
             bits::write_ops::write_integer(static_cast<decltype(value)&&>(value));
             return *this;
         }
 
-        /// @brief Convert to a read-only register view.
-        /// @return A const-qualified registral for the same address.
-        /// @note Only available for read/write registers.
-        explicit(false) constexpr operator registral<const value_type>() const noexcept requires std::derived_from<registral, bits::read_write_ops> { // NOLINT(*-explicit-constructor)
+        /// Convert to a read-only register view.
+        explicit(false) constexpr operator registral<const value_type>() const noexcept
+            requires std::derived_from<registral, bits::read_write_ops>
+        { // NOLINT(*-explicit-constructor)
             return {m_address};
         }
 
-        /// @brief Convert to a write-only register view.
-        /// @return A volatile-qualified registral for the same address.
-        /// @note Only available for read/write registers.
-        explicit(false) constexpr operator gba::registral<volatile value_type>() const noexcept requires std::derived_from<registral, bits::read_write_ops> { // NOLINT(*-explicit-constructor)
+        /// Convert to a write-only register view.
+        explicit(false) constexpr operator gba::registral<volatile value_type>() const noexcept
+            requires std::derived_from<registral, bits::read_write_ops>
+        { // NOLINT(*-explicit-constructor)
             return {m_address};
         }
 
@@ -166,164 +132,144 @@ namespace gba {
     /// *ptr |= DCNT_BG2;
     /// @endcode
     template<IsNonArrayTriviallyCopiable ValueType>
-    [[gnu::always_inline]] // ReSharper disable once CppRedundantInlineSpecifier
+    [[gnu::always_inline]]
     inline auto* memory_map(const registral<ValueType>& r) noexcept {
         return __builtin_bit_cast(std::remove_volatile_t<ValueType>*, r);
     }
 
-    /**
-     * @brief Concept for arrays of trivially copyable types.
-     */
+    /// @brief Concept for arrays of trivially copyable types.
     template<typename T>
-    concept IsArrayOfTriviallyCopiable = std::is_array_v<T> && std::is_trivially_copyable_v<std::remove_cv_t<std::remove_extent_t<T>>>;
+    concept IsArrayOfTriviallyCopiable = std::is_array_v<T> &&
+                                         std::is_trivially_copyable_v<std::remove_cv_t<std::remove_extent_t<T>>>;
 
-    /**
-     * @brief Register wrapper for arrays of trivially copyable types.
-     *
-     * Provides indexed access to hardware register arrays.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Access timer 0 reload register
-     * gba::reg_tmcnt_l[0] = 0xFFFF;
-     * // Iterate over all timer control registers
-     * for (auto tmcnt : gba::reg_tmcnt_h) { }
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * // Access timer 0 reload register
-     * REG_TM0D = 0xFFFF;
-     * // Iterate over all timers (manual loop)
-     * for (int i = 0; i < 4; i++) { }
-     * @endcode
-     */
-    template<IsArrayOfTriviallyCopiable ValueType> //TODO: Multidimensional stride support
+    /// @brief Register wrapper for arrays of trivially copyable types.
+    ///
+    /// Provides indexed access to hardware register arrays.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Access timer 0 reload register
+    /// gba::reg_tmcnt_l[0] = 0xFFFF;
+    /// // Iterate over all timer control registers
+    /// for (auto tmcnt : gba::reg_tmcnt_h) { }
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// // Access timer 0 reload register
+    /// REG_TM0D = 0xFFFF;
+    /// // Iterate over all timers (manual loop)
+    /// for (int i = 0; i < 4; i++) { }
+    /// @endcode
+    template<IsArrayOfTriviallyCopiable ValueType>
     struct registral<ValueType> {
-        /// @brief The element type of the array.
         using value_type = std::remove_extent_t<ValueType>;
-        /// @brief The type used for array indices and sizes.
         using size_type = std::size_t;
 
-        /// @brief Copy constructor.
         registral(const registral&) = default;
 
-        /// @brief Construct a register array wrapper for the given hardware address.
         /// @param address The memory-mapped register base address.
-        /// @param stride The byte offset between consecutive elements (default: sizeof(value_type)).
-        explicit constexpr registral(const std::uintptr_t address, const std::size_t stride = sizeof(value_type)) noexcept : m_address{address}, m_stride{stride} {}
+        /// @param stride Byte offset between consecutive elements (default: sizeof(value_type)).
+        explicit constexpr registral(const std::uintptr_t address,
+                                     const std::size_t stride = sizeof(value_type)) noexcept
+            : m_address{address}, m_stride{stride} {}
 
-        /// @brief Access an element by index.
-        /// @param index The array index.
-        /// @return A registral wrapper for the element at the given index.
         [[gnu::always_inline]]
         constexpr registral<value_type> operator[](const std::size_t index) const noexcept {
             return registral<value_type>{m_address + index * m_stride};
         }
 
-        /// @brief Assign values from an initializer list.
-        /// @param ilist The initializer list of values to write.
-        /// @return Reference to this register array.
         [[gnu::always_inline]] // NOLINT(*-unconventional-assign-operator)
         const registral& operator=(const std::initializer_list<std::remove_cv_t<value_type>>& ilist) const noexcept {
             std::copy(ilist.begin(), ilist.end(), begin());
             return *this;
         }
 
-        /// @brief Forward iterator for register arrays.
+        /// Forward iterator for register arrays.
         template<typename IterValueType>
         struct iterator_impl {
-            /// @brief The element type.
             using value_type = IterValueType;
-            /// @brief The reference type (a registral wrapper).
             using reference = registral<value_type>;
-            /// @brief The pointer type.
             using pointer = value_type*;
-            /// @brief The difference type for iterator arithmetic.
             using difference_type = std::ptrdiff_t;
-            /// @brief Iterator category tag.
             using iterator_category = std::forward_iterator_tag;
-            /// @brief Iterator concept tag.
             using iterator_concept = std::forward_iterator_tag;
 
-            /// @brief Dereference the iterator.
-            /// @return A registral wrapper for the current element.
-            reference operator*() const noexcept {
-                return registral<value_type>{m_address};
+            reference operator*() const noexcept { return registral<value_type>{m_address}; }
+
+            pointer operator->() const noexcept { return gba::memory_map(registral<value_type>{m_address}); }
+
+            constexpr iterator_impl& operator++() noexcept {
+                m_address += m_stride;
+                return *this;
+            }
+            constexpr iterator_impl operator++(int) noexcept {
+                iterator_impl temp = *this;
+                ++*this;
+                return temp;
+            }
+            constexpr iterator_impl& operator--() noexcept {
+                m_address -= m_stride;
+                return *this;
+            }
+            constexpr iterator_impl operator--(int) noexcept {
+                iterator_impl temp = *this;
+                --*this;
+                return temp;
+            }
+            constexpr iterator_impl& operator+=(const difference_type offset) noexcept {
+                m_address += m_stride * offset;
+                return *this;
+            }
+            constexpr iterator_impl& operator-=(const difference_type offset) noexcept {
+                m_address -= m_stride * offset;
+                return *this;
+            }
+            constexpr iterator_impl operator+(const difference_type offset) const noexcept {
+                return {m_address + m_stride * offset, m_stride};
+            }
+            constexpr iterator_impl operator-(const difference_type offset) const noexcept {
+                return {m_address - m_stride * offset, m_stride};
+            }
+            constexpr difference_type operator-(const iterator_impl& other) const noexcept {
+                return (m_address - other.m_address) / m_stride;
             }
 
-            /// @brief Access the current element's memory address.
-            /// @return A pointer to the current element.
-            pointer operator->() const noexcept {
-                return gba::memory_map(registral<value_type>{m_address});
-            }
-
-            /// @brief Pre-increment the iterator.
-            constexpr iterator_impl& operator++() noexcept { m_address += m_stride; return *this; }
-            /// @brief Post-increment the iterator.
-            constexpr iterator_impl operator++(int) noexcept { iterator_impl temp = *this; ++*this; return temp; }
-            /// @brief Pre-decrement the iterator.
-            constexpr iterator_impl& operator--() noexcept { m_address -= m_stride; return *this; }
-            /// @brief Post-decrement the iterator.
-            constexpr iterator_impl operator--(int) noexcept { iterator_impl temp = *this; --*this; return temp; }
-            /// @brief Advance the iterator by an offset.
-            constexpr iterator_impl& operator+=(const difference_type offset) noexcept { m_address += m_stride * offset; return *this; }
-            /// @brief Retreat the iterator by an offset.
-            constexpr iterator_impl& operator-=(const difference_type offset) noexcept { m_address -= m_stride * offset; return *this; }
-            /// @brief Return an iterator advanced by an offset.
-            constexpr iterator_impl operator+(const difference_type offset) const noexcept { return {m_address + m_stride * offset, m_stride}; }
-            /// @brief Return an iterator retreated by an offset.
-            constexpr iterator_impl operator-(const difference_type offset) const noexcept { return {m_address - m_stride * offset, m_stride}; }
-            /// @brief Compute the distance between two iterators.
-            constexpr difference_type operator-(const iterator_impl& other) const noexcept { return (m_address - other.m_address) / m_stride; }
-
-            /// @brief Three-way comparison operator.
             auto operator<=>(const iterator_impl& other) const noexcept = default;
-            /// @brief Equality comparison.
             bool operator==(const iterator_impl& rhs) const noexcept { return m_address == rhs.m_address; }
-            /// @brief Inequality comparison.
             bool operator!=(const iterator_impl& rhs) const noexcept { return m_address != rhs.m_address; }
 
-            /// @brief Construct an iterator for a given address and stride.
-            constexpr iterator_impl(const std::uintptr_t address, const std::size_t stride) noexcept : m_address{address}, m_stride{stride} {}
-            /// @brief Default constructor (creates a null iterator).
+            constexpr iterator_impl(const std::uintptr_t address, const std::size_t stride) noexcept
+                : m_address{address}, m_stride{stride} {}
             constexpr iterator_impl() noexcept : m_address{0}, m_stride{sizeof(value_type)} {}
+
         private:
             std::uintptr_t m_address;
             std::size_t m_stride;
         };
 
-        /// @brief Iterator type for mutable access.
         using iterator = iterator_impl<value_type>;
-        /// @brief Iterator type for const access.
         using const_iterator = iterator_impl<const value_type>;
 
-        /// @brief Get the number of elements in the array.
-        /// @return The array size.
-        static consteval size_type size() noexcept {
-            return sizeof(ValueType) / sizeof(value_type);
-        }
+        static consteval size_type size() noexcept { return sizeof(ValueType) / sizeof(value_type); }
 
-        /// @brief Get an iterator to the first element.
         [[nodiscard]]
         constexpr iterator begin() const noexcept {
             return {m_address, m_stride};
         }
-        /// @brief Get an iterator to one past the last element.
         [[nodiscard]]
         constexpr iterator end() const noexcept {
             return {m_address + m_stride * size(), m_stride};
         }
-        /// @brief Get a const iterator to the first element.
         [[nodiscard]]
         constexpr const_iterator cbegin() const noexcept {
             return {m_address, m_stride};
         }
-        /// @brief Get a const iterator to one past the last element.
         [[nodiscard]]
         constexpr const_iterator cend() const noexcept {
             return {m_address + m_stride * size(), m_stride};
         }
+
     private:
         std::uintptr_t m_address;
         std::size_t m_stride;
@@ -346,7 +292,6 @@ namespace gba {
     /// @endcode
     template<IsArrayOfTriviallyCopiable ValueType>
     [[gnu::always_inline]]
-    // ReSharper disable once CppRedundantInlineSpecifier
     inline auto* memory_map(const registral<ValueType>& r) noexcept {
         struct temp_type { // NOLINT(*-pro-type-member-init)
             std::remove_volatile_t<std::remove_extent_t<ValueType>>* address;
@@ -372,7 +317,8 @@ namespace gba {
     /// @code{.c}
     /// REG_DISPCNT = 0x0403;
     /// @endcode
-    template<typename To, IsNonArrayTriviallyCopiable From> requires(IsNonArrayTriviallyCopiable<To> || IsArrayOfTriviallyCopiable<To>)
+    template<typename To, IsNonArrayTriviallyCopiable From>
+        requires(IsNonArrayTriviallyCopiable<To> || IsArrayOfTriviallyCopiable<To>)
     constexpr auto registral_cast(const registral<From>& r) noexcept {
         return registral<To>{__builtin_bit_cast(std::uintptr_t, r)};
     }
@@ -429,36 +375,34 @@ namespace gba {
         return registral<To>{temp.address};
     }
 
-    /**
-     * @brief Display control bitfield (DISPCNT, 0x4000000).
-     *
-     * Controls video mode, background/OBJ enables, and windowing.
-     *
-     * Example:
-     * @code{.cpp}
-     * gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * REG_DISPCNT = DCNT_MODE3 | DCNT_BG2;
-     * @endcode
-     */
+    /// @brief Display control bitfield (DISPCNT, 0x4000000).
+    ///
+    /// Controls video mode, background/OBJ enables, and windowing.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_DISPCNT = DCNT_MODE3 | DCNT_BG2;
+    /// @endcode
     struct display_control {
         unsigned short video_mode : 3; ///< Video mode (0-5)
-        bool cgb : 1; ///< CGB mode flag (read-only)
-        unsigned short page : 1; ///< Page select for mode 4/5
-        bool hblank_oam_free : 1; ///< Allow OAM access during HBlank
-        bool linear_obj_tilemap : 1; ///< OBJ VRAM mapping (1D if true)
-        bool disable : 1; ///< Force blank display
-        bool enable_bg0 : 1; ///< Enable BG0
-        bool enable_bg1 : 1; ///< Enable BG1
-        bool enable_bg2 : 1; ///< Enable BG2
-        bool enable_bg3 : 1; ///< Enable BG3
-        bool enable_obj : 1; ///< Enable OBJ
-        bool enable_win0 : 1; ///< Enable window 0
-        bool enable_win1 : 1; ///< Enable window 1
-        bool enable_obj_win : 1; ///< Enable OBJ window
+        bool cgb                  : 1; ///< CGB mode flag (read-only)
+        unsigned short page       : 1; ///< Page select for mode 4/5
+        bool hblank_oam_free      : 1; ///< Allow OAM access during HBlank
+        bool linear_obj_tilemap   : 1; ///< OBJ VRAM mapping (1D if true)
+        bool disable              : 1; ///< Force blank display
+        bool enable_bg0           : 1; ///< Enable BG0
+        bool enable_bg1           : 1; ///< Enable BG1
+        bool enable_bg2           : 1; ///< Enable BG2
+        bool enable_bg3           : 1; ///< Enable BG3
+        bool enable_obj           : 1; ///< Enable OBJ
+        bool enable_win0          : 1; ///< Enable window 0
+        bool enable_win1          : 1; ///< Enable window 1
+        bool enable_obj_win       : 1; ///< Enable OBJ window
     };
 
     /// @brief Display control register (DISPCNT, 0x4000000).
@@ -475,39 +419,35 @@ namespace gba {
     inline constexpr auto reg_dispcnt = registral<display_control>{0x4000000};
 
     namespace undocumented {
-        /**
-         * @brief Stereo 3D enable register (0x4000002).
-         *
-         * Enables an unused stereo 3D display mode. Historically known as "GREENSWAP".
-         * Not considered "documented" by the community.
-         *
-         * Example:
-         * @code{.cpp}
-         * gba::undocumented::reg_stereo_3d = true;
-         * @endcode
-         *
-         * TONCLIB Equivalent:
-         * @code{.c}
-         * #define REG_GREENSWAP (*(volatile u16*)0x4000002)
-         * REG_GREENSWAP = 1;
-         * @endcode
-         */
+        /// @brief Stereo 3D enable register (0x4000002).
+        ///
+        /// Enables an unused stereo 3D display mode. Historically known as "GREENSWAP".
+        /// Not considered "documented" by the community.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// gba::undocumented::reg_stereo_3d = true;
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// #define REG_GREENSWAP (*(volatile u16*)0x4000002)
+        /// REG_GREENSWAP = 1;
+        /// @endcode
         inline constexpr auto reg_stereo_3d = registral<bool>{0x4000002};
-    }
+    } // namespace undocumented
 
-    /**
-     * @brief Display status bitfield (DISPSTAT, 0x4000004).
-     *
-     * Provides VBlank/HBlank status and IRQ enables.
-     */
+    /// @brief Display status bitfield (DISPSTAT, 0x4000004).
+    ///
+    /// Provides VBlank/HBlank status and IRQ enables.
     struct display_status {
-        const bool currently_vblank : 1; ///< Currently in VBlank
-        const bool currently_hblank : 1; ///< Currently in HBlank
-        const bool currently_vcount : 1; ///< VCount match flag
-        bool enable_irq_vblank : 1; ///< Enable VBlank IRQ
-        bool enable_irq_hblank : 1; ///< Enable HBlank IRQ
-        bool enable_irq_vcount : 1; ///< Enable VCount IRQ
-        short : 2;
+        const bool currently_vblank   : 1; ///< Currently in VBlank
+        const bool currently_hblank   : 1; ///< Currently in HBlank
+        const bool currently_vcount   : 1; ///< VCount match flag
+        bool enable_irq_vblank        : 1; ///< Enable VBlank IRQ
+        bool enable_irq_hblank        : 1; ///< Enable HBlank IRQ
+        bool enable_irq_vcount        : 1; ///< Enable VCount IRQ
+        short                         : 2;
         unsigned short vcount_setting : 8; ///< VCount trigger value
     };
 
@@ -537,20 +477,18 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_vcount = registral<const unsigned short>{0x4000006};
 
-    /**
-     * @brief Background control bitfield (BGCNT).
-     *
-     * Controls priority, tile/map base, mosaic, color depth, and size.
-     */
+    /// @brief Background control bitfield (BGCNT).
+    ///
+    /// Controls priority, tile/map base, mosaic, color depth, and size.
     struct background_control {
-        unsigned short priority : 2; ///< BG priority (0 = highest)
-        unsigned short charblock : 2; ///< Character base block
-        short : 2;
-        bool mosaic : 1; ///< Enable mosaic effect
-        bool bpp8 : 1; ///< 8bpp mode (false = 4bpp)
+        unsigned short priority    : 2; ///< BG priority (0 = highest)
+        unsigned short charblock   : 2; ///< Character base block
+        short                      : 2;
+        bool mosaic                : 1; ///< Enable mosaic effect
+        bool bpp8                  : 1; ///< 8bpp mode (false = 4bpp)
         unsigned short screenblock : 5; ///< Screen base block
-        bool wrap_affine_tiles : 1; ///< Wrap for affine BGs
-        unsigned short size : 2; ///< BG size
+        bool wrap_affine_tiles     : 1; ///< Wrap for affine BGs
+        unsigned short size        : 2; ///< BG size
     };
 
     /// @brief Background control registers (BG0CNT-BG3CNT, 0x4000008-0x400000F).
@@ -620,15 +558,13 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_bgy = registral<volatile fixed<int, 8>[2]>{0x400002C, 0x10};
 
-    /**
-     * @brief Affine background transformation matrix.
-     *
-     * Used for rotation/scaling of BG2/BG3 in affine modes.
-     */
+    /// @brief Affine background transformation matrix.
+    ///
+    /// Used for rotation/scaling of BG2/BG3 in affine modes.
     struct background_matrix { // NOLINT(*-pro-type-member-init)
-        fixed<short> p[4]; ///< Matrix coefficients (pa, pb, pc, pd)
-        fixed<int, 8> x; ///< Reference point X
-        fixed<int, 8> y; ///< Reference point Y
+        fixed<short> p[4];     ///< Matrix coefficients (pa, pb, pc, pd)
+        fixed<int, 8> x;       ///< Reference point X
+        fixed<int, 8> y;       ///< Reference point Y
     };
 
     /// @brief Affine BG matrix registers (BG2/BG3).
@@ -673,17 +609,15 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_winv = registral<volatile unsigned char[2]>{0x4000044};
 
-    /**
-     * @brief Window control bitfield.
-     *
-     * Controls which layers are visible inside a window.
-     */
+    /// @brief Window control bitfield.
+    ///
+    /// Controls which layers are visible inside a window.
     struct window_control {
-        bool enable_bg0 : 1; ///< Show BG0
-        bool enable_bg1 : 1; ///< Show BG1
-        bool enable_bg2 : 1; ///< Show BG2
-        bool enable_bg3 : 1; ///< Show BG3
-        bool enable_obj : 1; ///< Show OBJ
+        bool enable_bg0          : 1; ///< Show BG0
+        bool enable_bg1          : 1; ///< Show BG1
+        bool enable_bg2          : 1; ///< Show BG2
+        bool enable_bg3          : 1; ///< Show BG3
+        bool enable_obj          : 1; ///< Show OBJ
         bool enable_color_effect : 1; ///< Enable color effects
     };
 
@@ -726,11 +660,9 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_winobj = registral<window_control>{0x400004b};
 
-    /**
-     * @brief Mosaic control bitfield.
-     *
-     * Controls mosaic effect size for BG/OBJ.
-     */
+    /// @brief Mosaic control bitfield.
+    ///
+    /// Controls mosaic effect size for BG/OBJ.
     struct mosaic_control {
         unsigned char add_h : 4; ///< Horizontal stretch (0-15)
         unsigned char add_v : 4; ///< Vertical stretch (0-15)
@@ -762,9 +694,7 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_mosaicobj = registral<mosaic_control>{0x400004d};
 
-    /**
-     * @brief Blend operation mode.
-     */
+    /// @brief Blend operation mode.
     enum blend_op : unsigned short {
         blend_op_none = 0,     ///< No blending
         blend_op_alpha = 1,    ///< Alpha blend
@@ -772,26 +702,23 @@ namespace gba {
         blend_op_darken = 3    ///< Darken
     };
 
-    /**
-     * @brief Blend control bitfield (BLDCNT, 0x4000050).
-     *
-     * Controls color blending between layers.
-     */
+    /// @brief Blend control bitfield (BLDCNT, 0x4000050).
+    ///
+    /// Controls color blending between layers.
     struct blend_control {
-        bool dest_bg0 : 1; ///< BG0 is 2nd target
-        bool dest_bg1 : 1; ///< BG1 is 2nd target
-        bool dest_bg2 : 1; ///< BG2 is 2nd target
-        bool dest_bg3 : 1; ///< BG3 is 2nd target
-        bool dest_obj : 1; ///< OBJ is 2nd target
-        bool dest_backdrop : 1; ///< Backdrop is 2nd target
-        // ReSharper disable once CppRedundantQualifier
+        bool dest_bg0          : 1; ///< BG0 is 2nd target
+        bool dest_bg1          : 1; ///< BG1 is 2nd target
+        bool dest_bg2          : 1; ///< BG2 is 2nd target
+        bool dest_bg3          : 1; ///< BG3 is 2nd target
+        bool dest_obj          : 1; ///< OBJ is 2nd target
+        bool dest_backdrop     : 1; ///< Backdrop is 2nd target
         gba::blend_op blend_op : 2; ///< Blend operation
-        bool src_bg0 : 1; ///< BG0 is 1st target
-        bool src_bg1 : 1; ///< BG1 is 1st target
-        bool src_bg2 : 1; ///< BG2 is 1st target
-        bool src_bg3 : 1; ///< BG3 is 1st target
-        bool src_obj : 1; ///< OBJ is 1st target
-        bool src_backdrop : 1; ///< Backdrop is 1st target
+        bool src_bg0           : 1; ///< BG0 is 1st target
+        bool src_bg1           : 1; ///< BG1 is 1st target
+        bool src_bg2           : 1; ///< BG2 is 1st target
+        bool src_bg3           : 1; ///< BG3 is 1st target
+        bool src_obj           : 1; ///< OBJ is 1st target
+        bool src_backdrop      : 1; ///< Backdrop is 1st target
     };
 
     /// @brief Blend control register (BLDCNT, 0x4000050).
@@ -838,10 +765,10 @@ namespace gba {
     ///
     /// Controls frequency sweep for sound channel 1.
     struct sound1_sweep {
-        unsigned short shift : 3;      ///< Sweep shift amount (0-7).
-        unsigned short direction : 1;  ///< 0 = increase, 1 = decrease.
-        unsigned short time : 3;       ///< Sweep time (0-7, units of 7.8ms).
-        unsigned short : 9;
+        unsigned short shift     : 3; ///< Sweep shift amount (0-7).
+        unsigned short direction : 1; ///< 0 = increase, 1 = decrease.
+        unsigned short time      : 3; ///< Sweep time (0-7, units of 7.8ms).
+        unsigned short           : 9;
     };
 
     /// @brief Sound 1 sweep register.
@@ -861,11 +788,11 @@ namespace gba {
     ///
     /// Used for sound channels 1 and 2.
     struct sound_duty_envelope {
-        unsigned short length : 6;        ///< Sound length (0-63, units of (64-n)/256 sec).
-        unsigned short duty : 2;          ///< Duty cycle (0=12.5%, 1=25%, 2=50%, 3=75%).
-        unsigned short env_step : 3;      ///< Envelope step time (0-7, units of n/64 sec).
+        unsigned short length        : 6; ///< Sound length (0-63, units of (64-n)/256 sec).
+        unsigned short duty          : 2; ///< Duty cycle (0=12.5%, 1=25%, 2=50%, 3=75%).
+        unsigned short env_step      : 3; ///< Envelope step time (0-7, units of n/64 sec).
         unsigned short env_direction : 1; ///< 0 = decrease, 1 = increase.
-        unsigned short env_volume : 4;    ///< Initial envelope volume (0-15).
+        unsigned short env_volume    : 4; ///< Initial envelope volume (0-15).
     };
 
     /// @brief Sound 1 duty/length/envelope register (SOUND1CNT_H).
@@ -885,10 +812,10 @@ namespace gba {
     ///
     /// Used for sound channels 1, 2, and 3.
     struct sound_frequency {
-        unsigned short rate : 11;     ///< Frequency rate (131072/(2048-rate) Hz).
-        unsigned short : 3;
-        unsigned short timed : 1;     ///< 0 = continuous, 1 = timed (use length).
-        unsigned short trigger : 1;   ///< Write 1 to start/restart sound.
+        unsigned short rate : 11; ///< Frequency rate (131072/(2048-rate) Hz).
+        unsigned short      : 3;
+        bool timed          : 1; ///< false = continuous, true = timed (use length).
+        bool trigger        : 1; ///< Write true to start/restart sound.
     };
 
     /// @brief Sound 1 frequency/control register (SOUND1CNT_X).
@@ -896,7 +823,7 @@ namespace gba {
     /// Example:
     /// @code{.cpp}
     /// // Play 440 Hz (A4): rate = 2048 - 131072/440 = 1750
-    /// gba::reg_sound1cnt_x = { .rate = 1750, .trigger = 1 };
+    /// gba::reg_sound1cnt_x = { .rate = 1750, .trigger = true };
     /// @endcode
     ///
     /// TONCLIB Equivalent:
@@ -933,18 +860,18 @@ namespace gba {
 
     /// @brief Sound 3 control (SOUND3CNT_L).
     struct sound3_control {
-        unsigned short : 5;
-        unsigned short bank_mode : 1;  ///< 0 = 2x32 samples, 1 = 1x64 samples.
-        unsigned short bank_select : 1; ///< Select bank (0 or 1) for 2x32 mode.
-        unsigned short enable : 1;     ///< Enable sound 3.
-        unsigned short : 8;
+        unsigned short   : 5;
+        bool bank_mode   : 1; ///< false = 2x32 samples, true = 1x64 samples.
+        bool bank_select : 1; ///< Select bank (0 or 1) for 2x32 mode.
+        bool enable      : 1; ///< Enable sound 3.
+        unsigned short   : 8;
     };
 
     /// @brief Sound 3 enable/wave bank register (SOUND3CNT_L).
     ///
     /// Example:
     /// @code{.cpp}
-    /// gba::reg_sound3cnt_l = { .enable = 1 };
+    /// gba::reg_sound3cnt_l = { .enable = true };
     /// @endcode
     ///
     /// TONCLIB Equivalent:
@@ -955,10 +882,10 @@ namespace gba {
 
     /// @brief Sound 3 length/volume (SOUND3CNT_H).
     struct sound3_length_volume {
-        unsigned short length : 8;    ///< Sound length (0-255).
-        unsigned short : 5;
-        unsigned short volume : 2;    ///< Volume (0=mute, 1=100%, 2=50%, 3=25%).
-        unsigned short force_75 : 1;  ///< Force 75% volume.
+        unsigned short length : 8; ///< Sound length (0-255).
+        unsigned short        : 5;
+        unsigned short volume : 2; ///< Volume (0=mute, 1=100%, 2=50%, 3=25%).
+        bool force_75         : 1; ///< Force 75% volume.
     };
 
     /// @brief Sound 3 length/volume register (SOUND3CNT_H).
@@ -1008,11 +935,11 @@ namespace gba {
 
     /// @brief Sound 4 length/envelope (SOUND4CNT_L).
     struct sound4_envelope {
-        unsigned short length : 6;        ///< Sound length (0-63).
-        unsigned short : 2;
-        unsigned short env_step : 3;      ///< Envelope step time.
+        unsigned short length        : 6; ///< Sound length (0-63).
+        unsigned short               : 2;
+        unsigned short env_step      : 3; ///< Envelope step time.
         unsigned short env_direction : 1; ///< 0 = decrease, 1 = increase.
-        unsigned short env_volume : 4;    ///< Initial volume (0-15).
+        unsigned short env_volume    : 4; ///< Initial volume (0-15).
     };
 
     /// @brief Sound 4 length/envelope register (SOUND4CNT_L).
@@ -1030,19 +957,19 @@ namespace gba {
 
     /// @brief Sound 4 frequency/control (SOUND4CNT_H).
     struct sound4_frequency {
-        unsigned short div_ratio : 3;  ///< Frequency divider ratio.
-        unsigned short width : 1;      ///< Counter width (0=15 bits, 1=7 bits).
-        unsigned short shift : 4;      ///< Shift clock frequency.
-        unsigned short : 6;
-        unsigned short timed : 1;      ///< 0 = continuous, 1 = timed.
-        unsigned short trigger : 1;    ///< Write 1 to start/restart.
+        unsigned short div_ratio : 3; ///< Frequency divider ratio.
+        bool width               : 1; ///< Counter width (false=15 bits, true=7 bits).
+        unsigned short shift     : 4; ///< Shift clock frequency.
+        unsigned short           : 6;
+        bool timed               : 1; ///< false = continuous, true = timed.
+        bool trigger             : 1; ///< Write true to start/restart.
     };
 
     /// @brief Sound 4 frequency/control register (SOUND4CNT_H).
     ///
     /// Example:
     /// @code{.cpp}
-    /// gba::reg_sound4cnt_h = { .shift = 2, .trigger = 1 };
+    /// gba::reg_sound4cnt_h = { .shift = 2, .trigger = true };
     /// @endcode
     ///
     /// TONCLIB Equivalent:
@@ -1054,17 +981,17 @@ namespace gba {
     /// @brief Master sound control - PSG volume/enable (SOUNDCNT_L).
     struct sound_control_l {
         unsigned short volume_right : 3; ///< Right master volume (0-7).
-        unsigned short : 1;
-        unsigned short volume_left : 3;  ///< Left master volume (0-7).
-        unsigned short : 1;
-        unsigned short enable_1_right : 1; ///< Sound 1 to right.
-        unsigned short enable_2_right : 1; ///< Sound 2 to right.
-        unsigned short enable_3_right : 1; ///< Sound 3 to right.
-        unsigned short enable_4_right : 1; ///< Sound 4 to right.
-        unsigned short enable_1_left : 1;  ///< Sound 1 to left.
-        unsigned short enable_2_left : 1;  ///< Sound 2 to left.
-        unsigned short enable_3_left : 1;  ///< Sound 3 to left.
-        unsigned short enable_4_left : 1;  ///< Sound 4 to left.
+        unsigned short              : 1;
+        unsigned short volume_left  : 3; ///< Left master volume (0-7).
+        unsigned short              : 1;
+        bool enable_1_right         : 1; ///< Sound 1 to right.
+        bool enable_2_right         : 1; ///< Sound 2 to right.
+        bool enable_3_right         : 1; ///< Sound 3 to right.
+        bool enable_4_right         : 1; ///< Sound 4 to right.
+        bool enable_1_left          : 1; ///< Sound 1 to left.
+        bool enable_2_left          : 1; ///< Sound 2 to left.
+        bool enable_3_left          : 1; ///< Sound 3 to left.
+        bool enable_4_left          : 1; ///< Sound 4 to left.
     };
 
     /// @brief Master sound control L register (SOUNDCNT_L).
@@ -1075,7 +1002,7 @@ namespace gba {
     /// @code{.cpp}
     /// gba::reg_soundcnt_l = {
     ///     .volume_right = 7, .volume_left = 7,
-    ///     .enable_1_right = 1, .enable_1_left = 1
+    ///     .enable_1_right = true, .enable_1_left = true
     /// };
     /// @endcode
     ///
@@ -1087,18 +1014,18 @@ namespace gba {
 
     /// @brief Master sound control - DirectSound/mixer (SOUNDCNT_H).
     struct sound_control_h {
-        unsigned short psg_volume : 2;   ///< PSG volume (0=25%, 1=50%, 2=100%).
-        unsigned short dma_a_volume : 1; ///< DMA A volume (0=50%, 1=100%).
-        unsigned short dma_b_volume : 1; ///< DMA B volume (0=50%, 1=100%).
-        unsigned short : 4;
-        unsigned short dma_a_right : 1;  ///< DMA A to right speaker.
-        unsigned short dma_a_left : 1;   ///< DMA A to left speaker.
-        unsigned short dma_a_timer : 1;  ///< DMA A timer (0=timer0, 1=timer1).
-        unsigned short dma_a_reset : 1;  ///< Reset DMA A FIFO.
-        unsigned short dma_b_right : 1;  ///< DMA B to right speaker.
-        unsigned short dma_b_left : 1;   ///< DMA B to left speaker.
-        unsigned short dma_b_timer : 1;  ///< DMA B timer (0=timer0, 1=timer1).
-        unsigned short dma_b_reset : 1;  ///< Reset DMA B FIFO.
+        unsigned short psg_volume : 2; ///< PSG volume (0=25%, 1=50%, 2=100%).
+        bool dma_a_volume         : 1; ///< DMA A volume (0=50%, 1=100%).
+        bool dma_b_volume         : 1; ///< DMA B volume (0=50%, 1=100%).
+        unsigned short            : 4;
+        bool dma_a_right          : 1; ///< DMA A to right speaker.
+        bool dma_a_left           : 1; ///< DMA A to left speaker.
+        bool dma_a_timer          : 1; ///< DMA A timer (0=timer0, 1=timer1).
+        bool dma_a_reset          : 1; ///< Reset DMA A FIFO.
+        bool dma_b_right          : 1; ///< DMA B to right speaker.
+        bool dma_b_left           : 1; ///< DMA B to left speaker.
+        bool dma_b_timer          : 1; ///< DMA B timer (0=timer0, 1=timer1).
+        bool dma_b_reset          : 1; ///< Reset DMA B FIFO.
     };
 
     /// @brief Master sound control H register (SOUNDCNT_H).
@@ -1110,9 +1037,9 @@ namespace gba {
     /// // Enable DirectSound A at full volume to both speakers
     /// gba::reg_soundcnt_h = {
     ///     .psg_volume = 2,
-    ///     .dma_a_volume = 1,
-    ///     .dma_a_right = 1, .dma_a_left = 1,
-    ///     .dma_a_reset = 1
+    ///     .dma_a_volume = true,
+    ///     .dma_a_right = true, .dma_a_left = true,
+    ///     .dma_a_reset = true
     /// };
     /// @endcode
     ///
@@ -1124,13 +1051,13 @@ namespace gba {
 
     /// @brief Master sound control - enable (SOUNDCNT_X).
     struct sound_control_x {
-        unsigned short sound1_on : 1;  ///< Sound 1 status (read-only).
-        unsigned short sound2_on : 1;  ///< Sound 2 status (read-only).
-        unsigned short sound3_on : 1;  ///< Sound 3 status (read-only).
-        unsigned short sound4_on : 1;  ///< Sound 4 status (read-only).
-        unsigned short : 3;
-        unsigned short master_enable : 1; ///< Master sound enable.
-        unsigned short : 8;
+        bool sound1_on     : 1; ///< Sound 1 status (read-only).
+        bool sound2_on     : 1; ///< Sound 2 status (read-only).
+        bool sound3_on     : 1; ///< Sound 3 status (read-only).
+        bool sound4_on     : 1; ///< Sound 4 status (read-only).
+        unsigned short     : 3;
+        bool master_enable : 1; ///< Master sound enable.
+        unsigned short     : 8;
     };
 
     /// @brief Master sound control X register (SOUNDCNT_X).
@@ -1139,7 +1066,7 @@ namespace gba {
     ///
     /// Example:
     /// @code{.cpp}
-    /// gba::reg_soundcnt_x = { .master_enable = 1 };
+    /// gba::reg_soundcnt_x = { .master_enable = true };
     /// @endcode
     ///
     /// TONCLIB Equivalent:
@@ -1150,10 +1077,10 @@ namespace gba {
 
     /// @brief Sound bias control (SOUNDBIAS).
     struct sound_bias {
-        unsigned short : 1;
-        unsigned short bias : 9;         ///< Bias level (default 0x200).
-        unsigned short : 4;
-        unsigned short resolution : 2;   ///< Sampling resolution (0-3).
+        unsigned short            : 1;
+        unsigned short bias       : 9; ///< Bias level (default 0x200).
+        unsigned short            : 4;
+        unsigned short resolution : 2; ///< Sampling resolution (0-3).
     };
 
     /// @brief Sound bias register (SOUNDBIAS).
@@ -1231,26 +1158,21 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_tmcnt_l_reload = registral<volatile unsigned short[4]>{0x4000100, 4};
 
-    /**
-     * @brief Timer prescaler frequency.
-     */
+    /// @brief Timer prescaler frequency.
     enum cycles : unsigned short {
-        cycles_1 = 0,    ///< 1 cycle (16.78 MHz)
-        cycles_64 = 1,   ///< 64 cycles
-        cycles_256 = 2,  ///< 256 cycles
-        cycles_1024 = 3  ///< 1024 cycles
+        cycles_1 = 0,   ///< 1 cycle (16.78 MHz)
+        cycles_64 = 1,  ///< 64 cycles
+        cycles_256 = 2, ///< 256 cycles
+        cycles_1024 = 3 ///< 1024 cycles
     };
 
-    /**
-     * @brief Timer control bitfield (TMCNT_H).
-     */
+    /// @brief Timer control bitfield (TMCNT_H).
     struct timer_control {
-        // ReSharper disable once CppRedundantQualifier
         gba::cycles cycles : 2; ///< Prescaler selection
-        bool cascade : 1; ///< Cascade from previous timer
-        short : 3;
-        bool overflow_irq : 1; ///< Enable overflow IRQ
-        bool enabled : 1; ///< Timer enable
+        bool cascade       : 1; ///< Cascade from previous timer
+        short              : 3;
+        bool overflow_irq  : 1; ///< Enable overflow IRQ
+        bool enabled       : 1; ///< Timer enable
     };
     static_assert(sizeof(timer_control) == sizeof(unsigned short), "timer_control must be 16 bits");
 
@@ -1266,7 +1188,6 @@ namespace gba {
     /// REG_TM0CNT = TM_FREQ_1024 | TM_ENABLE;
     /// @endcode
     inline constexpr auto reg_tmcnt_h = registral<timer_control[4]>{0x4000102, 4};
-
 
     /// @brief Timer reload and control configuration pair.
     using timer_config = plex<unsigned short, timer_control>;
@@ -1287,10 +1208,15 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_tmcnt = registral<timer_config[4]>{0x4000100};
 
-
-    /**
-     * @brief Serial communication mode.
-     */
+    /// @brief Serial communication mode.
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// #define SIO_MODE_8BIT   0x0000  // Normal 8-bit
+    /// #define SIO_MODE_32BIT  0x1000  // Normal 32-bit
+    /// #define SIO_MODE_MULTI  0x2000  // Multi-player
+    /// #define SIO_MODE_UART   0x3000  // UART
+    /// @endcode
     enum sio_mode : unsigned short {
         sio_mode_normal_8bit = 0,  ///< Normal 8-bit mode
         sio_mode_normal_32bit = 1, ///< Normal 32-bit mode
@@ -1298,34 +1224,98 @@ namespace gba {
         sio_mode_uart = 3          ///< UART mode
     };
 
-    /**
-     * @brief Serial baud rate (for UART and multi-player modes).
-     */
+    /// @brief Serial baud rate (for UART and multi-player modes).
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// #define SIO_BAUD_9600    0
+    /// #define SIO_BAUD_38400   1
+    /// #define SIO_BAUD_57600   2
+    /// #define SIO_BAUD_115200  3
+    /// @endcode
     enum sio_baud : unsigned short {
-        sio_baud_9600 = 0,   ///< 9600 bps
-        sio_baud_38400 = 1,  ///< 38400 bps
-        sio_baud_57600 = 2,  ///< 57600 bps
-        sio_baud_115200 = 3  ///< 115200 bps
+        sio_baud_9600 = 0,  ///< 9600 bps
+        sio_baud_38400 = 1, ///< 38400 bps
+        sio_baud_57600 = 2, ///< 57600 bps
+        sio_baud_115200 = 3 ///< 115200 bps
     };
 
-    /**
-     * @brief Serial I/O control bitfield (SIOCNT, 0x4000128).
-     *
-     * Control register for serial communication. Bit meanings vary by mode.
-     */
+    /// @brief Serial I/O control bitfield for Multi-Player mode (SIOCNT, 0x4000128).
+    ///
+    /// Use this struct when operating in multi-player mode (bits 12=0, 13=1).
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// // TONCLIB uses REG_SIOCNT with SIO_MODE_MULTI and related flags
+    /// REG_SIOCNT = SIO_MODE_MULTI | SIO_BAUD_115200 | SIO_IRQ;
+    ///
+    /// // Reading status
+    /// int id = (REG_SIOCNT & SIO_ID_MASK) >> SIO_ID_SHIFT;
+    /// bool ready = REG_SIOCNT & SIO_SD;
+    /// bool busy = REG_SIOCNT & SIO_START;
+    /// @endcode
+    ///
+    /// @see sio_control for Normal mode
+    struct sio_multi_control {
+        gba::sio_baud baud   : 2 {};     ///< Baud rate (9600/38400/57600/115200)
+        bool si_state        : 1 {};     ///< SI terminal (0=Parent, 1=Child) (read-only)
+        bool sd_state        : 1 {};     ///< SD terminal (0=Bad/busy, 1=All ready) (read-only)
+        unsigned short id    : 2 {};     ///< Multi-player ID (0=Parent, 1-3=Child) (read-only)
+        bool error           : 1 {};     ///< Error flag (read-only)
+        bool start           : 1 {};     ///< Start/busy bit (read-only for slaves)
+        unsigned short       : 4;        ///< Unused
+        bool mode_multi_low  : 1 {};     ///< Must be 0 for Multi-Player mode (default: 0)
+        bool mode_multi_high : 1 {true}; ///< Must be 1 for Multi-Player mode (default: 1)
+        bool irq_enable      : 1 {};     ///< IRQ on transfer complete
+        unsigned short       : 1;        ///< Unused
+    };
+
+    /// @brief Serial control register for Multi-Player mode (SIOCNT, 0x4000128).
+    ///
+    /// The mode bits default to Multi-Player mode (bit 12=0, bit 13=1).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Mode bits are set automatically
+    /// gba::reg_siocnt_multi = {
+    ///     .baud = gba::sio_baud_115200,
+    ///     .irq_enable = true
+    /// };
+    ///
+    /// // Check if all players ready
+    /// if (gba::reg_siocnt_multi.sd_state) { ... }
+    ///
+    /// // Get player ID
+    /// auto id = gba::reg_siocnt_multi.id;
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_SIOCNT = SIO_MODE_MULTI | SIO_BAUD_115200 | SIO_IRQ;
+    ///
+    /// // Check if all players ready
+    /// if (REG_SIOCNT & SIO_SD) { ... }
+    ///
+    /// // Get player ID
+    /// int id = (REG_SIOCNT >> 4) & 3;
+    /// @endcode
+    inline constexpr auto reg_siocnt_multi = registral<sio_multi_control>{0x4000128};
+
+    /// @brief Serial I/O control bitfield (SIOCNT, 0x4000128).
+    ///
+    /// Control register for serial communication. Bit meanings vary by mode.
     struct sio_control {
         // Normal mode bits (mode 0/1)
-        unsigned short shift_clock : 1;  ///< 0=external, 1=internal (256KHz/2MHz)
+        unsigned short shift_clock    : 1; ///< 0=external, 1=internal (256KHz/2MHz)
         unsigned short internal_clock : 1; ///< 0=256KHz, 1=2MHz
-        bool si_state : 1;               ///< SI terminal state (read-only)
-        bool so_state : 1;               ///< SO terminal state (active low)
-        short : 3;
-        bool start : 1;                  ///< Start transfer (normal mode)
-        short : 4;
-        // ReSharper disable once CppRedundantQualifier
-        gba::sio_mode mode : 2;          ///< Transfer mode
-        bool irq_enable : 1;             ///< Enable transfer complete IRQ
-        short : 1;
+        bool si_state                 : 1; ///< SI terminal state (read-only)
+        bool so_state                 : 1; ///< SO terminal state (active low)
+        short                         : 3;
+        bool start                    : 1; ///< Start transfer (normal mode)
+        short                         : 4;
+        gba::sio_mode mode            : 2; ///< Transfer mode
+        bool irq_enable               : 1; ///< Enable transfer complete IRQ
+        short                         : 1;
     };
 
     /// @brief Serial control register (SIOCNT, 0x4000128).
@@ -1393,23 +1383,21 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_siomlt_send = registral<unsigned short>{0x400012A};
 
-    /**
-     * @brief General-purpose I/O control bitfield (RCNT, 0x4000134).
-     *
-     * Controls serial communication mode and general-purpose I/O.
-     */
+    /// @brief General-purpose I/O control bitfield (RCNT, 0x4000134).
+    ///
+    /// Controls serial communication mode and general-purpose I/O.
     struct rcnt_control {
-        bool sc : 1;   ///< SC data/direction
-        bool sd : 1;   ///< SD data/direction
-        bool si : 1;   ///< SI data/direction
-        bool so : 1;   ///< SO data/direction
-        bool sc_dir : 1; ///< SC direction (0=input, 1=output)
-        bool sd_dir : 1; ///< SD direction
-        bool si_dir : 1; ///< SI direction
-        bool so_dir : 1; ///< SO direction
-        short : 6;
+        bool sc        : 1; ///< SC data/direction
+        bool sd        : 1; ///< SD data/direction
+        bool si        : 1; ///< SI data/direction
+        bool so        : 1; ///< SO data/direction
+        bool sc_dir    : 1; ///< SC direction (0=input, 1=output)
+        bool sd_dir    : 1; ///< SD direction
+        bool si_dir    : 1; ///< SI direction
+        bool so_dir    : 1; ///< SO direction
+        short          : 6;
         bool gpio_mode : 1; ///< General-purpose mode enable
-        bool : 1;
+        bool           : 1;
     };
 
     /// @brief General-purpose I/O control register (RCNT, 0x4000134).
@@ -1425,17 +1413,15 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_rcnt = registral<rcnt_control>{0x4000134};
 
-    /**
-     * @brief Joy Bus control bitfield (JOYCNT, 0x4000140).
-     *
-     * Controls Joy Bus communication for GameCube connectivity.
-     */
+    /// @brief Joy Bus control bitfield (JOYCNT, 0x4000140).
+    ///
+    /// Controls Joy Bus communication for GameCube connectivity.
     struct joycnt_control {
-        bool reset : 1;       ///< Device reset received
-        bool receive : 1;     ///< Receive complete
-        bool send : 1;        ///< Send complete
-        short : 3;
-        bool irq_enable : 1;  ///< Enable IRQ on complete
+        bool reset      : 1; ///< Device reset received
+        bool receive    : 1; ///< Receive complete
+        bool send       : 1; ///< Send complete
+        short           : 3;
+        bool irq_enable : 1; ///< Enable IRQ on complete
     };
 
     /// @brief Joy Bus control register (JOYCNT, 0x4000140).
@@ -1477,15 +1463,13 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_joy_trans = registral<volatile unsigned int>{0x4000154};
 
-    /**
-     * @brief Joy Bus status bitfield (JOYSTAT, 0x4000158).
-     */
+    /// @brief Joy Bus status bitfield (JOYSTAT, 0x4000158).
     struct joystat_status {
-        short : 1;
+        short               : 1;
         bool receive_status : 1; ///< Receive data status
-        short : 1;
-        bool send_status : 1;    ///< Send data status
-        bool general_flag : 2;   ///< General-purpose flags
+        short               : 1;
+        bool send_status    : 1; ///< Send data status
+        bool general_flag   : 2; ///< General-purpose flags
     };
 
     /// @brief Joy Bus status register (JOYSTAT, 0x4000158).
@@ -1501,25 +1485,23 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_joystat = registral<joystat_status>{0x4000158};
 
-    /**
-     * @brief Keypad input/control bitfield.
-     *
-     * Used for both reading key state (KEYINPUT) and configuring key IRQ (KEYCNT).
-     */
+    /// @brief Keypad input/control bitfield.
+    ///
+    /// Used for both reading key state (KEYINPUT) and configuring key IRQ (KEYCNT).
     struct key_control {
-        bool a : 1;       ///< A button
-        bool b : 1;       ///< B button
-        bool select : 1;  ///< Select button
-        bool start : 1;   ///< Start button
-        bool right : 1;   ///< D-pad right
-        bool left : 1;    ///< D-pad left
-        bool up : 1;      ///< D-pad up
-        bool down : 1;    ///< D-pad down
-        bool r : 1;       ///< R shoulder
-        bool l : 1;       ///< L shoulder
-        short : 4;
+        bool a           : 1; ///< A button
+        bool b           : 1; ///< B button
+        bool select      : 1; ///< Select button
+        bool start       : 1; ///< Start button
+        bool right       : 1; ///< D-pad right
+        bool left        : 1; ///< D-pad left
+        bool up          : 1; ///< D-pad up
+        bool down        : 1; ///< D-pad down
+        bool r           : 1; ///< R shoulder
+        bool l           : 1; ///< L shoulder
+        short            : 4;
         bool irq_enabled : 1; ///< Enable keypad IRQ
-        bool irq_all : 1;     ///< IRQ when all selected keys pressed
+        bool irq_all     : 1; ///< IRQ when all selected keys pressed
     };
 
     /// @brief Key input register (KEYINPUT, 0x4000130). Read-only, active low.
@@ -1548,26 +1530,24 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_keycnt = registral<key_control>{0x4000132};
 
-    /**
-     * @brief Interrupt request/enable bitfield.
-     *
-     * Used for IE (enable), IF (flags), and related registers.
-     */
+    /// @brief Interrupt request/enable bitfield.
+    ///
+    /// Used for IE (enable), IF (flags), and related registers.
     struct irq {
-        bool vblank : 1;   ///< VBlank interrupt
-        bool hblank : 1;   ///< HBlank interrupt
+        bool vblank   : 1; ///< VBlank interrupt
+        bool hblank   : 1; ///< HBlank interrupt
         bool vcounter : 1; ///< VCount match interrupt
-        bool timer0 : 1;   ///< Timer 0 overflow
-        bool timer1 : 1;   ///< Timer 1 overflow
-        bool timer2 : 1;   ///< Timer 2 overflow
-        bool timer3 : 1;   ///< Timer 3 overflow
-        bool serial : 1;   ///< Serial communication
-        bool dma0 : 1;     ///< DMA 0
-        bool dma1 : 1;     ///< DMA 1
-        bool dma2 : 1;     ///< DMA 2
-        bool dma3 : 1;     ///< DMA 3
-        bool keypad : 1;   ///< Keypad
-        bool gamepak : 1;  ///< Game Pak (external IRQ)
+        bool timer0   : 1; ///< Timer 0 overflow
+        bool timer1   : 1; ///< Timer 1 overflow
+        bool timer2   : 1; ///< Timer 2 overflow
+        bool timer3   : 1; ///< Timer 3 overflow
+        bool serial   : 1; ///< Serial communication
+        bool dma0     : 1; ///< DMA 0
+        bool dma1     : 1; ///< DMA 1
+        bool dma2     : 1; ///< DMA 2
+        bool dma3     : 1; ///< DMA 3
+        bool keypad   : 1; ///< Keypad
+        bool gamepak  : 1; ///< Game Pak (external IRQ)
     };
 
     /// @brief Interrupt enable register (IE, 0x4000200).
@@ -1622,23 +1602,21 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_if_ack = registral<volatile irq>{0x4000202};
 
-    /**
-     * @brief Waitstate control bitfield (WAITCNT, 0x4000204).
-     *
-     * Controls Game Pak and SRAM access timing.
-     */
+    /// @brief Waitstate control bitfield (WAITCNT, 0x4000204).
+    ///
+    /// Controls Game Pak and SRAM access timing.
     struct waitcnt {
-        unsigned short sram: 2{3};       ///< SRAM wait control
-        unsigned short ws0_first: 2{1};  ///< Wait State 0 first access
-        unsigned short ws0_second: 1{1}; ///< Wait State 0 second access
-        unsigned short ws1_first: 2{};   ///< Wait State 1 first access
-        unsigned short ws1_second: 1{};  ///< Wait State 1 second access
-        unsigned short ws2_first: 2{3};  ///< Wait State 2 first access
-        unsigned short ws2_second: 1{};  ///< Wait State 2 second access
-        unsigned short phi: 2{};         ///< PHI terminal output
-        short : 1;
-        bool prefetch: 1{true};          ///< Prefetch buffer enable
-        const bool is_cgb: 1{};          ///< CGB mode flag (read-only)
+        unsigned short sram       : 2 {3}; ///< SRAM wait control
+        unsigned short ws0_first  : 2 {1}; ///< Wait State 0 first access
+        unsigned short ws0_second : 1 {1}; ///< Wait State 0 second access
+        unsigned short ws1_first  : 2 {};  ///< Wait State 1 first access
+        unsigned short ws1_second : 1 {};  ///< Wait State 1 second access
+        unsigned short ws2_first  : 2 {3}; ///< Wait State 2 first access
+        unsigned short ws2_second : 1 {};  ///< Wait State 2 second access
+        unsigned short phi        : 2 {};  ///< PHI terminal output
+        short                     : 1;
+        bool prefetch             : 1 {true}; ///< Prefetch buffer enable
+        const bool is_cgb         : 1 {};     ///< CGB mode flag (read-only)
     };
 
     /// @brief Waitstate control register (WAITCNT, 0x4000204).
@@ -1683,13 +1661,11 @@ namespace gba {
         /// @endcode
         inline constexpr auto reg_postflg = registral<bool>{0x4000300};
 
-        /**
-         * @brief Halt control bitfield (0x4000301).
-         *
-         * Controls low-power mode. Not considered "documented" by the community.
-         */
+        /// @brief Halt control bitfield (0x4000301).
+        ///
+        /// Controls low-power mode. Not considered "documented" by the community.
         struct halt_control {
-            char : 7;
+            char                : 7;
             bool low_power_mode : 1; ///< Enter low-power mode
         };
 
@@ -1721,19 +1697,17 @@ namespace gba {
         /// @endcode
         inline constexpr auto reg_obj_center = registral<volatile char>{0x4000410};
 
-        /**
-         * @brief Memory control bitfield (0x4000800).
-         *
-         * Controls BIOS mapping and EWRAM timing. Not considered "documented" by the community.
-         */
+        /// @brief Memory control bitfield (0x4000800).
+        ///
+        /// Controls BIOS mapping and EWRAM timing. Not considered "documented" by the community.
         struct memory_control {
-            bool swap_bios : 1{};        ///< Swap BIOS area
-            int : 2;
-            bool disable_cgb_bios : 1{}; ///< Disable CGB BIOS
-            int : 1;
-            bool ewram : 1{true};        ///< Enable EWRAM
-            int : 18;
-            unsigned int ws_ewram : 4{0xd}; ///< EWRAM wait states
+            bool swap_bios        : 1 {}; ///< Swap BIOS area
+            int                   : 2;
+            bool disable_cgb_bios : 1 {}; ///< Disable CGB BIOS
+            int                   : 1;
+            bool ewram            : 1 {true}; ///< Enable EWRAM
+            int                   : 18;
+            unsigned int ws_ewram : 4 {0xd}; ///< EWRAM wait states
         };
 
         /// @brief Memory control register (0x4000800). Not considered "documented" by the community.
@@ -1750,11 +1724,11 @@ namespace gba {
         /// @endcode
         inline constexpr auto reg_memcnt = registral<memory_control>{0x4000800};
 
-    }
+    } // namespace undocumented
 
-}
+} // namespace gba
 
 namespace std::ranges { // NOLINT(*-dcl58-cpp)
     template<typename T>
     inline constexpr bool enable_view<::gba::registral<T>> = true;
-}
+} // namespace std::ranges

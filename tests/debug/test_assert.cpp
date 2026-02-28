@@ -1,15 +1,13 @@
-/**
- * @file tests/debug/test_assert.cpp
- * @brief Test for assert handler display.
- *
- * This test triggers an assert failure to verify the crash screen displays correctly.
- * It should show:
- * - Red "ASSERT FAILED" header
- * - The failed expression in yellow
- * - File, line, and function info in white
- *
- * Run this test manually in an emulator to visually verify the output.
- */
+/// @file tests/debug/test_assert.cpp
+/// @brief Test for assert handler display.
+///
+/// This test triggers an assert failure to verify the crash screen displays correctly.
+/// It should show:
+/// - Red "ASSERT FAILED" header
+/// - The failed expression in yellow
+/// - File, line, and function info in white
+///
+/// Run this test manually in an emulator to visually verify the output.
 
 #include <cassert>
 

@@ -1,11 +1,9 @@
-/**
- * @file tests/format/test_format.cpp
- * @brief Unit tests for format module using mgba test framework.
- */
+/// @file tests/format/test_format.cpp
+/// @brief Unit tests for format module using mgba test framework.
 
 #include <gba/format>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 using namespace gba::format;
 using namespace gba::format::literals;

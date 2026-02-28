@@ -1,13 +1,11 @@
-/**
- * @file tests/bench/test_bench_memmove.cpp
- * @brief Benchmark comparing stdgba memmove vs agbabi memmove.
- *
- * Focuses on the backward copy path (the interesting case for memmove).
- * Forward copy delegates to memcpy, so that's already benchmarked separately.
- *
- * Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- */
+/// @file tests/bench/test_bench_memmove.cpp
+/// @brief Benchmark comparing stdgba memmove vs agbabi memmove.
+///
+/// Focuses on the backward copy path (the interesting case for memmove).
+/// Forward copy delegates to memcpy, so that's already benchmarked separately.
+///
+/// Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
 
 #include <cstring>
 

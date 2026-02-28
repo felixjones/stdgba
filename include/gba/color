@@ -1,0 +1,56 @@
+/// @file color
+/// @brief GBA color and palette memory helpers.
+#pragma once
+
+#include <gba/peripherals>
+
+#include <cstddef>
+
+namespace gba {
+
+	inline constexpr auto mem_pal = registral<short[512]>{0x5000000};
+	inline constexpr auto mem_pal_bg = registral<short[256]>{0x5000000};
+	inline constexpr auto mem_pal_obj = registral<short[256]>{0x5000200};
+
+	/// @brief 16-bit xBGR color.
+	struct alignas(unsigned short) color {
+		unsigned short red : 5;
+		unsigned short green : 5;
+		unsigned short blue : 5;
+		unsigned short grn_lo : 1;
+	};
+	static_assert(sizeof(color) == 2);
+	static_assert(alignof(color) == 2);
+
+	namespace bits {
+
+		consteval unsigned short hex_nibble(char c) {
+			if (c >= '0' && c <= '9') return c - '0';
+			if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+			if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+			throw "invalid hex digit";
+		}
+
+		consteval unsigned short hex_byte(char hi, char lo) {
+			return (hex_nibble(hi) << 4) | hex_nibble(lo);
+		}
+
+	} // namespace bits
+
+	/// @brief User-defined literal for web hex colors (#RRGGBB).
+	consteval color operator""_clr(const char* str, std::size_t len) {
+		if (len != 7 || str[0] != '#') throw "expected \"#RRGGBB\" format";
+		return {
+			.red = static_cast<unsigned short>(bits::hex_byte(str[1], str[2]) >> 3),
+			.green = static_cast<unsigned short>(bits::hex_byte(str[3], str[4]) >> 3),
+			.blue = static_cast<unsigned short>(bits::hex_byte(str[5], str[6]) >> 3),
+			.grn_lo = static_cast<unsigned short>((bits::hex_byte(str[3], str[4]) >> 2) & 1)
+		};
+	}
+
+	inline constexpr auto pal_bg_mem = registral_cast<color[256]>(mem_pal_bg);
+	inline constexpr auto pal_obj_mem = registral_cast<color[256]>(mem_pal_obj);
+	inline constexpr auto pal_bg_bank = registral<color[16][16]>(0x5000000);
+	inline constexpr auto pal_obj_bank = registral<color[16][16]>(0x5000200);
+
+} // namespace gba

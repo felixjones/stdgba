@@ -1,32 +1,43 @@
-/**
- * @file interrupt
- * @brief GBA interrupt handling utilities.
- *
- * This header provides a type-erased interrupt handler system for GBA.
- * Handlers can be lambdas, function pointers, or callable objects.
- *
- * Example:
- * @code{.cpp}
- * // Set up VBlank interrupt handler
- * gba::irq_handler = [](gba::irq irq) {
- *     // Handle VBlank
- * };
- *
- * // Enable VBlank interrupt
- * gba::reg_dispstat = { .enable_irq_vblank = true };
- * gba::reg_ie = { .vblank = true };
- * gba::reg_ime = true;
- *
- * // Clear handler
- * gba::irq_handler = gba::nullisr;
- * @endcode
- *
- * TONCLIB Equivalent:
- * @code{.c}
- * irq_init(NULL);
- * irq_add(II_VBLANK, vblank_handler);
- * @endcode
- */
+/// @file interrupt
+/// @brief GBA interrupt handling utilities.
+///
+/// This header provides a type-erased interrupt handler system for GBA.
+/// Handlers can be lambdas, function pointers, or callable objects.
+///
+/// @note The interrupt handler MUST be initialized before using BIOS functions
+/// like VBlankIntrWait(). Use default initialization to set up the handler:
+///
+/// @code{.cpp}
+/// gba::irq_handler = {};  // Initialize default interrupt handler
+/// @endcode
+///
+/// Example:
+/// @code{.cpp}
+/// // Initialize the default interrupt system
+/// gba::irq_handler = {};
+///
+/// // Alternatively set a custom handler
+/// gba::irq_handler = [](gba::irq irq) {
+///     // Handle interrupts
+/// };
+///
+/// // Enable VBlank interrupt
+/// gba::reg_dispstat = { .enable_irq_vblank = true };
+/// gba::reg_ie = { .vblank = true };
+/// gba::reg_ime = true;
+///
+/// // Now VBlankIntrWait() will work
+/// gba::bios::VBlankIntrWait();
+///
+/// // Clear handler
+/// gba::irq_handler = gba::nullisr;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// irq_init(NULL);
+/// irq_add(II_VBLANK, vblank_handler);
+/// @endcode
 #pragma once
 
 #include <gba/functional>
@@ -34,26 +45,24 @@
 namespace gba {
     struct irq;
 
-    /**
-     * @brief Type-erased interrupt handler.
-     *
-     * A callable wrapper that can hold lambdas, function pointers, or callable objects
-     * with small-buffer optimization (12 bytes of inline storage).
-     *
-     * @tparam Args The argument types passed to the handler when invoked.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Function pointer
-     * gba::handler<gba::irq> h1 = my_handler_func;
-     *
-     * // Lambda
-     * gba::handler<gba::irq> h2 = [](gba::irq) { };
-     *
-     * // Invoke
-     * h1(irq_flags);
-     * @endcode
-     */
+    /// @brief Type-erased interrupt handler.
+    ///
+    /// A callable wrapper that can hold lambdas, function pointers, or callable objects
+    /// with small-buffer optimization (12 bytes of inline storage).
+    ///
+    /// @tparam Args The argument types passed to the handler when invoked.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Function pointer
+    /// gba::handler<gba::irq> h1 = my_handler_func;
+    ///
+    /// // Lambda
+    /// gba::handler<gba::irq> h2 = [](gba::irq) { };
+    ///
+    /// // Invoke
+    /// h1(irq_flags);
+    /// @endcode
     template<typename... Args>
     using handler = function<void(Args...)>;
 
@@ -142,4 +151,4 @@ namespace gba {
     /// @endcode
     inline constexpr isr irq_handler;
 
-}
+} // namespace gba

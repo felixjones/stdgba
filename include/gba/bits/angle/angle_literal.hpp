@@ -6,12 +6,10 @@
 
 namespace gba::literals {
 
-    /**
-     * @brief Compile-time angle literal type.
-     *
-     * Represents an angle value that converts to `angle` or any `packed_angle<Bits>`.
-     * Created by the `_deg` and `_rad` literals.
-     */
+    /// @brief Compile-time angle literal type.
+    ///
+    /// Represents an angle value that converts to `angle` or any `packed_angle<Bits>`.
+    /// Created by the `_deg` and `_rad` literals.
     struct angle_literal {
         long double turns; ///< Angle as fraction of full rotation [0, 1).
 

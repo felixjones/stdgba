@@ -2,7 +2,6 @@
 #include <gba/interrupt>
 #include <gba/peripherals>
 
-// ReSharper disable once CppUnusedIncludeDirective
 #include <mgba_test.hpp>
 
 int main() {

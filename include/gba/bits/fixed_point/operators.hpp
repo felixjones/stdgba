@@ -5,14 +5,12 @@
 
 namespace gba {
 
-    /**
-     * @brief CRTP mixin providing arithmetic operators for conversion wrappers
-     *
-     * This mixin allows conversion wrapper types to inherit all the standard
-     * arithmetic operators without having to reimplement them.
-     *
-     * @tparam Derived The derived conversion wrapper type
-     */
+    /// @brief CRTP mixin providing arithmetic operators for conversion wrappers
+    ///
+    /// This mixin allows conversion wrapper types to inherit all the standard
+    /// arithmetic operators without having to reimplement them.
+    ///
+    /// @tparam Derived The derived conversion wrapper type
     template<typename Derived>
     struct conversion_operators {
         constexpr auto operator+() const noexcept { return +move(static_cast<const Derived&>(*this)); }
@@ -36,12 +34,10 @@ namespace gba {
         }
     };
 
-    /**
-     * @brief Binary operators for conversion wrappers
-     *
-     * These operators are defined outside the class to provide symmetric
-     * operations between wrappers, fixed_point types, and integers.
-     */
+    /// @brief Binary operators for conversion wrappers
+    ///
+    /// These operators are defined outside the class to provide symmetric
+    /// operations between wrappers, fixed_point types, and integers.
 
     template<typename T>
     constexpr decltype(auto) unwrap(const T& value) noexcept {

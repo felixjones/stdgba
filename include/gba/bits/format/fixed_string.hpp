@@ -1,7 +1,5 @@
-/**
- * @file bits/format/fixed_string.hpp
- * @brief Compile-time fixed string for use as non-type template parameter.
- */
+/// @file bits/format/fixed_string.hpp
+/// @brief Compile-time fixed string for use as non-type template parameter.
 #pragma once
 
 #include <algorithm>
@@ -10,9 +8,7 @@
 
 namespace gba::format {
 
-    /**
-     * @brief A compile-time fixed-size string for use as NTTP.
-     */
+    /// @brief A compile-time fixed-size string for use as NTTP.
     template<std::size_t N>
     struct fixed_string {
         char data[N]{};
@@ -45,9 +41,7 @@ namespace gba::format {
     template<std::size_t N>
     fixed_string(const char (&)[N]) -> fixed_string<N>;
 
-    /**
-     * @brief FNV-1a hash for compile-time string hashing.
-     */
+    /// @brief FNV-1a hash for compile-time string hashing.
     consteval unsigned int fnv1a_hash(const char* str, std::size_t len) {
         unsigned int hash = 2166136261u;
         for (std::size_t i = 0; i < len; ++i) {

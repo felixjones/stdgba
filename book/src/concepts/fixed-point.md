@@ -41,7 +41,7 @@ auto c = a + b;                   // 5.14 (fixed<short>)
 auto d = a * b;                   // 6.28 (fixed<short>)
 ```
 
-The literal converts `3.14` to its nearest fixed-point representation at compile time. There is no runtime floating-point math.
+`_fx` uses the type of the variable it is assigned to for determining the fixed-point format.
 
 ## Arithmetic
 
@@ -60,7 +60,7 @@ auto neg = -a;           // -10.5
 bool gt = a > b;         // true
 ```
 
-Multiplication and division use a wider intermediate type to avoid overflow. For `fixed<short>`, the intermediate is `int`; for `fixed<int>`, it is `long long`.
+Multiplication and division use a wider intermediate type to avoid overflow. For `fixed<short>`, the intermediate is `int`. For `fixed<int>`, the intermediate is also `int` (for ARM performance). Use `precise<int>` to get `long long` intermediates when overflow is a concern.
 
 ## Converting to/from integers
 
@@ -68,7 +68,7 @@ Multiplication and division use a wider intermediate type to avoid overflow. For
 gba::fixed<short> pos = 3.75_fx;
 
 int whole = static_cast<int>(pos);  // 3 (truncates toward zero)
-short raw = pos.data();             // Raw underlying integer (960 for 3.75 in 8.8)
+short raw = gba::bit_cast(pos);            // Raw underlying integer (960 for 3.75 in 8.8)
 ```
 
 ## tonclib comparison

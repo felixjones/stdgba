@@ -1,15 +1,13 @@
-/**
- * @file tests/bench/bench.hpp
- * @brief Shared benchmark utilities using stdgba timer API.
- *
- * Provides a cycle-accurate timer via cascaded TM2+TM3, exposed through
- * gba::reg_tmcnt_h / gba::reg_tmcnt_l_stat / gba::reg_tmcnt_l_reload.
- */
+/// @file tests/bench/bench.hpp
+/// @brief Shared benchmark utilities using stdgba timer API.
+///
+/// Provides a cycle-accurate timer via cascaded TM2+TM3, exposed through
+/// gba::reg_tmcnt_h / gba::reg_tmcnt_l_stat / gba::reg_tmcnt_l_reload.
 #pragma once
 
 #include <gba/peripherals>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 namespace bench {
 

@@ -54,7 +54,7 @@ __aeabi_uldivmod:
 @ =============================================================================
 @ Unsigned 64/32 division (internal): denom_hi == 0, denom_lo != 0
 @
-@ r12 used for preamble-only values — no push/pop needed in any sub-path.
+@ r12 used for preamble-only values - no push/pop needed in any sub-path.
 @ =============================================================================
 .Luluidiv_checked:
     @ If numerator high word is also 0, bridge to 32-bit division

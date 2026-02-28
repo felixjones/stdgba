@@ -12,7 +12,6 @@
 #include <vector>
 
 #include <mgba.h>
-// ReSharper disable once CppUnusedIncludeDirective
 #include "mgba_test_macros.hpp"
 
 namespace test {

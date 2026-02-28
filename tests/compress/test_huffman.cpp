@@ -1,7 +1,5 @@
-/**
- * @file test_huffman.cpp
- * @brief Tests for compile-time Huffman compression and BIOS decompression.
- */
+/// @file test_huffman.cpp
+/// @brief Tests for compile-time Huffman compression and BIOS decompression.
 #include <gba/bios>
 #include <gba/compress>
 

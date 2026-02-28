@@ -1,23 +1,21 @@
-/**
- * @file tests/memory/test_memmove.cpp
- * @brief Unit tests for optimized memmove implementation.
- *
- * Tests every code path in memmove.s:
- *   - Forward delegation to memcpy (dest <= src, dest >= src + n)
- *   - Backward byte copy (n <= 3, unresolvable misalignment)
- *   - Backward alignment fixup from end (all 4 offsets: 0, 1, 2, 3)
- *   - Backward bulk 32-byte ldmdb/stmdb loop (exact, +1, +2, +3 remainder)
- *   - Backward word copy via computed jump (various counts)
- *   - Backward joaobapt tail (0-3 bytes at start)
- *   - Backward halfword path (with/without byte fixup, trailing byte)
- *   - __aeabi_memmove4 / __aeabi_memmove8 direct entry
- *   - Overlapping regions: dest < src, dest > src, dest == src
- *   - C memmove return value
- */
+/// @file tests/memory/test_memmove.cpp
+/// @brief Unit tests for optimized memmove implementation.
+///
+/// Tests every code path in memmove.s:
+/// - Forward delegation to memcpy (dest <= src, dest >= src + n)
+/// - Backward byte copy (n <= 3, unresolvable misalignment)
+/// - Backward alignment fixup from end (all 4 offsets: 0, 1, 2, 3)
+/// - Backward bulk 32-byte ldmdb/stmdb loop (exact, +1, +2, +3 remainder)
+/// - Backward word copy via computed jump (various counts)
+/// - Backward joaobapt tail (0-3 bytes at start)
+/// - Backward halfword path (with/without byte fixup, trailing byte)
+/// - __aeabi_memmove4 / __aeabi_memmove8 direct entry
+/// - Overlapping regions: dest < src, dest > src, dest == src
+/// - C memmove return value
 
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 // Prevent compiler from replacing memmove calls with builtins
 static void* (*volatile memmove_fn)(void*, const void*, std::size_t) = &std::memmove;
@@ -94,9 +92,7 @@ void test_overlap(std::size_t src_off, std::size_t dst_off, std::size_t n,
 } // namespace
 
 int main() {
-    // =======================================================================
     // Non-overlapping forward: dest < src (delegates to memcpy)
-    // =======================================================================
 
     // Zero bytes
     {
@@ -117,19 +113,15 @@ int main() {
         test_overlap(256, 0, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // Non-overlapping: dest > src but no overlap (dest >= src + n)
-    // =======================================================================
 
     for (std::size_t n : {4u, 32u, 64u}) {
         fill_pattern();
         test_overlap(0, 256, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // Overlapping: dest > src (backward copy)
     // This is the core memmove test -- regions overlap and need backward copy
-    // =======================================================================
 
     // Overlap by 1 byte: move [0..n) to [1..n+1)
     for (std::size_t n : {1u, 2u, 3u, 4u, 7u, 8u, 15u, 16u, 28u, 31u, 32u,
@@ -160,9 +152,7 @@ int main() {
     // Near-total overlap (dst = src + 1, n = large)
     test_overlap(0, 1, 256, aeabi_memmove_fn);
 
-    // =======================================================================
     // Overlapping: dest < src (forward copy, but overlapping)
-    // =======================================================================
 
     for (std::size_t n : {4u, 8u, 16u, 32u, 64u, 128u}) {
         test_overlap(4, 0, n, aeabi_memmove_fn);
@@ -171,9 +161,7 @@ int main() {
         test_overlap(8, 0, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // dest == src: no-op (but must not corrupt)
-    // =======================================================================
 
     {
         fill_pattern();
@@ -185,9 +173,7 @@ int main() {
         }
     }
 
-    // =======================================================================
     // __aeabi_memmove4: word-aligned entry, backward path
-    // =======================================================================
 
     // Forward (no overlap): word-aligned
     for (std::size_t n : {4u, 8u, 16u, 32u, 64u, 128u, 256u}) {
@@ -208,19 +194,15 @@ int main() {
         test_overlap(0, 4, n, aeabi_memmove4_fn);
     }
 
-    // =======================================================================
     // __aeabi_memmove8: 8-byte aligned entry
-    // =======================================================================
 
     for (std::size_t n : {8u, 16u, 32u, 64u, 128u}) {
         test_overlap(0, 8, n, aeabi_memmove8_fn);
     }
 
-    // =======================================================================
     // Backward alignment fixup: all 4 end-offsets
     // The end pointer (dest + n) can have offset 0, 1, 2, 3 mod 4.
     // Test each by varying n with overlap at offset 1.
-    // =======================================================================
 
     // End offset 0 (n = 4, 8, 12, ...)
     for (std::size_t n : {4u, 8u, 12u, 16u, 20u, 24u, 28u, 32u, 64u}) {
@@ -242,9 +224,7 @@ int main() {
         test_overlap(0, 1, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // Backward halfword path: src/dst halfword-compatible but not word
-    // =======================================================================
 
     // Offset 2 from word boundary: e.g. buf+2 to buf+4 (halfword-compatible)
     for (std::size_t n : {2u, 4u, 6u, 8u, 10u, 15u, 16u, 32u, 63u}) {
@@ -256,9 +236,7 @@ int main() {
         test_overlap(6, 8, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // Backward byte path: unresolvable misalignment
-    // =======================================================================
 
     // Offsets that differ in bit 0 (byte-only)
     for (std::size_t n : {1u, 2u, 3u, 4u, 7u, 8u, 15u, 16u, 31u, 32u, 63u}) {
@@ -268,9 +246,7 @@ int main() {
         test_overlap(3, 6, n, aeabi_memmove_fn);   // off 3 vs 6: bit0 differs
     }
 
-    // =======================================================================
     // Backward word computed jump: each word count 1-7
-    // =======================================================================
 
     for (std::size_t words = 1; words <= 7; ++words) {
         test_overlap(0, 4, words * 4, aeabi_memmove4_fn);
@@ -283,9 +259,7 @@ int main() {
         }
     }
 
-    // =======================================================================
     // C memmove return value
-    // =======================================================================
 
     {
         fill_pattern();
@@ -294,7 +268,6 @@ int main() {
                   reinterpret_cast<std::uintptr_t>(buf + 16));
     }
 
-    // =======================================================================
     // C memmove wrapper: overlap safety with literal constant sizes.
     //
     // These call std::memmove DIRECTLY (not via volatile fn pointer) so
@@ -302,7 +275,6 @@ int main() {
     // through the assembly fallback, but they still verify the C standard
     // memmove contract. The inline specialisations are tested separately
     // in test_memmove_inline.cpp (compiled with -O3).
-    // =======================================================================
 
     // Small constant backward overlap: dest > src, n = 1..6
     // These trigger specialisation 2 (inline byte copies, n <= 6).
@@ -437,17 +409,13 @@ int main() {
         }
     }
 
-    // =======================================================================
     // Exhaustive small sizes: all n from 0 to 64, overlap by 1
-    // =======================================================================
 
     for (std::size_t n = 0; n <= 64; ++n) {
         test_overlap(0, 1, n, aeabi_memmove_fn);
     }
 
-    // =======================================================================
     // Exhaustive small sizes: all n from 0 to 64, overlap by 4 (word-aligned)
-    // =======================================================================
 
     for (std::size_t n = 0; n <= 64; ++n) {
         test_overlap(0, 4, n, aeabi_memmove_fn);

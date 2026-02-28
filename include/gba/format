@@ -14,7 +14,7 @@
 /// #include <gba/format>
 ///
 /// // With literals
-/// using namespace gba::literals;
+/// using namespace gba::format::literals;
 /// constexpr auto fmt = "HP: {hp}/{max}"_fmt;
 /// char buf[32];
 /// fmt.to(buf, "hp"_arg = 42, "max"_arg = 100);
@@ -67,5 +67,11 @@
 #pragma once
 
 #include <gba/bits/format/fixed_string.hpp>
-#include <gba/bits/format/parse.hpp>
 #include <gba/bits/format/generator.hpp>
+#include <gba/bits/format/parse.hpp>
+
+namespace gba::format {
+    // Import literal operators for convenience
+    using literals::operator""_fmt;
+    using literals::operator""_arg;
+} // namespace gba::format

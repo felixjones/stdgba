@@ -26,17 +26,15 @@ namespace gba {
     template<typename>
     struct fixed_point_traits {};
 
-    /**
-     * @brief Core fixed-point arithmetic type
-     *
-     * This is the base fixed-point type that provides all arithmetic operations.
-     * It does NOT provide conversion wrappers - those are handled separately.
-     * All operations use truncation; rounding is handled by conversion wrappers.
-     *
-     * @tparam Rep Underlying integer representation type
-     * @tparam FracBits Number of fractional bits
-     * @tparam IntermediateRep Type used for intermediate calculations (must be larger or equal to Rep)
-     */
+    /// @brief Core fixed-point arithmetic type
+    ///
+    /// This is the base fixed-point type that provides all arithmetic operations.
+    /// It does NOT provide conversion wrappers - those are handled separately.
+    /// All operations use truncation; rounding is handled by conversion wrappers.
+    ///
+    /// @tparam Rep Underlying integer representation type
+    /// @tparam FracBits Number of fractional bits
+    /// @tparam IntermediateRep Type used for intermediate calculations (must be larger or equal to Rep)
     template<std::integral Rep = int,
              unsigned int FracBits = std::numeric_limits<std::make_unsigned_t<Rep>>::digits / 2,
              std::integral IntermediateRep = typename bits::int_util<Rep>::promote_type>

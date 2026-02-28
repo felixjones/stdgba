@@ -1,20 +1,18 @@
-/**
- * @file tests/string/test_memchr.cpp
- * @brief Tests for optimized memchr implementation.
- *
- * Tests:
- *   - Found at various positions and alignments
- *   - Not found (count exhausted)
- *   - Count == 0
- *   - Search byte at each word position (0-3)
- *   - Long buffers
- *   - Search for 0x00
- */
+/// @file tests/string/test_memchr.cpp
+/// @brief Tests for optimized memchr implementation.
+///
+/// Tests:
+/// - Found at various positions and alignments
+/// - Not found (count exhausted)
+/// - Count == 0
+/// - Search byte at each word position (0-3)
+/// - Long buffers
+/// - Search for 0x00
 
 #include <cstring>
 #include <cstdint>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 static void* (*volatile memchr_fn)(const void*, int, std::size_t) = &std::memchr;
 

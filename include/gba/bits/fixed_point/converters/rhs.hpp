@@ -4,17 +4,15 @@
 
 namespace gba {
 
-    /**
-     * @brief RHS (right-hand side) conversion - result matches unwrapped operand's type
-     *
-     * Best for performance when you want the result to match the RHS type.
-     * Converts wrapped LHS to match RHS type.
-     *
-     * Usage:
-     *   fixed<int, 8> a = 3.5;
-     *   fixed<int, 4> b = 1.25;
-     *   auto result = as_rhs(a) + b;  // Result: fixed<int, 4>
-     */
+    /// @brief RHS (right-hand side) conversion - result matches unwrapped operand's type
+    ///
+    /// Best for performance when you want the result to match the RHS type.
+    /// Converts wrapped LHS to match RHS type.
+    ///
+    /// Usage:
+    ///   fixed<int, 8> a = 3.5;
+    ///   fixed<int, 4> b = 1.25;
+    ///   auto result = as_rhs(a) + b;  // Result: fixed<int, 4>
     template<fixed_point T>
     struct rhs_wrapper : conversion_wrapper_base<T, rhs_wrapper<T>> {
         using base = conversion_wrapper_base<T, rhs_wrapper<T>>;

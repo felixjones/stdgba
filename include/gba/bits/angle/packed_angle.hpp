@@ -4,34 +4,32 @@
 
 namespace gba {
 
-    /**
-     * @brief Compact angle storage with specified bit precision.
-     *
-     * Storage type for angles when memory efficiency matters (arrays, structs).
-     * Implicitly converts to `angle` for arithmetic operations.
-     *
-     * @tparam Bits Number of bits of precision (1-32).
-     *
-     * Common configurations:
-     * - `packed_angle<16>` / `angle16` - BIOS compatible, 65536 steps
-     * - `packed_angle<8>` / `angle8` - Compact, 256 steps
-     * - `packed_angle<12>` - 4096 steps (common for lookup tables)
-     *
-     * Example:
-     * @code{.cpp}
-     * using namespace gba::literals;
-     *
-     * // Array of compact angles
-     * std::array<gba::angle8, 100> directions;
-     *
-     * // Convert to angle for computation
-     * gba::angle current = directions[0];
-     * current += 45_deg;
-     *
-     * // Store back
-     * directions[0] = current;
-     * @endcode
-     */
+    /// @brief Compact angle storage with specified bit precision.
+    ///
+    /// Storage type for angles when memory efficiency matters (arrays, structs).
+    /// Implicitly converts to `angle` for arithmetic operations.
+    ///
+    /// @tparam Bits Number of bits of precision (1-32).
+    ///
+    /// Common configurations:
+    /// - `packed_angle<16>` / `angle16` - BIOS compatible, 65536 steps
+    /// - `packed_angle<8>` / `angle8` - Compact, 256 steps
+    /// - `packed_angle<12>` - 4096 steps (common for lookup tables)
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    ///
+    /// // Array of compact angles
+    /// std::array<gba::angle8, 100> directions;
+    ///
+    /// // Convert to angle for computation
+    /// gba::angle current = directions[0];
+    /// current += 45_deg;
+    ///
+    /// // Store back
+    /// directions[0] = current;
+    /// @endcode
     template<unsigned int Bits>
         requires(Bits >= 1 && Bits <= 32)
     class packed_angle {

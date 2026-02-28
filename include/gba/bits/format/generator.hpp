@@ -1,7 +1,5 @@
-/**
- * @file bits/format/generator.hpp
- * @brief Typewriter generator with MSB-first formatting.
- */
+/// @file bits/format/generator.hpp
+/// @brief Typewriter generator with MSB-first formatting.
 #pragma once
 #include <gba/bits/format/parse.hpp>
 #include <array>
@@ -14,22 +12,20 @@
 
 namespace gba::format {
 
-// User-Provided Workspace
+    // User-Provided Workspace
 
-/**
- * @brief External workspace for user-provided memory.
- *
- * Use this when you want to control where formatting scratch space is allocated.
- *
- * @code{.cpp}
- * char my_buffer[64];
- * auto gen = fmt.generator_with(
- *     external_workspace{my_buffer, sizeof(my_buffer)},
- *     "x"_arg = 42
- * );
- * @endcode
- */
-struct external_workspace {
+    /// @brief External workspace for user-provided memory.
+    ///
+    /// Use this when you want to control where formatting scratch space is allocated.
+    ///
+    /// @code{.cpp}
+    /// char my_buffer[64];
+    /// auto gen = fmt.generator_with(
+    ///     external_workspace{my_buffer, sizeof(my_buffer)},
+    ///     "x"_arg = 42
+    /// );
+    /// @endcode
+    struct external_workspace {
     char* buffer;
     std::size_t capacity;
     std::size_t used = 0;
@@ -45,13 +41,11 @@ struct external_workspace {
     }
 
     constexpr void reset() { used = 0; }
-};
+    };
 
-/**
- * @brief Internal workspace with compile-time sized buffer.
- */
-template<std::size_t Size>
-struct internal_workspace {
+    /// @brief Internal workspace with compile-time sized buffer.
+    template<std::size_t Size>
+    struct internal_workspace {
     std::array<char, Size> buffer{};
     std::size_t used = 0;
 
@@ -63,34 +57,34 @@ struct internal_workspace {
     }
 
     constexpr void reset() { used = 0; }
-};
+    };
 
-// Detail namespace
+    // Detail namespace
 
-namespace detail {
-// Power-of-10 lookup table for consteval formatting
-inline constexpr std::uint32_t pow10[] = {
-    1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000
-};
-constexpr std::uint8_t count_digits(std::uint32_t value) {
-    if (value < 10) return 1;
-    if (value < 100) return 2;
-    if (value < 1000) return 3;
-    if (value < 10000) return 4;
-    if (value < 100000) return 5;
-    if (value < 1000000) return 6;
-    if (value < 10000000) return 7;
-    if (value < 100000000) return 8;
-    if (value < 1000000000) return 9;
-    return 10;
+namespace bits {
+        // Power-of-10 lookup table for consteval formatting
+        inline constexpr std::uint32_t pow10[] = {
+        1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000
+        };
+        constexpr std::uint8_t count_digits(std::uint32_t value) {
+        if (value < 10) return 1;
+        if (value < 100) return 2;
+        if (value < 1000) return 3;
+        if (value < 10000) return 4;
+        if (value < 100000) return 5;
+        if (value < 1000000) return 6;
+        if (value < 10000000) return 7;
+        if (value < 100000000) return 8;
+        if (value < 1000000000) return 9;
+        return 10;
 }
-struct msb_emitter {
-    char digits[10];      // Pre-computed digits (max 10 for 32-bit)
-    std::uint8_t count;   // Total digit count
-    std::uint8_t pos;     // Current emission position
+        struct msb_emitter {
+        char digits[10];      // Pre-computed digits (max 10 for 32-bit)
+        std::uint8_t count;   // Total digit count
+        std::uint8_t pos;     // Current emission position
 
-    constexpr msb_emitter() : digits{}, count{0}, pos{0} {}
-    constexpr msb_emitter(std::uint32_t v) : digits{}, count{0}, pos{0} {
+        constexpr msb_emitter() : digits{}, count{0}, pos{0} {}
+        constexpr msb_emitter(std::uint32_t v) : digits{}, count{0}, pos{0} {
         if (v == 0) {
             digits[0] = '0';
             count = 1;
@@ -110,37 +104,37 @@ struct msb_emitter {
             digits[count - 1 - i] = tmp;
         }
     }
-    [[nodiscard]] constexpr bool has_next() const { return pos < count; }
-    constexpr char next() {
+        [[nodiscard]] constexpr bool has_next() const { return pos < count; }
+        constexpr char next() {
         if (pos >= count) return 0;
         return digits[pos++];
     }
-};
-struct hex_emitter {
-    std::uint32_t value;
-    std::uint8_t remaining_nibbles;
-    bool uppercase;
-    constexpr hex_emitter(std::uint32_t v, bool upper)
+        };
+        struct hex_emitter {
+        std::uint32_t value;
+        std::uint8_t remaining_nibbles;
+        bool uppercase;
+        constexpr hex_emitter(std::uint32_t v, bool upper)
         : value{v}, remaining_nibbles{0}, uppercase{upper}
-    {
+        {
         if (v == 0) remaining_nibbles = 1;
         else { auto tmp = v; while (tmp > 0) { ++remaining_nibbles; tmp >>= 4; } }
     }
-    [[nodiscard]] constexpr bool has_next() const { return remaining_nibbles > 0; }
-    constexpr char next() {
+        [[nodiscard]] constexpr bool has_next() const { return remaining_nibbles > 0; }
+        constexpr char next() {
         if (remaining_nibbles == 0) return 0;
         --remaining_nibbles;
         std::uint8_t nibble = (value >> (remaining_nibbles * 4)) & 0xF;
         if (nibble < 10) return static_cast<char>('0' + nibble);
         return static_cast<char>((uppercase ? 'A' : 'a') + nibble - 10);
     }
-};
-} // namespace detail
-constexpr bool is_break_char(char c) {
+        };
+} // namespace bits
+    constexpr bool is_break_char(char c) {
     return c == ' ' || c == '\n' || c == '\t' || c == '\0';
 }
 
-struct arg_stream_state {
+    struct arg_stream_state {
     enum class phase : std::uint8_t { not_started, sign, digits, complete };
     enum class kind : std::uint8_t { none, decimal, hex, string };
 
@@ -148,8 +142,8 @@ struct arg_stream_state {
     kind value_kind = kind::none;
 
     union {
-        detail::msb_emitter decimal;
-        detail::hex_emitter hex;
+        bits::msb_emitter decimal;
+        bits::hex_emitter hex;
         struct {
             const char* ptr;
             std::size_t pos;
@@ -161,15 +155,15 @@ struct arg_stream_state {
     bool sign_emitted = false;
 
     constexpr arg_stream_state() : emitter{} {}
-};
-template<typename... BoundArgs>
-struct arg_pack {
+    };
+    template<typename... BoundArgs>
+    struct arg_pack {
     std::tuple<BoundArgs...> args;
     constexpr arg_pack(BoundArgs... a) : args{std::move(a)...} {}
-};
-template<> struct arg_pack<> { std::tuple<> args; constexpr arg_pack() = default; };
-template<unsigned int Hash, typename T>
-struct bound_arg {
+    };
+    template<> struct arg_pack<> { std::tuple<> args; constexpr arg_pack() = default; };
+    template<unsigned int Hash, typename T>
+    struct bound_arg {
     static constexpr unsigned int hash = Hash;
     static constexpr bool is_supplier = std::invocable<T>;
     T stored;
@@ -177,16 +171,16 @@ struct bound_arg {
         if constexpr (is_supplier) return stored();
         else return stored;
     }
-};
-template<fixed_string Name>
-struct arg_binder {
+    };
+    template<fixed_string Name>
+    struct arg_binder {
     static constexpr auto hash = fnv1a_hash<Name>();
     template<typename T> constexpr auto operator()(T&& v) const { return bound_arg<hash, std::decay_t<T>>{std::forward<T>(v)}; }
     template<typename T> constexpr auto operator=(T&& v) const { return bound_arg<hash, std::decay_t<T>>{std::forward<T>(v)}; }
-};
+    };
 
-template<fixed_string Fmt, typename ArgPack>
-struct format_generator {
+    template<fixed_string Fmt, typename ArgPack>
+    struct format_generator {
     static constexpr auto ast = parse_format<Fmt>();
     static constexpr std::size_t segment_count = ast.segment_count;
 
@@ -237,7 +231,7 @@ struct format_generator {
         return count;
     }
     void reset() { segment_idx = 0; char_idx = 0; arg_state = {}; arg_initialized = false; }
-private:
+    private:
     void advance_segment() { ++segment_idx; char_idx = 0; arg_state = {}; arg_initialized = false; }
     template<typename T>
     void init_arg_state(const T& value, const format_spec& spec) {
@@ -252,10 +246,10 @@ private:
             } else abs_val = value;
             if (spec.fmt_type == format_spec::type_t::hex_lower || spec.fmt_type == format_spec::type_t::hex_upper) {
                 arg_state.value_kind = arg_stream_state::kind::hex;
-                arg_state.emitter.hex = detail::hex_emitter{static_cast<std::uint32_t>(abs_val), spec.fmt_type == format_spec::type_t::hex_upper};
+                arg_state.emitter.hex = bits::hex_emitter{static_cast<std::uint32_t>(abs_val), spec.fmt_type == format_spec::type_t::hex_upper};
             } else {
                 arg_state.value_kind = arg_stream_state::kind::decimal;
-                arg_state.emitter.decimal = detail::msb_emitter{static_cast<std::uint32_t>(abs_val)};
+                arg_state.emitter.decimal = bits::msb_emitter{static_cast<std::uint32_t>(abs_val)};
             }
             if (arg_state.sign_char != '\0') arg_state.current_phase = arg_stream_state::phase::sign;
         } else if constexpr (std::is_same_v<std::decay_t<T>, const char*> || std::is_same_v<std::decay_t<T>, char*>) {
@@ -319,33 +313,29 @@ private:
     void init_positional_arg(std::uint8_t index, const format_spec& spec) {
         init_positional_impl(index, spec, std::make_index_sequence<std::tuple_size_v<decltype(args.args)>>{});
     }
-};
-template<fixed_string Fmt>
-struct compiled_format {
+    };
+    template<fixed_string Fmt>
+    struct compiled_format {
     static constexpr auto fmt = Fmt;
     static constexpr auto ast = parse_format<Fmt>();
     static_assert(ast.valid, "Invalid format string");
 
-    /**
-     * @brief Create a typewriter generator.
-     */
+    /// @brief Create a typewriter generator.
     template<typename... Args>
     auto generator(Args... args) const {
         using pack_t = arg_pack<Args...>;
         return format_generator<Fmt, pack_t>{pack_t{std::move(args)...}};
     }
 
-    /**
-     * @brief Create a generator with user-provided workspace.
-     *
-     * @code{.cpp}
-     * char workspace[64];
-     * auto gen = fmt.generator_with(
-     *     external_workspace{workspace, sizeof(workspace)},
-     *     "x"_arg = 42
-     * );
-     * @endcode
-     */
+    /// @brief Create a generator with user-provided workspace.
+    ///
+    /// @code{.cpp}
+    /// char workspace[64];
+    /// auto gen = fmt.generator_with(
+    ///     external_workspace{workspace, sizeof(workspace)},
+    ///     "x"_arg = 42
+    /// );
+    /// @endcode
     template<typename... Args>
     auto generator_with(external_workspace ws, Args... args) const {
         // For now, workspace is reserved for future use (placeholder caching)
@@ -354,9 +344,7 @@ struct compiled_format {
         return generator(std::move(args)...);
     }
 
-    /**
-     * @brief Format immediately to buffer.
-     */
+    /// @brief Format immediately to buffer.
     template<typename... Args>
     std::size_t to(char* buf, Args... args) const {
         auto gen = generator(std::move(args)...);
@@ -366,9 +354,7 @@ struct compiled_format {
         return buf - start;
     }
 
-    /**
-     * @brief Format to std::array (runtime).
-     */
+    /// @brief Format to std::array (runtime).
     template<std::size_t N = 64, typename... Args>
     constexpr auto to_array(Args... args) const {
         std::array<char, N> result{};
@@ -376,17 +362,15 @@ struct compiled_format {
         return result;
     }
 
-    /**
-     * @brief Compile-time format with constant arguments.
-     *
-     * When all arguments are compile-time constants, the entire formatted
-     * string is computed at compile time.
-     *
-     * @code{.cpp}
-     * constexpr auto msg = "Answer: {x}"_fmt.to_static<64>("x"_arg = 42);
-     * // msg contains "Answer: 42" computed at compile time
-     * @endcode
-     */
+    /// @brief Compile-time format with constant arguments.
+    ///
+    /// When all arguments are compile-time constants, the entire formatted
+    /// string is computed at compile time.
+    ///
+    /// @code{.cpp}
+    /// constexpr auto msg = "Answer: {x}"_fmt.to_static<64>("x"_arg = 42);
+    /// // msg contains "Answer: 42" computed at compile time
+    /// @endcode
     template<std::size_t N = 64, typename... Args>
     static consteval auto to_static(Args... args) {
         std::array<char, N> result{};
@@ -410,13 +394,11 @@ struct compiled_format {
         return result;
     }
 
-    /**
-     * @brief Shorthand for to_array.
-     */
+    /// @brief Shorthand for to_array.
     template<typename... Args>
     constexpr auto operator()(Args... args) const { return to_array(std::move(args)...); }
 
-private:
+    private:
     template<std::size_t N, typename... Args>
     static consteval std::size_t format_arg_static(std::array<char, N>& out, std::size_t pos,
                                                     unsigned int hash, const format_spec& spec,
@@ -468,11 +450,11 @@ private:
             }
 
             // Count digits
-            std::uint8_t num_digits = detail::count_digits(static_cast<std::uint32_t>(abs_val));
+            std::uint8_t num_digits = bits::count_digits(static_cast<std::uint32_t>(abs_val));
 
             // Write digits MSB first
             for (std::uint8_t d = num_digits; d > 0 && pos < N - 1; --d) {
-                std::uint32_t divisor = detail::pow10[d - 1];
+                std::uint32_t divisor = bits::pow10[d - 1];
                 out[pos++] = static_cast<char>('0' + (abs_val / divisor));
                 abs_val %= divisor;
             }
@@ -486,39 +468,35 @@ private:
         }
         return pos;
     }
-};
+    };
 
-/**
- * @brief Create a compiled format from a format string.
- *
- * Non-literal alternative to `"..."_fmt`.
- *
- * @code{.cpp}
- * constexpr auto fmt = gba::format::make_format<"HP: {hp}/{max}">();
- * @endcode
- */
-template<fixed_string Fmt>
-consteval auto make_format() {
+    /// @brief Create a compiled format from a format string.
+    ///
+    /// Non-literal alternative to `"..."_fmt`.
+    ///
+    /// @code{.cpp}
+    /// constexpr auto fmt = gba::format::make_format<"HP: {hp}/{max}">();
+    /// @endcode
+    template<fixed_string Fmt>
+    consteval auto make_format() {
     return compiled_format<Fmt>{};
 }
 
-/**
- * @brief Create an argument binder for a named argument.
- *
- * Non-literal alternative to `"..."_arg`.
- *
- * @code{.cpp}
- * constexpr auto hp_arg = gba::format::make_arg<"hp">();
- * fmt.to(buf, hp_arg = 42);
- * @endcode
- */
-template<fixed_string Name>
-consteval auto make_arg() {
+    /// @brief Create an argument binder for a named argument.
+    ///
+    /// Non-literal alternative to `"..."_arg`.
+    ///
+    /// @code{.cpp}
+    /// constexpr auto hp_arg = gba::format::make_arg<"hp">();
+    /// fmt.to(buf, hp_arg = 42);
+    /// @endcode
+    template<fixed_string Name>
+    consteval auto make_arg() {
     return arg_binder<Name>{};
 }
-
-namespace literals {
-    template<fixed_string Fmt> consteval auto operator""_fmt() { return compiled_format<Fmt>{}; }
-    template<fixed_string Name> consteval auto operator""_arg() { return arg_binder<Name>{}; }
-}
 } // namespace gba::format
+
+namespace gba::literals {
+        template<format::fixed_string Fmt> consteval auto operator""_fmt() { return format::compiled_format<Fmt>{}; }
+        template<format::fixed_string Name> consteval auto operator""_arg() { return format::arg_binder<Name>{}; }
+} // namespace gba::literals

@@ -1,10 +1,8 @@
-/**
- * @file tests/bench/test_bench_memset.cpp
- * @brief Benchmark comparing stdgba memset vs agbabi memset.
- *
- * Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- */
+/// @file tests/bench/test_bench_memset.cpp
+/// @brief Benchmark comparing stdgba memset vs agbabi memset.
+///
+/// Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
 
 #include <cstring>
 

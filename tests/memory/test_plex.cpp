@@ -1,11 +1,9 @@
-/**
- * @file tests/memory/test_plex.cpp
- * @brief Unit tests for plex type.
- */
+/// @file tests/memory/test_plex.cpp
+/// @brief Unit tests for plex type.
 
 #include <gba/memory>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;

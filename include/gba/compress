@@ -1,57 +1,54 @@
-/**
- * @file compress
- * @brief Compile-time compression utilities for GBA BIOS decompression.
- *
- * This header provides consteval compression functions that compress data at
- * compile time, producing output compatible with GBA BIOS decompression routines.
- * This allows embedding compressed assets directly in ROM.
- *
- * @section compress_overview Overview
- *
- * All compression functions are `consteval` and execute at compile time.
- * The compressed data includes the appropriate header for BIOS decompression.
- *
- * Supported algorithms:
- * - **LZ77** - Best for data with repeated patterns (graphics, maps)
- * - **Huffman** - Best for data with skewed symbol frequencies (text)
- * - **RLE** - Best for data with long runs of identical values
- * - **BitPack** - Reduces bit depth of data (e.g., 32-bit to 4-bit)
- *
- * @section compress_example Example Usage
- *
- * @code{.cpp}
- * // Compress tilemap data at compile time
- * constexpr auto compressed_map = gba::lz77_compress([] {
- *     return std::array<unsigned short, 1024>{
- *         0, 0, 0, 1, 1, 1, 2, 2, 2, // ... tile indices
- *     };
- * });
- *
- * // Decompress at runtime using BIOS
- * void load_map() {
- *     alignas(4) std::array<unsigned short, 1024> buffer;
- *     gba::LZ77UnCompWram(compressed_map, buffer.data());
- * }
- * @endcode
- *
- * TONCLIB Equivalent:
- * @code{.c}
- * // TONCLIB requires external tool compression (grit, etc.)
- * extern const u8 mapLZ77[];
- * u16 buffer[1024];
- * LZ77UnCompWram(mapLZ77, buffer);
- * @endcode
- *
- * @see gba::LZ77UnCompWram
- * @see gba::LZ77UnCompVram
- * @see gba::HuffUnComp
- * @see gba::RLUnCompWram
- * @see gba::BitUnPack
- */
+/// @file compress
+/// @brief Compile-time compression utilities for GBA BIOS decompression.
+///
+/// This header provides consteval compression functions that compress data at
+/// compile time, producing output compatible with GBA BIOS decompression routines.
+/// This allows embedding compressed assets directly in ROM.
+///
+/// @section compress_overview Overview
+///
+/// All compression functions are `consteval` and execute at compile time.
+/// The compressed data includes the appropriate header for BIOS decompression.
+///
+/// Supported algorithms:
+/// - **LZ77** - Best for data with repeated patterns (graphics, maps)
+/// - **Huffman** - Best for data with skewed symbol frequencies (text)
+/// - **RLE** - Best for data with long runs of identical values
+/// - **BitPack** - Reduces bit depth of data (e.g., 32-bit to 4-bit)
+///
+/// @section compress_example Example Usage
+///
+/// @code{.cpp}
+/// // Compress tilemap data at compile time
+/// constexpr auto compressed_map = gba::lz77_compress([] {
+///     return std::array<unsigned short, 1024>{
+///         0, 0, 0, 1, 1, 1, 2, 2, 2, // ... tile indices
+///     };
+/// });
+///
+/// // Decompress at runtime using BIOS
+/// void load_map() {
+///     alignas(4) std::array<unsigned short, 1024> buffer;
+///     gba::LZ77UnCompWram(compressed_map, buffer.data());
+/// }
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// // TONCLIB requires external tool compression (grit, etc.)
+/// extern const u8 mapLZ77[];
+/// u16 buffer[1024];
+/// LZ77UnCompWram(mapLZ77, buffer);
+/// @endcode
+///
+/// @see gba::LZ77UnCompWram
+/// @see gba::LZ77UnCompVram
+/// @see gba::HuffUnComp
+/// @see gba::RLUnCompWram
+/// @see gba::BitUnPack
 #pragma once
 
 #include <gba/bios>
-
 #include <gba/bits/min_heap.hpp>
 #include <gba/bits/ranges.hpp>
 
@@ -63,23 +60,24 @@
 
 namespace gba {
 
-    /**
-     * @brief Pack data to lower bit depth with specified parameters.
-     *
-     * Compresses data by reducing bit depth, compatible with BitUnPack BIOS function.
-     *
-     * @param src Source data range.
-     * @param dest Destination iterator for packed bytes.
-     * @param params Packing parameters specifying bit depths and offset.
-     * @return The packing parameters used.
-     */
-    consteval const unpack_parameters& bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, const unpack_parameters& params) requires std::indirectly_writable<decltype(dest), std::byte> {
+    /// @brief Pack data to lower bit depth with specified parameters.
+    ///
+    /// Compresses data by reducing bit depth, compatible with BitUnPack BIOS function.
+    ///
+    /// @param src Source data range.
+    /// @param dest Destination iterator for packed bytes.
+    /// @param params Packing parameters specifying bit depths and offset.
+    /// @return The packing parameters used.
+    consteval const unpack_parameters& bit_pack(std::ranges::input_range auto&& src,
+                                                std::weakly_incrementable auto dest, const unpack_parameters& params)
+        requires std::indirectly_writable<decltype(dest), std::byte>
+    {
         if (params.dst_bpp == 32) {
-            const auto view = bits::view_integers<std::uint32_t>(src)
-                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
-                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
-                    return static_cast<std::uint8_t>(x);
-                });
+            const auto view = bits::view_integers<std::uint32_t>(src) |
+                              std::views::transform([offset = params.dst_ofs, offsetZero = params.offset_zero](auto x) {
+                                  if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                                  return static_cast<std::uint8_t>(x);
+                              });
 
             const auto bufferLimit = 8 / params.src_bpp;
 
@@ -97,11 +95,11 @@ namespace gba {
         }
 
         if (params.dst_bpp == 16) {
-            const auto view = bits::view_integers<std::uint16_t>(src)
-                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
-                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
-                    return static_cast<std::uint8_t>(x);
-                });
+            const auto view = bits::view_integers<std::uint16_t>(src) |
+                              std::views::transform([offset = params.dst_ofs, offsetZero = params.offset_zero](auto x) {
+                                  if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                                  return static_cast<std::uint8_t>(x);
+                              });
 
             const auto bufferLimit = 8 / params.src_bpp;
 
@@ -119,11 +117,11 @@ namespace gba {
         }
 
         if (params.dst_bpp == 8) {
-            const auto view = bits::view_integers<std::uint8_t>(src)
-                | std::views::transform([offset=params.dst_ofs, offsetZero=params.offset_zero](auto x) {
-                    if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
-                    return static_cast<std::uint8_t>(x);
-                });
+            const auto view = bits::view_integers<std::uint8_t>(src) |
+                              std::views::transform([offset = params.dst_ofs, offsetZero = params.offset_zero](auto x) {
+                                  if (x || offsetZero) return static_cast<std::uint8_t>(x - offset);
+                                  return static_cast<std::uint8_t>(x);
+                              });
 
             const auto bufferLimit = 8 / params.src_bpp;
 
@@ -257,38 +255,40 @@ namespace gba {
         throw "Unsupported destination bpp";
     }
 
-    /**
-     * @brief Pack data to lower bit depth with automatic parameter detection.
-     *
-     * Analyzes the data to determine optimal packing parameters.
-     *
-     * @param src Source data range.
-     * @param dest Destination iterator for packed bytes.
-     * @param bpp Source bits per pixel (8, 16, or 32).
-     * @return The calculated packing parameters.
-     */
-    consteval auto bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, int bpp) -> unpack_parameters requires std::indirectly_writable<decltype(dest), std::byte> {
+    /// @brief Pack data to lower bit depth with automatic parameter detection.
+    ///
+    /// Analyzes the data to determine optimal packing parameters.
+    ///
+    /// @param src Source data range.
+    /// @param dest Destination iterator for packed bytes.
+    /// @param bpp Source bits per pixel (8, 16, or 32).
+    /// @return The calculated packing parameters.
+    consteval auto bit_pack(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest, int bpp)
+        -> unpack_parameters
+        requires std::indirectly_writable<decltype(dest), std::byte>
+    {
         static constexpr auto src_value_size = sizeof(std::ranges::range_value_t<decltype(src)>);
 
         if (bpp == 32) {
             const auto view = bits::view_integers<std::uint32_t>(src);
             const auto [min, max, hasZero] = bits::min_max(view);
-            const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+            const auto offset = std::min(static_cast<std::size_t>(min - hasZero),
+                                         static_cast<std::size_t>(std::numeric_limits<int>::max()));
             const auto range = max - offset;
 
             if (range < 256) {
-                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
-                    | std::views::filter([](auto x) { return !!x; })
-                    | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(
+                    std::ranges::max(view | std::views::filter([](auto x) { return !!x; }) |
+                                     std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
                 const auto elemsPerByte = 8 / packedBpp;
 
-                return bit_pack(src, dest,{
-                    .src_len = static_cast<unsigned short>(((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
-                    .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
-                    .dst_bpp = 32,
-                    .dst_ofs = offset,
-                    .offset_zero = !hasZero
-                });
+                return bit_pack(src, dest,
+                                {.src_len = static_cast<unsigned short>(
+                                     ((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
+                                 .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+                                 .dst_bpp = 32,
+                                 .dst_ofs = offset,
+                                 .offset_zero = !hasZero});
             }
 
             bpp = 16;
@@ -297,87 +297,91 @@ namespace gba {
         if (bpp == 16) {
             const auto view = bits::view_integers<std::uint16_t>(src);
             const auto [min, max, hasZero] = bits::min_max(view);
-            const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+            const auto offset = std::min(static_cast<std::size_t>(min - hasZero),
+                                         static_cast<std::size_t>(std::numeric_limits<int>::max()));
             const auto range = max - offset;
 
             if (range < 256) {
-                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
-                    | std::views::filter([](auto x) { return !!x; })
-                    | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+                const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(
+                    std::ranges::max(view | std::views::filter([](auto x) { return !!x; }) |
+                                     std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
                 const auto elemsPerByte = 8 / packedBpp;
 
-                return bit_pack(src, dest,{
-                    .src_len = static_cast<unsigned short>(((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
-                    .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
-                    .dst_bpp = 16,
-                    .dst_ofs = offset,
-                    .offset_zero = !hasZero
-                });
+                return bit_pack(src, dest,
+                                {.src_len = static_cast<unsigned short>(
+                                     ((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte),
+                                 .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+                                 .dst_bpp = 16,
+                                 .dst_ofs = offset,
+                                 .offset_zero = !hasZero});
             }
         }
 
         const auto view = bits::view_integers<std::uint8_t>(src);
         const auto [min, max, hasZero] = bits::min_max(view);
-        const auto offset = std::min(static_cast<std::size_t>(min - hasZero), static_cast<std::size_t>(std::numeric_limits<int>::max()));
+        const auto offset = std::min(static_cast<std::size_t>(min - hasZero),
+                                     static_cast<std::size_t>(std::numeric_limits<int>::max()));
         const auto range = max - offset;
 
-        const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(std::ranges::max(view
-            | std::views::filter([](auto x) { return !!x; })
-            | std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
+        const auto packedBpp = std::bit_ceil(static_cast<std::size_t>(
+            std::ranges::max(view | std::views::filter([](auto x) { return !!x; }) |
+                             std::views::transform([offset](auto x) { return std::bit_width(x - offset); }))));
         const auto elemsPerByte = 8 / packedBpp;
         const auto sourcelen = ((std::ranges::size(src) * src_value_size) + elemsPerByte - 1) / elemsPerByte;
 
-        return bit_pack(src, dest,{
-            .src_len = static_cast<unsigned short>(sourcelen + 3 & ~3),
-            .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
-            .dst_bpp = 8,
-            .dst_ofs = offset,
-            .offset_zero = !hasZero
-        });
+        return bit_pack(src, dest,
+                        {.src_len = static_cast<unsigned short>(sourcelen + 3 & ~3),
+                         .src_bpp = static_cast<unsigned char>(packedBpp & 0xf),
+                         .dst_bpp = 8,
+                         .dst_ofs = offset,
+                         .offset_zero = !hasZero});
     }
 
-    /**
-     * @brief Pack data from a supplier lambda at compile time.
-     *
-     * This is the primary interface for compile-time bit packing. Pass a lambda
-     * that returns the data to pack.
-     *
-     * @param supplier Lambda returning the data to pack.
-     * @return A combined type containing unpack_parameters header and packed data.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Pack 4-bit palette indices at compile time
-     * constexpr auto packed_indices = gba::bit_pack([] {
-     *     return std::array<unsigned char, 64>{
-     *         0, 1, 2, 3, 4, 5, 6, 7, // Only uses values 0-15
-     *         // ...
-     *     };
-     * });
-     *
-     * // Unpack at runtime
-     * void load_indices() {
-     *     std::array<unsigned char, 64> buffer;
-     *     gba::BitUnPack(packed_indices.data(), buffer.data(), packed_indices);
-     * }
-     * @endcode
-     */
+    /// @brief Pack data from a supplier lambda at compile time.
+    ///
+    /// This is the primary interface for compile-time bit packing. Pass a lambda
+    /// that returns the data to pack.
+    ///
+    /// @param supplier Lambda returning the data to pack.
+    /// @return A combined type containing unpack_parameters header and packed data.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Pack 4-bit palette indices at compile time
+    /// constexpr auto packed_indices = gba::bit_pack([] {
+    ///     return std::array<unsigned char, 64>{
+    ///         0, 1, 2, 3, 4, 5, 6, 7, // Only uses values 0-15
+    ///         // ...
+    ///     };
+    /// });
+    ///
+    /// // Unpack at runtime
+    /// void load_indices() {
+    ///     std::array<unsigned char, 64> buffer;
+    ///     gba::BitUnPack(packed_indices.data(), buffer.data(), packed_indices);
+    /// }
+    /// @endcode
     consteval auto bit_pack(auto supplier) {
         using supplied_type = decltype(supplier());
 
-        static constexpr std::size_t supplied_bpp = std::numeric_limits<std::make_unsigned_t<typename supplied_type::value_type>>::digits;
+        static constexpr std::size_t supplied_bpp =
+            std::numeric_limits<std::make_unsigned_t<typename supplied_type::value_type>>::digits;
         static_assert(std::has_single_bit(supplied_bpp));
-        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
-            std::integral_constant<std::size_t, supplier().size()>,
-            std::tuple_size<supplied_type>>::value;
-        static constexpr auto large_buffer_size = supplied_length * supplied_bpp / 8 + 3; // +3 bytes to handle 4 byte alignement woes
+        static constexpr auto supplied_length =
+            std::conditional_t<bits::StringViewLike<supplied_type>,
+                               std::integral_constant<std::size_t, supplier().size()>,
+                               std::tuple_size<supplied_type>>::value;
+        static constexpr auto large_buffer_size = supplied_length * supplied_bpp / 8 +
+                                                  3; // +3 bytes to handle 4 byte alignement woes
 
-        static constexpr auto oversized = [&supplier] consteval -> std::pair<unpack_parameters, std::array<std::byte, large_buffer_size>> {
+        static constexpr auto oversized =
+            [&supplier] consteval -> std::pair<unpack_parameters, std::array<std::byte, large_buffer_size>> {
             std::array<std::byte, large_buffer_size> largeBuffer;
-            return { bit_pack(supplier(), largeBuffer.begin(), std::min(supplied_bpp, 32u)), largeBuffer };
+            return {bit_pack(supplier(), largeBuffer.begin(), std::min(supplied_bpp, 32u)), largeBuffer};
         }();
 
-        static_assert(oversized.first.src_len <= large_buffer_size && oversized.first.src_len <= oversized.first.dst_len());
+        static_assert(oversized.first.src_len <= large_buffer_size &&
+                      oversized.first.src_len <= oversized.first.dst_len());
         using buffer_type = std::array<std::byte, oversized.first.src_len>;
 
         buffer_type resizedBuffer;
@@ -385,26 +389,28 @@ namespace gba {
 
         static_assert(oversized.first.dst_len() / sizeof(typename supplied_type::value_type) >= supplied_length);
         struct combined : unpack_parameters, buffer_type {
-            using unpacked_array = std::array<typename supplied_type::value_type, oversized.first.dst_len() / sizeof(typename supplied_type::value_type)>;
+            using unpacked_array = std::array<typename supplied_type::value_type,
+                                              oversized.first.dst_len() / sizeof(typename supplied_type::value_type)>;
             using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
         };
         return combined{oversized.first, resizedBuffer};
     }
 
-    /**
-     * @brief LZ77 compress data to a destination iterator.
-     *
-     * @param src Source data range.
-     * @param dest Destination iterator for compressed bytes.
-     * @return Pair of (compressed size, uncompress_header).
-     */
-    consteval auto lz77_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+    /// @brief LZ77 compress data to a destination iterator.
+    ///
+    /// @param src Source data range.
+    /// @param dest Destination iterator for compressed bytes.
+    /// @return Pair of (compressed size, uncompress_header).
+    consteval auto lz77_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest)
+        -> std::pair<std::size_t, uncompress_header>
+        requires std::indirectly_writable<decltype(dest), std::byte>
+    {
         union block {
             std::uint8_t uncompressed{};
             struct {
-                unsigned short msb : 4;
+                unsigned short msb  : 4;
                 unsigned short size : 4;
-                unsigned short lsb : 8;
+                unsigned short lsb  : 8;
             } compressed;
         };
         std::bitset<8> blockTypes;
@@ -445,18 +451,20 @@ namespace gba {
                 }
                 const auto displacement = std::distance(lookBackStart, lookBackBuffer.end()) - 1;
                 blockTypes.set(blockBuffer.size(), true);
-                blockBuffer.push_back({.compressed = {
-                    .msb = static_cast<unsigned short>((displacement >> 8) & 0xf),
-                    .size = static_cast<unsigned short>((size - 3) & 0xf),
-                    .lsb = static_cast<unsigned short>(displacement & 0xff),
-                }});
+                blockBuffer.push_back({
+                    .compressed = {
+                                   .msb = static_cast<unsigned short>((displacement >> 8) & 0xf),
+                                   .size = static_cast<unsigned short>((size - 3) & 0xf),
+                                   .lsb = static_cast<unsigned short>(displacement & 0xff),
+                                   }
+                });
                 while (size--) {
                     pushBack(*left);
                     ++left;
                 }
             } else {
                 // Uncompressed byte
-                blockBuffer.push_back({ .uncompressed = *left });
+                blockBuffer.push_back({.uncompressed = *left});
                 pushBack(*left);
                 ++left;
             }
@@ -507,56 +515,61 @@ namespace gba {
             }
         }
 
-        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
-            .comp_algo = comp_algo_lz77,
-            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>) + 1 & ~1), // 2 byte aligned for vram
-        });
+        return std::make_pair(std::distance(compressedStart, dest),
+                              uncompress_header{
+                                  .comp_algo = comp_algo_lz77,
+                                  .dst_len = static_cast<unsigned int>(
+                                      std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>) + 1 &
+                                      ~1), // 2 byte aligned for vram
+                              });
     }
 
-    /**
-     * @brief LZ77 compress data from a supplier lambda at compile time.
-     *
-     * This is the primary interface for compile-time LZ77 compression. Pass a
-     * lambda that returns the data to compress.
-     *
-     * @param supplier Lambda returning the data to compress.
-     * @return A combined type containing uncompress_header and compressed data.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Compress tile data at compile time
-     * constexpr auto compressed_tiles = gba::lz77_compress([] {
-     *     return std::array<unsigned int, 256>{
-     *         0x00000000, 0x00000000, 0x11111111, 0x11111111,
-     *         // ... repeated patterns compress well
-     *     };
-     * });
-     *
-     * // Decompress to VRAM at runtime
-     * void load_tiles() {
-     *     gba::LZ77UnCompVram(compressed_tiles, reinterpret_cast<void*>(0x06000000));
-     * }
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * // Compressed with external tool
-     * extern const u8 tilesLZ77[];
-     * LZ77UnCompVram(tilesLZ77, tile_mem);
-     * @endcode
-     */
+    /// @brief LZ77 compress data from a supplier lambda at compile time.
+    ///
+    /// This is the primary interface for compile-time LZ77 compression. Pass a
+    /// lambda that returns the data to compress.
+    ///
+    /// @param supplier Lambda returning the data to compress.
+    /// @return A combined type containing uncompress_header and compressed data.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Compress tile data at compile time
+    /// constexpr auto compressed_tiles = gba::lz77_compress([] {
+    ///     return std::array<unsigned int, 256>{
+    ///         0x00000000, 0x00000000, 0x11111111, 0x11111111,
+    ///         // ... repeated patterns compress well
+    ///     };
+    /// });
+    ///
+    /// // Decompress to VRAM at runtime
+    /// void load_tiles() {
+    ///     gba::LZ77UnCompVram(compressed_tiles, reinterpret_cast<void*>(0x06000000));
+    /// }
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// // Compressed with external tool
+    /// extern const u8 tilesLZ77[];
+    /// LZ77UnCompVram(tilesLZ77, tile_mem);
+    /// @endcode
     consteval auto lz77_compress(auto supplier) {
         using supplied_type = decltype(supplier());
-        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
-            std::integral_constant<std::size_t, supplier().size()>,
-            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_length =
+            std::conditional_t<bits::StringViewLike<supplied_type>,
+                               std::integral_constant<std::size_t, supplier().size()>,
+                               std::tuple_size<supplied_type>>::value;
         static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
-        static constexpr auto large_buffer_size = supplied_bytes + (supplied_bytes + 7 / 8); // At worst, it is uncompressable, so every 8 bytes gains a new byte
+        static constexpr auto large_buffer_size =
+            supplied_bytes +
+            (supplied_bytes + 7 / 8); // At worst, it is uncompressable, so every 8 bytes gains a new byte
 
-        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+        static constexpr auto oversized = [&supplier] consteval
+            -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
             std::array<std::byte, large_buffer_size> largeBuffer;
             const auto [compressedSize, compressedData] = lz77_compress(supplier(), largeBuffer.begin());
-            return { compressedSize, compressedData, largeBuffer };
+            return {compressedSize, compressedData, largeBuffer};
         }();
 
         using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
@@ -565,22 +578,25 @@ namespace gba {
         std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
 
         struct combined : uncompress_header, buffer_type {
-            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_array =
+                std::array<typename supplied_type::value_type,
+                           std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
             using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
         };
         return combined{std::get<1>(oversized), resizedBuffer};
     }
 
-    /**
-     * @brief Huffman compress data to a destination iterator.
-     *
-     * @tparam Bits Symbol size in bits (4 or 8).
-     * @param src Source data range.
-     * @param dest Destination iterator for compressed bytes.
-     * @return Pair of (compressed size, uncompress_header).
-     */
+    /// @brief Huffman compress data to a destination iterator.
+    ///
+    /// @tparam Bits Symbol size in bits (4 or 8).
+    /// @param src Source data range.
+    /// @param dest Destination iterator for compressed bytes.
+    /// @return Pair of (compressed size, uncompress_header).
     template<std::size_t Bits = 8>
-    consteval auto huffman_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+    consteval auto huffman_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest)
+        -> std::pair<std::size_t, uncompress_header>
+        requires std::indirectly_writable<decltype(dest), std::byte>
+    {
         static_assert(Bits == 4 || Bits == 8);
 
         std::vector<std::uint8_t> view;
@@ -637,27 +653,25 @@ namespace gba {
             while (iter != linearNodes.end()) {
                 if (!iter->first->is_leaf()) {
                     iter->second = std::distance(iter, std::find_if(iter, linearNodes.end(), [&](const auto& p) {
-                        return p.first == iter->first->left.get();
-                    }));
+                                                     return p.first == iter->first->left.get();
+                                                 }));
                 }
                 ++iter;
             }
 
             struct branch {
                 std::uint8_t offset : 6;
-                bool node1_leaf : 1;
-                bool node0_leaf : 1;
+                bool node1_leaf     : 1;
+                bool node0_leaf     : 1;
             };
 
             for (const auto& n : linearNodes) {
                 if (n.first->is_leaf()) {
                     *dest++ = std::bit_cast<std::byte>(n.first->symbol);
                 } else {
-                    *dest++ = std::bit_cast<std::byte>(branch{
-                        .offset = static_cast<std::uint8_t>((n.second - 1) / 2),
-                        .node1_leaf = n.first->right->is_leaf(),
-                        .node0_leaf = n.first->left->is_leaf()
-                    });
+                    *dest++ = std::bit_cast<std::byte>(branch{.offset = static_cast<std::uint8_t>((n.second - 1) / 2),
+                                                              .node1_leaf = n.first->right->is_leaf(),
+                                                              .node0_leaf = n.first->left->is_leaf()});
                 }
             }
 
@@ -668,9 +682,7 @@ namespace gba {
         }
 
         std::array<std::vector<bool>, 255> codes;
-        bits::huffman_node::to_keys(*root, [&](auto key, const auto& code) consteval {
-            codes[key] = code;
-        });
+        bits::huffman_node::to_keys(*root, [&](auto key, const auto& code) consteval { codes[key] = code; });
 
         std::vector<bool> buffer;
         buffer.reserve(32);
@@ -679,7 +691,8 @@ namespace gba {
                 buffer.push_back(bit);
 
                 if (buffer.size() == 32) {
-                    const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{}, [](auto x, auto y) { return (x << 1) + y; });
+                    const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{},
+                                                 [](auto x, auto y) { return (x << 1) + y; });
                     *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(data & 0xff));
                     *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 8) & 0xff));
                     *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 16) & 0xff));
@@ -692,67 +705,69 @@ namespace gba {
 
         if (!buffer.empty()) {
             buffer.resize(32);
-            const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{}, [](auto x, auto y) { return (x << 1) + y; });
+            const auto data = accumulate(buffer.begin(), buffer.end(), std::uint32_t{},
+                                         [](auto x, auto y) { return (x << 1) + y; });
             *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>(data & 0xff));
             *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 8) & 0xff));
             *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 16) & 0xff));
             *dest++ = std::bit_cast<std::byte>(static_cast<std::uint8_t>((data >> 24) & 0xff));
         }
 
-        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
-            .src_len = Bits,
-            .comp_algo = comp_algo_huff,
-            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>))
-        });
+        return std::make_pair(
+            std::distance(compressedStart, dest),
+            uncompress_header{.src_len = Bits,
+                              .comp_algo = comp_algo_huff,
+                              .dst_len = static_cast<unsigned int>(std::ranges::size(src) *
+                                                                   sizeof(std::ranges::range_value_t<decltype(src)>))});
     }
 
-    /**
-     * @brief Huffman compress data from a supplier lambda at compile time.
-     *
-     * This is the primary interface for compile-time Huffman compression. Pass a
-     * lambda that returns the data to compress. Huffman is best for data with
-     * skewed symbol frequencies (e.g., text, sparse data).
-     *
-     * @tparam Bits Symbol size in bits (4 or 8, default 8).
-     * @param supplier Lambda returning the data to compress.
-     * @return A combined type containing uncompress_header and compressed data.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Compress text data at compile time
-     * constexpr auto compressed_text = gba::huffman_compress([] {
-     *     return std::array<char, 64>{
-     *         'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd', '!',
-     *         // ... text with repeated characters compresses well
-     *     };
-     * });
-     *
-     * // Decompress at runtime
-     * void load_text() {
-     *     alignas(4) std::array<char, 64> buffer;
-     *     gba::HuffUnComp(compressed_text, buffer.data());
-     * }
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * extern const u8 textHuff[];
-     * HuffUnComp(textHuff, buffer);
-     * @endcode
-     */
+    /// @brief Huffman compress data from a supplier lambda at compile time.
+    ///
+    /// This is the primary interface for compile-time Huffman compression. Pass a
+    /// lambda that returns the data to compress. Huffman is best for data with
+    /// skewed symbol frequencies (e.g., text, sparse data).
+    ///
+    /// @tparam Bits Symbol size in bits (4 or 8, default 8).
+    /// @param supplier Lambda returning the data to compress.
+    /// @return A combined type containing uncompress_header and compressed data.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Compress text data at compile time
+    /// constexpr auto compressed_text = gba::huffman_compress([] {
+    ///     return std::array<char, 64>{
+    ///         'H', 'e', 'l', 'l', 'o', ' ', 'W', 'o', 'r', 'l', 'd', '!',
+    ///         // ... text with repeated characters compresses well
+    ///     };
+    /// });
+    ///
+    /// // Decompress at runtime
+    /// void load_text() {
+    ///     alignas(4) std::array<char, 64> buffer;
+    ///     gba::HuffUnComp(compressed_text, buffer.data());
+    /// }
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// extern const u8 textHuff[];
+    /// HuffUnComp(textHuff, buffer);
+    /// @endcode
     template<std::size_t Bits = 8>
     consteval auto huffman_compress(auto supplier) {
         using supplied_type = decltype(supplier());
-        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
-            std::integral_constant<std::size_t, supplier().size()>,
-            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_length =
+            std::conditional_t<bits::StringViewLike<supplied_type>,
+                               std::integral_constant<std::size_t, supplier().size()>,
+                               std::tuple_size<supplied_type>>::value;
         static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
         static constexpr auto large_buffer_size = supplied_bytes * 3;
 
-        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+        static constexpr auto oversized = [&supplier] consteval
+            -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
             std::array<std::byte, large_buffer_size> largeBuffer;
             const auto [compressedSize, compressedData] = huffman_compress<Bits>(supplier(), largeBuffer.begin());
-            return { compressedSize, compressedData, largeBuffer };
+            return {compressedSize, compressedData, largeBuffer};
         }();
 
         using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
@@ -761,22 +776,25 @@ namespace gba {
         std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
 
         struct combined : uncompress_header, buffer_type {
-            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_array =
+                std::array<typename supplied_type::value_type,
+                           std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
             using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
         };
         return combined{std::get<1>(oversized), resizedBuffer};
     }
 
-    /**
-     * @brief RLE compress data to a destination iterator.
-     *
-     * Run-length encoding is best for data with long runs of identical values.
-     *
-     * @param src Source data range.
-     * @param dest Destination iterator for compressed bytes.
-     * @return Pair of (compressed size, uncompress_header).
-     */
-    consteval auto rle_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest) -> std::pair<std::size_t, uncompress_header> requires std::indirectly_writable<decltype(dest), std::byte> {
+    /// @brief RLE compress data to a destination iterator.
+    ///
+    /// Run-length encoding is best for data with long runs of identical values.
+    ///
+    /// @param src Source data range.
+    /// @param dest Destination iterator for compressed bytes.
+    /// @return Pair of (compressed size, uncompress_header).
+    consteval auto rle_compress(std::ranges::input_range auto&& src, std::weakly_incrementable auto dest)
+        -> std::pair<std::size_t, uncompress_header>
+        requires std::indirectly_writable<decltype(dest), std::byte>
+    {
         const auto view = bits::view_integers<std::uint8_t>(src);
 
         const auto compressedStart = dest;
@@ -821,58 +839,59 @@ namespace gba {
             }
         }
 
-        return std::make_pair(std::distance(compressedStart, dest), uncompress_header{
-            .comp_algo = comp_algo_rl,
-            .dst_len = static_cast<unsigned int>(std::ranges::size(src) * sizeof(std::ranges::range_value_t<decltype(src)>))
-        });
+        return std::make_pair(
+            std::distance(compressedStart, dest),
+            uncompress_header{.comp_algo = comp_algo_rl,
+                              .dst_len = static_cast<unsigned int>(std::ranges::size(src) *
+                                                                   sizeof(std::ranges::range_value_t<decltype(src)>))});
     }
 
-    /**
-     * @brief RLE compress data from a supplier lambda at compile time.
-     *
-     * This is the primary interface for compile-time RLE compression. Pass a
-     * lambda that returns the data to compress. RLE is best for data with
-     * long runs of identical values (e.g., simple sprites, backgrounds).
-     *
-     * @param supplier Lambda returning the data to compress.
-     * @return A combined type containing uncompress_header and compressed data.
-     *
-     * Example:
-     * @code{.cpp}
-     * // Compress sprite with many repeated pixels
-     * constexpr auto compressed_sprite = gba::rle_compress([] {
-     *     return std::array<unsigned char, 256>{
-     *         0, 0, 0, 0, 0, 0, 0, 0,  // Runs of zeros
-     *         1, 1, 1, 1, 1, 1, 1, 1,  // Runs of ones
-     *         // ... RLE compresses runs efficiently
-     *     };
-     * });
-     *
-     * // Decompress at runtime
-     * void load_sprite() {
-     *     std::array<unsigned char, 256> buffer;
-     *     gba::RLUnCompWram(compressed_sprite, buffer.data());
-     * }
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * extern const u8 spriteRL[];
-     * RLUnCompWram(spriteRL, buffer);
-     * @endcode
-     */
+    /// @brief RLE compress data from a supplier lambda at compile time.
+    ///
+    /// This is the primary interface for compile-time RLE compression. Pass a
+    /// lambda that returns the data to compress. RLE is best for data with
+    /// long runs of identical values (e.g., simple sprites, backgrounds).
+    ///
+    /// @param supplier Lambda returning the data to compress.
+    /// @return A combined type containing uncompress_header and compressed data.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Compress sprite with many repeated pixels
+    /// constexpr auto compressed_sprite = gba::rle_compress([] {
+    ///     return std::array<unsigned char, 256>{
+    ///         0, 0, 0, 0, 0, 0, 0, 0,  // Runs of zeros
+    ///         1, 1, 1, 1, 1, 1, 1, 1,  // Runs of ones
+    ///         // ... RLE compresses runs efficiently
+    ///     };
+    /// });
+    ///
+    /// // Decompress at runtime
+    /// void load_sprite() {
+    ///     std::array<unsigned char, 256> buffer;
+    ///     gba::RLUnCompWram(compressed_sprite, buffer.data());
+    /// }
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// extern const u8 spriteRL[];
+    /// RLUnCompWram(spriteRL, buffer);
+    /// @endcode
     consteval auto rle_compress(auto supplier) {
         using supplied_type = decltype(supplier());
-        static constexpr auto supplied_length = std::conditional_t<bits::StringViewLike<supplied_type>,
-            std::integral_constant<std::size_t, supplier().size()>,
-            std::tuple_size<supplied_type>>::value;
+        static constexpr auto supplied_length =
+            std::conditional_t<bits::StringViewLike<supplied_type>,
+                               std::integral_constant<std::size_t, supplier().size()>,
+                               std::tuple_size<supplied_type>>::value;
         static constexpr auto supplied_bytes = sizeof(typename supplied_type::value_type) * supplied_length;
         static constexpr auto large_buffer_size = supplied_bytes + ((supplied_bytes + 127) / 128);
 
-        static constexpr auto oversized = [&supplier] consteval -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
+        static constexpr auto oversized = [&supplier] consteval
+            -> std::tuple<std::size_t, uncompress_header, std::array<std::byte, large_buffer_size>> {
             std::array<std::byte, large_buffer_size> largeBuffer;
             const auto [compressedSize, compressedData] = rle_compress(supplier(), largeBuffer.begin());
-            return { compressedSize, compressedData, largeBuffer };
+            return {compressedSize, compressedData, largeBuffer};
         }();
 
         using buffer_type = std::array<std::byte, std::get<0>(oversized)>;
@@ -881,10 +900,12 @@ namespace gba {
         std::copy_n(std::get<2>(oversized).begin(), resizedBuffer.size(), resizedBuffer.begin());
 
         struct combined : uncompress_header, buffer_type {
-            using unpacked_array = std::array<typename supplied_type::value_type, std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
+            using unpacked_array =
+                std::array<typename supplied_type::value_type,
+                           std::get<1>(oversized).dst_len / sizeof(typename supplied_type::value_type)>;
             using unpacked_size = std::integral_constant<std::size_t, supplied_length>;
         };
         return combined{std::get<1>(oversized), resizedBuffer};
     }
 
-}
+} // namespace gba

@@ -8,22 +8,20 @@ namespace gba::literals {
 
 namespace gba::literals {
 
-    /**
-     * @brief Compile-time fixed-point literal type
-     *
-     * This type can only exist at compile-time and stores a floating-point value
-     * that will be converted to the appropriate fixed-point representation when
-     * assigned to a fixed<> type.
-     *
-     * Usage:
-     *   using namespace gba::literals;
-     *   auto a = 1_fx + 2.3_fx;
-     *   fixed<int, 8> b = a;  // Converts at compile-time
-     *
-     * Or with selective import:
-     *   using gba::literals::operator""_fx;
-     *   auto a = 1_fx + 2.3_fx;
-     */
+    /// @brief Compile-time fixed-point literal type
+    ///
+    /// This type can only exist at compile-time and stores a floating-point value
+    /// that will be converted to the appropriate fixed-point representation when
+    /// assigned to a fixed<> type.
+    ///
+    /// Usage:
+    ///   using namespace gba::literals;
+    ///   auto a = 1_fx + 2.3_fx;
+    ///   fixed<int, 8> b = a;  // Converts at compile-time
+    ///
+    /// Or with selective import:
+    ///   using gba::literals::operator""_fx;
+    ///   auto a = 1_fx + 2.3_fx;
     struct fixed_literal {
         double value;
 

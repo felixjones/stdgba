@@ -1,17 +1,15 @@
-/**
- * @file memory
- * @brief GBA memory management utilities.
- *
- * This header provides memory management utilities optimized for GBA,
- * including a unique pointer type and a bitmap-based memory pool allocator.
- *
- * Example:
- * @code{.cpp}
- * // Create a bitpool over object VRAM (32KB with 1KB chunks)
- * gba::bitpool vram_pool{gba::memory_map(gba::mem_vram_obj), 1024};
- * auto tiles = vram_pool.allocate_unique<char>(2048); // Allocate 2KB for sprite tiles
- * @endcode
- */
+/// @file memory
+/// @brief GBA memory management utilities.
+///
+/// This header provides memory management utilities optimized for GBA,
+/// including a unique pointer type and a bitmap-based memory pool allocator.
+///
+/// Example:
+/// @code{.cpp}
+/// // Create a bitpool over object VRAM (32KB with 1KB chunks)
+/// gba::bitpool vram_pool{gba::memory_map(gba::mem_vram_obj), 1024};
+/// auto tiles = vram_pool.allocate_unique<char>(2048); // Allocate 2KB for sprite tiles
+/// @endcode
 #pragma once
 
 #include <gba/bits/handler.hpp>
@@ -27,927 +25,890 @@
 
 namespace gba {
 
-/**
- * @brief Trivially copyable tuple type for register-compatible data.
- *
- * A fixed-size heterogeneous container that is guaranteed to be trivially copyable
- * and fit within 32 bits. Unlike std::tuple, plex can be safely bit-casted to an
- * integer for hardware register writes.
- *
- * Supports 1 to 4 elements. Use structured bindings or get<I>() for element access.
- *
- * @tparam Ts The member types. Total size must be <= 4 bytes.
- *
- * Example:
- * @code{.cpp}
- * // 2-element plex (like std::pair)
- * gba::plex<unsigned short, unsigned short> p{0x1234, 0x5678};
- * auto [a, b] = p; // Structured bindings
- *
- * // 4-element plex (four bytes)
- * gba::plex<char, char, char, char> rgba{255, 128, 64, 255};
- * auto r = gba::get<0>(rgba);
- * @endcode
- */
-template<typename... Ts>
-struct plex;
+    /// @brief Trivially copyable tuple type for register-compatible data.
+    ///
+    /// A fixed-size heterogeneous container that is guaranteed to be trivially copyable
+    /// and fit within 32 bits. Unlike std::tuple, plex can be safely bit-casted to an
+    /// integer for hardware register writes.
+    ///
+    /// Supports 1 to 4 elements. Use structured bindings or get<I>() for element access.
+    ///
+    /// @tparam Ts The member types. Total size must be <= 4 bytes.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // 2-element plex (like std::pair)
+    /// gba::plex<unsigned short, unsigned short> p{0x1234, 0x5678};
+    /// auto [a, b] = p; // Structured bindings
+    ///
+    /// // 4-element plex (four bytes)
+    /// gba::plex<char, char, char, char> rgba{255, 128, 64, 255};
+    /// auto r = gba::get<0>(rgba);
+    /// @endcode
+    template<typename... Ts>
+    struct plex;
 
-/**
- * @brief Single-element plex specialization.
- *
- * @tparam T1 The element type. Must fit in 32 bits.
- */
-template<typename T1>
-struct plex<T1> {
-    static_assert(sizeof(T1) <= sizeof(unsigned int), "plex must fit in 32 bits");
+    /// Single-element plex specialization.
+    template<typename T1>
+    struct plex<T1> {
+        static_assert(sizeof(T1) <= sizeof(unsigned int), "plex must fit in 32 bits");
 
-    using value_type = T1;  ///< Type of the single member.
+        using value_type = T1;
 
-    T1 first;  ///< The single member.
+        T1 first;
 
-    /// @brief Default constructor.
-    constexpr plex() = default;
+        constexpr plex() = default;
+        constexpr plex(const plex&) = default;
+        constexpr plex(plex&&) = default;
+        constexpr plex(const T1& x) : first{x} {}
 
-    /// @brief Copy constructor.
-    constexpr plex(const plex&) = default;
+        template<typename U1>
+        constexpr plex(U1&& x) : first{std::forward<U1>(x)} {} // NOLINT(*-forwarding-reference-overload)
 
-    /// @brief Move constructor.
-    constexpr plex(plex&&) = default;
+        template<typename U1>
+        constexpr plex(const plex<U1>& p) : first{p.first} {}
 
-    /// @brief Construct from value.
+        constexpr plex& operator=(const plex&) = default;
+        constexpr plex& operator=(plex&&) = default;
+
+        template<typename U1>
+        constexpr plex& operator=(const plex<U1>& p) {
+            first = p.first;
+            return *this;
+        }
+
+        /// @brief Swap contents with another plex.
+        /// @param other The plex to swap with.
+        constexpr void swap(plex& other) noexcept {
+            using std::swap;
+            swap(first, other.first);
+        }
+
+        /// @brief Equality comparison.
+        [[nodiscard]]
+        constexpr bool operator==(const plex&) const = default;
+
+        /// @brief Three-way comparison.
+        [[nodiscard]]
+        constexpr auto operator<=>(const plex&) const = default;
+    };
+
+    /// Two-element plex specialization (std::pair compatible).
+    ///
+    /// @code{.cpp}
+    /// gba::plex<unsigned short, gba::timer_control> config{0xFFFF, {.enabled = true}};
+    /// auto [reload, ctrl] = config;
+    /// @endcode
+    template<typename T1, typename T2>
+    struct plex<T1, T2> {
+        static_assert(sizeof(T1) + sizeof(T2) <= sizeof(unsigned int), "plex must fit in 32 bits");
+
+        using first_type = T1;
+        using second_type = T2;
+
+        T1 first;
+        T2 second;
+
+        constexpr plex() = default;
+        constexpr plex(const plex&) = default;
+        constexpr plex(plex&&) = default;
+        constexpr plex(const T1& x, const T2& y) : first{x}, second{y} {}
+
+        template<typename U1, typename U2>
+        constexpr plex(U1&& x, U2&& y) : first{std::forward<U1>(x)}, second{std::forward<U2>(y)} {}
+
+        template<typename U1, typename U2>
+        constexpr plex(const plex<U1, U2>& p) : first{p.first}, second{p.second} {}
+
+        template<typename U1, typename U2>
+        constexpr plex(const std::pair<U1, U2>& p) : first{p.first}, second{p.second} {}
+
+        template<typename U1, typename U2>
+        constexpr plex(plex<U1, U2>&& p) : first{std::forward<U1>(p.first)}, second{std::forward<U2>(p.second)} {}
+
+        constexpr plex& operator=(const plex&) = default;
+        constexpr plex& operator=(plex&&) = default;
+
+        template<typename U1, typename U2>
+        constexpr plex& operator=(const plex<U1, U2>& p) {
+            first = p.first;
+            second = p.second;
+            return *this;
+        }
+
+        template<typename U1, typename U2>
+        constexpr plex& operator=(const std::pair<U1, U2>& p) {
+            first = p.first;
+            second = p.second;
+            return *this;
+        }
+
+        constexpr void swap(plex& other) noexcept {
+            using std::swap;
+            swap(first, other.first);
+            swap(second, other.second);
+        }
+
+        [[nodiscard]]
+        constexpr bool operator==(const plex&) const = default;
+
+        [[nodiscard]]
+        constexpr auto operator<=>(const plex&) const = default;
+    };
+
+    /// @brief Three-element plex specialization.
+    ///
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @tparam T3 Third element type.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::plex<char, char, short> p{1, 2, 300};
+    /// auto [a, b, c] = p;
+    /// @endcode
+    template<typename T1, typename T2, typename T3>
+    struct plex<T1, T2, T3> {
+        static_assert(sizeof(T1) + sizeof(T2) + sizeof(T3) <= sizeof(unsigned int), "plex must fit in 32 bits");
+
+        T1 first;  ///< The first member.
+        T2 second; ///< The second member.
+        T3 third;  ///< The third member.
+
+        /// @brief Default constructor.
+        constexpr plex() = default;
+
+        /// @brief Copy constructor.
+        constexpr plex(const plex&) = default;
+
+        /// @brief Move constructor.
+        constexpr plex(plex&&) = default;
+
+        /// @brief Construct from values.
+        /// @param x First value.
+        /// @param y Second value.
+        /// @param z Third value.
+        constexpr plex(const T1& x, const T2& y, const T3& z) : first{x}, second{y}, third{z} {}
+
+        /// @brief Construct from convertible values.
+        template<typename U1, typename U2, typename U3>
+        constexpr plex(U1&& x, U2&& y, U3&& z)
+            : first{std::forward<U1>(x)}, second{std::forward<U2>(y)}, third{std::forward<U3>(z)} {}
+
+        /// @brief Copy assignment.
+        constexpr plex& operator=(const plex&) = default;
+
+        /// @brief Move assignment.
+        constexpr plex& operator=(plex&&) = default;
+
+        /// @brief Swap contents with another plex.
+        /// @param other The plex to swap with.
+        constexpr void swap(plex& other) noexcept {
+            using std::swap;
+            swap(first, other.first);
+            swap(second, other.second);
+            swap(third, other.third);
+        }
+
+        /// @brief Equality comparison.
+        [[nodiscard]]
+        constexpr bool operator==(const plex&) const = default;
+
+        /// @brief Three-way comparison.
+        [[nodiscard]]
+        constexpr auto operator<=>(const plex&) const = default;
+    };
+
+    /// @brief Four-element plex specialization.
+    ///
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @tparam T3 Third element type.
+    /// @tparam T4 Fourth element type.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::plex<char, char, char, char> rgba{255, 128, 64, 255};
+    /// auto [r, g, b, a] = rgba;
+    /// @endcode
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct plex<T1, T2, T3, T4> {
+        static_assert(sizeof(T1) + sizeof(T2) + sizeof(T3) + sizeof(T4) <= sizeof(unsigned int),
+                      "plex must fit in 32 bits");
+
+        T1 first;  ///< The first member.
+        T2 second; ///< The second member.
+        T3 third;  ///< The third member.
+        T4 fourth; ///< The fourth member.
+
+        /// @brief Default constructor.
+        constexpr plex() = default;
+
+        /// @brief Copy constructor.
+        constexpr plex(const plex&) = default;
+
+        /// @brief Move constructor.
+        constexpr plex(plex&&) = default;
+
+        /// @brief Construct from values.
+        /// @param a First value.
+        /// @param b Second value.
+        /// @param c Third value.
+        /// @param d Fourth value.
+        constexpr plex(const T1& a, const T2& b, const T3& c, const T4& d) : first{a}, second{b}, third{c}, fourth{d} {}
+
+        /// @brief Construct from convertible values.
+        template<typename U1, typename U2, typename U3, typename U4>
+        constexpr plex(U1&& a, U2&& b, U3&& c, U4&& d)
+            : first{std::forward<U1>(a)}, second{std::forward<U2>(b)}, third{std::forward<U3>(c)},
+              fourth{std::forward<U4>(d)} {}
+
+        /// @brief Copy assignment.
+        constexpr plex& operator=(const plex&) = default;
+
+        /// @brief Move assignment.
+        constexpr plex& operator=(plex&&) = default;
+
+        /// @brief Swap contents with another plex.
+        /// @param other The plex to swap with.
+        constexpr void swap(plex& other) noexcept {
+            using std::swap;
+            swap(first, other.first);
+            swap(second, other.second);
+            swap(third, other.third);
+            swap(fourth, other.fourth);
+        }
+
+        /// @brief Equality comparison.
+        [[nodiscard]]
+        constexpr bool operator==(const plex&) const = default;
+
+        /// @brief Three-way comparison.
+        [[nodiscard]]
+        constexpr auto operator<=>(const plex&) const = default;
+    };
+
+    /// @brief Deduction guide for 1-element plex.
+    template<typename T1>
+    plex(T1) -> plex<T1>;
+
+    /// @brief Deduction guide for 2-element plex.
+    template<typename T1, typename T2>
+    plex(T1, T2) -> plex<T1, T2>;
+
+    /// @brief Deduction guide for 3-element plex.
+    template<typename T1, typename T2, typename T3>
+    plex(T1, T2, T3) -> plex<T1, T2, T3>;
+
+    /// @brief Deduction guide for 4-element plex.
+    template<typename T1, typename T2, typename T3, typename T4>
+    plex(T1, T2, T3, T4) -> plex<T1, T2, T3, T4>;
+
+    /// @brief Create a 1-element plex.
+    /// @tparam T1 The element type.
     /// @param x The value.
-    constexpr plex(const T1& x) : first{x} {}
-
-    /// @brief Construct from convertible value.
-    /// @tparam U1 Type convertible to T1.
-    /// @param x The value.
-    template<typename U1>
-    constexpr plex(U1&& x) : first{std::forward<U1>(x)} {} // NOLINT(*-forwarding-reference-overload)
-
-    /// @brief Construct from another plex type.
-    /// @tparam U1 Element type of source plex.
-    /// @param p Source plex.
-    template<typename U1>
-    constexpr plex(const plex<U1>& p) : first{p.first} {}
-
-    /// @brief Copy assignment.
-    constexpr plex& operator=(const plex&) = default;
-
-    /// @brief Move assignment.
-    constexpr plex& operator=(plex&&) = default;
-
-    /// @brief Assign from another plex type.
-    /// @tparam U1 Element type of source plex.
-    /// @param p Source plex.
-    template<typename U1>
-    constexpr plex& operator=(const plex<U1>& p) {
-        first = p.first;
-        return *this;
-    }
-
-    /// @brief Swap contents with another plex.
-    /// @param other The plex to swap with.
-    constexpr void swap(plex& other) noexcept {
-        using std::swap;
-        swap(first, other.first);
-    }
-
-    /// @brief Equality comparison.
+    /// @return A plex containing the value.
+    template<typename T1>
     [[nodiscard]]
-    constexpr bool operator==(const plex&) const = default;
-
-    /// @brief Three-way comparison.
-    [[nodiscard]]
-    constexpr auto operator<=>(const plex&) const = default;
-};
-
-/**
- * @brief Two-element plex specialization (std::pair compatible).
- *
- * Provides first/second member names and constructors compatible with std::pair.
- *
- * @tparam T1 First element type.
- * @tparam T2 Second element type.
- *
- * Example:
- * @code{.cpp}
- * gba::plex<unsigned short, gba::timer_control> config{0xFFFF, {.enabled = true}};
- * auto [reload, ctrl] = config;
- * @endcode
- */
-template<typename T1, typename T2>
-struct plex<T1, T2> {
-    static_assert(sizeof(T1) + sizeof(T2) <= sizeof(unsigned int), "plex must fit in 32 bits");
-
-    using first_type = T1;   ///< Type of the first member.
-    using second_type = T2;  ///< Type of the second member.
-
-    T1 first;   ///< The first member.
-    T2 second;  ///< The second member.
-
-    /// @brief Default constructor.
-    constexpr plex() = default;
-
-    /// @brief Copy constructor.
-    constexpr plex(const plex&) = default;
-
-    /// @brief Move constructor.
-    constexpr plex(plex&&) = default;
-
-    /// @brief Construct from values.
-    constexpr plex(const T1& x, const T2& y) : first{x}, second{y} {}
-
-    /// @brief Construct from convertible values.
-    template<typename U1, typename U2>
-    constexpr plex(U1&& x, U2&& y) : first{std::forward<U1>(x)}, second{std::forward<U2>(y)} {}
-
-    /// @brief Construct from another plex type.
-    template<typename U1, typename U2>
-    constexpr plex(const plex<U1, U2>& p) : first{p.first}, second{p.second} {}
-
-    /// @brief Construct from std::pair.
-    template<typename U1, typename U2>
-    constexpr plex(const std::pair<U1, U2>& p) : first{p.first}, second{p.second} {}
-
-    /// @brief Move construct from another plex type.
-    template<typename U1, typename U2>
-    constexpr plex(plex<U1, U2>&& p) : first{std::forward<U1>(p.first)}, second{std::forward<U2>(p.second)} {}
-
-    /// @brief Copy assignment.
-    constexpr plex& operator=(const plex&) = default;
-
-    /// @brief Move assignment.
-    constexpr plex& operator=(plex&&) = default;
-
-    /// @brief Assign from another plex type.
-    template<typename U1, typename U2>
-    constexpr plex& operator=(const plex<U1, U2>& p) {
-        first = p.first;
-        second = p.second;
-        return *this;
+    constexpr plex<std::decay_t<T1>> make_plex(T1&& x) {
+        return {std::forward<T1>(x)};
     }
 
-    /// @brief Assign from std::pair.
-    template<typename U1, typename U2>
-    constexpr plex& operator=(const std::pair<U1, U2>& p) {
-        first = p.first;
-        second = p.second;
-        return *this;
+    /// @brief Create a 2-element plex.
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @param x First value.
+    /// @param y Second value.
+    /// @return A plex containing the values.
+    template<typename T1, typename T2>
+    [[nodiscard]]
+    constexpr plex<std::decay_t<T1>, std::decay_t<T2>> make_plex(T1&& x, T2&& y) {
+        return {std::forward<T1>(x), std::forward<T2>(y)};
     }
 
-
-    /// @brief Swap contents with another plex.
-    constexpr void swap(plex& other) noexcept {
-        using std::swap;
-        swap(first, other.first);
-        swap(second, other.second);
-    }
-
-    /// @brief Equality comparison.
-    [[nodiscard]]
-    constexpr bool operator==(const plex&) const = default;
-
-    /// @brief Three-way comparison.
-    [[nodiscard]]
-    constexpr auto operator<=>(const plex&) const = default;
-};
-
-/**
- * @brief Three-element plex specialization.
- *
- * @tparam T1 First element type.
- * @tparam T2 Second element type.
- * @tparam T3 Third element type.
- *
- * Example:
- * @code{.cpp}
- * gba::plex<char, char, short> p{1, 2, 300};
- * auto [a, b, c] = p;
- * @endcode
- */
-template<typename T1, typename T2, typename T3>
-struct plex<T1, T2, T3> {
-    static_assert(sizeof(T1) + sizeof(T2) + sizeof(T3) <= sizeof(unsigned int), "plex must fit in 32 bits");
-
-    T1 first;   ///< The first member.
-    T2 second;  ///< The second member.
-    T3 third;   ///< The third member.
-
-    /// @brief Default constructor.
-    constexpr plex() = default;
-
-    /// @brief Copy constructor.
-    constexpr plex(const plex&) = default;
-
-    /// @brief Move constructor.
-    constexpr plex(plex&&) = default;
-
-    /// @brief Construct from values.
+    /// @brief Create a 3-element plex.
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @tparam T3 Third element type.
     /// @param x First value.
     /// @param y Second value.
     /// @param z Third value.
-    constexpr plex(const T1& x, const T2& y, const T3& z) : first{x}, second{y}, third{z} {}
-
-    /// @brief Construct from convertible values.
-    template<typename U1, typename U2, typename U3>
-    constexpr plex(U1&& x, U2&& y, U3&& z) : first{std::forward<U1>(x)}, second{std::forward<U2>(y)}, third{std::forward<U3>(z)} {}
-
-    /// @brief Copy assignment.
-    constexpr plex& operator=(const plex&) = default;
-
-    /// @brief Move assignment.
-    constexpr plex& operator=(plex&&) = default;
-
-    /// @brief Swap contents with another plex.
-    /// @param other The plex to swap with.
-    constexpr void swap(plex& other) noexcept {
-        using std::swap;
-        swap(first, other.first);
-        swap(second, other.second);
-        swap(third, other.third);
+    /// @return A plex containing the values.
+    template<typename T1, typename T2, typename T3>
+    [[nodiscard]]
+    constexpr plex<std::decay_t<T1>, std::decay_t<T2>, std::decay_t<T3>> make_plex(T1&& x, T2&& y, T3&& z) {
+        return {std::forward<T1>(x), std::forward<T2>(y), std::forward<T3>(z)};
     }
 
-    /// @brief Equality comparison.
-    [[nodiscard]]
-    constexpr bool operator==(const plex&) const = default;
-
-    /// @brief Three-way comparison.
-    [[nodiscard]]
-    constexpr auto operator<=>(const plex&) const = default;
-};
-
-/**
- * @brief Four-element plex specialization.
- *
- * @tparam T1 First element type.
- * @tparam T2 Second element type.
- * @tparam T3 Third element type.
- * @tparam T4 Fourth element type.
- *
- * Example:
- * @code{.cpp}
- * gba::plex<char, char, char, char> rgba{255, 128, 64, 255};
- * auto [r, g, b, a] = rgba;
- * @endcode
- */
-template<typename T1, typename T2, typename T3, typename T4>
-struct plex<T1, T2, T3, T4> {
-    static_assert(sizeof(T1) + sizeof(T2) + sizeof(T3) + sizeof(T4) <= sizeof(unsigned int), "plex must fit in 32 bits");
-
-    T1 first;   ///< The first member.
-    T2 second;  ///< The second member.
-    T3 third;   ///< The third member.
-    T4 fourth;  ///< The fourth member.
-
-    /// @brief Default constructor.
-    constexpr plex() = default;
-
-    /// @brief Copy constructor.
-    constexpr plex(const plex&) = default;
-
-    /// @brief Move constructor.
-    constexpr plex(plex&&) = default;
-
-    /// @brief Construct from values.
+    /// @brief Create a 4-element plex.
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @tparam T3 Third element type.
+    /// @tparam T4 Fourth element type.
     /// @param a First value.
     /// @param b Second value.
     /// @param c Third value.
     /// @param d Fourth value.
-    constexpr plex(const T1& a, const T2& b, const T3& c, const T4& d) : first{a}, second{b}, third{c}, fourth{d} {}
-
-    /// @brief Construct from convertible values.
-    template<typename U1, typename U2, typename U3, typename U4>
-    constexpr plex(U1&& a, U2&& b, U3&& c, U4&& d) : first{std::forward<U1>(a)}, second{std::forward<U2>(b)}, third{std::forward<U3>(c)}, fourth{std::forward<U4>(d)} {}
-
-    /// @brief Copy assignment.
-    constexpr plex& operator=(const plex&) = default;
-
-    /// @brief Move assignment.
-    constexpr plex& operator=(plex&&) = default;
-
-    /// @brief Swap contents with another plex.
-    /// @param other The plex to swap with.
-    constexpr void swap(plex& other) noexcept {
-        using std::swap;
-        swap(first, other.first);
-        swap(second, other.second);
-        swap(third, other.third);
-        swap(fourth, other.fourth);
-    }
-
-    /// @brief Equality comparison.
+    /// @return A plex containing the values.
+    template<typename T1, typename T2, typename T3, typename T4>
     [[nodiscard]]
-    constexpr bool operator==(const plex&) const = default;
+    constexpr plex<std::decay_t<T1>, std::decay_t<T2>, std::decay_t<T3>, std::decay_t<T4>> make_plex(T1&& a, T2&& b,
+                                                                                                     T3&& c, T4&& d) {
+        return {std::forward<T1>(a), std::forward<T2>(b), std::forward<T3>(c), std::forward<T4>(d)};
+    }
 
-    /// @brief Three-way comparison.
+    /// @brief Get element by index from 1-element plex.
+    /// @tparam I Index (must be 0).
+    /// @tparam T1 Element type.
+    /// @param p The plex.
+    /// @return Reference to the element.
+    template<std::size_t I, typename T1>
     [[nodiscard]]
-    constexpr auto operator<=>(const plex&) const = default;
-};
-
-/// @brief Deduction guide for 1-element plex.
-template<typename T1>
-plex(T1) -> plex<T1>;
-
-/// @brief Deduction guide for 2-element plex.
-template<typename T1, typename T2>
-plex(T1, T2) -> plex<T1, T2>;
-
-/// @brief Deduction guide for 3-element plex.
-template<typename T1, typename T2, typename T3>
-plex(T1, T2, T3) -> plex<T1, T2, T3>;
-
-/// @brief Deduction guide for 4-element plex.
-template<typename T1, typename T2, typename T3, typename T4>
-plex(T1, T2, T3, T4) -> plex<T1, T2, T3, T4>;
-
-/// @brief Create a 1-element plex.
-/// @tparam T1 The element type.
-/// @param x The value.
-/// @return A plex containing the value.
-template<typename T1>
-[[nodiscard]]
-constexpr plex<std::decay_t<T1>> make_plex(T1&& x) {
-    return {std::forward<T1>(x)};
-}
-
-/// @brief Create a 2-element plex.
-/// @tparam T1 First element type.
-/// @tparam T2 Second element type.
-/// @param x First value.
-/// @param y Second value.
-/// @return A plex containing the values.
-template<typename T1, typename T2>
-[[nodiscard]]
-constexpr plex<std::decay_t<T1>, std::decay_t<T2>> make_plex(T1&& x, T2&& y) {
-    return {std::forward<T1>(x), std::forward<T2>(y)};
-}
-
-/// @brief Create a 3-element plex.
-/// @tparam T1 First element type.
-/// @tparam T2 Second element type.
-/// @tparam T3 Third element type.
-/// @param x First value.
-/// @param y Second value.
-/// @param z Third value.
-/// @return A plex containing the values.
-template<typename T1, typename T2, typename T3>
-[[nodiscard]]
-constexpr plex<std::decay_t<T1>, std::decay_t<T2>, std::decay_t<T3>> make_plex(T1&& x, T2&& y, T3&& z) {
-    return {std::forward<T1>(x), std::forward<T2>(y), std::forward<T3>(z)};
-}
-
-/// @brief Create a 4-element plex.
-/// @tparam T1 First element type.
-/// @tparam T2 Second element type.
-/// @tparam T3 Third element type.
-/// @tparam T4 Fourth element type.
-/// @param a First value.
-/// @param b Second value.
-/// @param c Third value.
-/// @param d Fourth value.
-/// @return A plex containing the values.
-template<typename T1, typename T2, typename T3, typename T4>
-[[nodiscard]]
-constexpr plex<std::decay_t<T1>, std::decay_t<T2>, std::decay_t<T3>, std::decay_t<T4>> make_plex(T1&& a, T2&& b, T3&& c, T4&& d) {
-    return {std::forward<T1>(a), std::forward<T2>(b), std::forward<T3>(c), std::forward<T4>(d)};
-}
-
-/// @brief Get element by index from 1-element plex.
-/// @tparam I Index (must be 0).
-/// @tparam T1 Element type.
-/// @param p The plex.
-/// @return Reference to the element.
-template<std::size_t I, typename T1>
-[[nodiscard]]
-constexpr auto& get(plex<T1>& p) noexcept {
-    static_assert(I < 1, "Index out of bounds");
-    return p.first;
-}
-
-/// @copydoc get(plex<T1>&)
-template<std::size_t I, typename T1>
-[[nodiscard]]
-constexpr const auto& get(const plex<T1>& p) noexcept {
-    static_assert(I < 1, "Index out of bounds");
-    return p.first;
-}
-
-/// @copydoc get(plex<T1>&)
-template<std::size_t I, typename T1>
-[[nodiscard]]
-constexpr auto&& get(plex<T1>&& p) noexcept {
-    static_assert(I < 1, "Index out of bounds");
-    return std::move(p.first);
-}
-
-/// @brief Get element by index from 2-element plex.
-/// @tparam I Index (0 or 1).
-/// @tparam T1 First element type.
-/// @tparam T2 Second element type.
-/// @param p The plex.
-/// @return Reference to the element.
-template<std::size_t I, typename T1, typename T2>
-[[nodiscard]]
-constexpr auto& get(plex<T1, T2>& p) noexcept {
-    static_assert(I < 2, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else return p.second;
-}
-
-/// @copydoc get(plex<T1,T2>&)
-template<std::size_t I, typename T1, typename T2>
-[[nodiscard]]
-constexpr const auto& get(const plex<T1, T2>& p) noexcept {
-    static_assert(I < 2, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else return p.second;
-}
-
-/// @copydoc get(plex<T1,T2>&)
-template<std::size_t I, typename T1, typename T2>
-[[nodiscard]]
-constexpr auto&& get(plex<T1, T2>&& p) noexcept {
-    static_assert(I < 2, "Index out of bounds");
-    if constexpr (I == 0) return std::move(p.first);
-    else return std::move(p.second);
-}
-
-/// @brief Get element by index from 3-element plex.
-/// @tparam I Index (0, 1, or 2).
-/// @param p The plex.
-/// @return Reference to the element.
-template<std::size_t I, typename T1, typename T2, typename T3>
-[[nodiscard]]
-constexpr auto& get(plex<T1, T2, T3>& p) noexcept {
-    static_assert(I < 3, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else if constexpr (I == 1) return p.second;
-    else return p.third;
-}
-
-/// @copydoc get(plex<T1,T2,T3>&)
-template<std::size_t I, typename T1, typename T2, typename T3>
-[[nodiscard]]
-constexpr const auto& get(const plex<T1, T2, T3>& p) noexcept {
-    static_assert(I < 3, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else if constexpr (I == 1) return p.second;
-    else return p.third;
-}
-
-/// @copydoc get(plex<T1,T2,T3>&)
-template<std::size_t I, typename T1, typename T2, typename T3>
-[[nodiscard]]
-constexpr auto&& get(plex<T1, T2, T3>&& p) noexcept {
-    static_assert(I < 3, "Index out of bounds");
-    if constexpr (I == 0) return std::move(p.first);
-    else if constexpr (I == 1) return std::move(p.second);
-    else return std::move(p.third);
-}
-
-/// @brief Get element by index from 4-element plex.
-/// @tparam I Index (0, 1, 2, or 3).
-/// @param p The plex.
-/// @return Reference to the element.
-template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
-[[nodiscard]]
-constexpr auto& get(plex<T1, T2, T3, T4>& p) noexcept {
-    static_assert(I < 4, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else if constexpr (I == 1) return p.second;
-    else if constexpr (I == 2) return p.third;
-    else return p.fourth;
-}
-
-/// @copydoc get(plex<T1,T2,T3,T4>&)
-template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
-[[nodiscard]]
-constexpr const auto& get(const plex<T1, T2, T3, T4>& p) noexcept {
-    static_assert(I < 4, "Index out of bounds");
-    if constexpr (I == 0) return p.first;
-    else if constexpr (I == 1) return p.second;
-    else if constexpr (I == 2) return p.third;
-    else return p.fourth;
-}
-
-/// @copydoc get(plex<T1,T2,T3,T4>&)
-template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
-[[nodiscard]]
-constexpr auto&& get(plex<T1, T2, T3, T4>&& p) noexcept {
-    static_assert(I < 4, "Index out of bounds");
-    if constexpr (I == 0) return std::move(p.first);
-    else if constexpr (I == 1) return std::move(p.second);
-    else if constexpr (I == 2) return std::move(p.third);
-    else return std::move(p.fourth);
-}
-
-
-/**
- * @brief Unique ownership pointer with type-erased deleter.
- *
- * Similar to std::unique_ptr but with a constexpr-compatible type-erased deleter.
- * Useful for managing resources from custom allocators like bitpool.
- *
- * Example:
- * @code{.cpp}
- * // Create with custom deleter
- * gba::unique<int> ptr{new int{42}, [](const int* p) { delete p; }};
- * *ptr = 100;
- *
- * // Create via make_unique
- * auto ptr2 = gba::make_unique<int>(42);
- * @endcode
- *
- * @tparam T The managed object type.
- */
-template<typename T>
-struct unique {
-    /// @brief Default constructor (null pointer).
-    constexpr unique() noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
-
-    /// @brief Construct from nullptr.
-    constexpr unique(std::nullptr_t) noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
-
-    /// @brief Construct with pointer and custom deleter.
-    /// @tparam Deleter The deleter type (must be callable with const T*).
-    /// @param ptr The pointer to manage.
-    /// @param deleter The deleter to invoke on destruction.
-    template<typename Deleter>
-    constexpr unique(T* ptr, Deleter&& deleter) noexcept : m_ptr{ptr}, m_deleter{std::forward<Deleter>(deleter)} {}
-
-    /// @brief Destructor. Invokes the deleter if pointer is non-null.
-    constexpr ~unique() {
-        reset();
+    constexpr auto& get(plex<T1>& p) noexcept {
+        static_assert(I < 1, "Index out of bounds");
+        return p.first;
     }
 
-    unique(const unique&) = delete;
-    unique& operator=(const unique&) = delete;
-
-    /// @brief Move constructor.
-    constexpr unique(unique&& other) noexcept : m_ptr{other.m_ptr}, m_deleter{std::move(other.m_deleter)} {
-        other.m_ptr = nullptr;
+    /// @copydoc get(plex<T1>&)
+    template<std::size_t I, typename T1>
+    [[nodiscard]]
+    constexpr const auto& get(const plex<T1>& p) noexcept {
+        static_assert(I < 1, "Index out of bounds");
+        return p.first;
     }
 
-    /// @brief Move assignment operator.
-    constexpr unique& operator=(unique&& other) noexcept {
-        if (this != &other) {
-            reset();
-            m_ptr = other.m_ptr;
-            m_deleter = std::move(other.m_deleter);
+    /// @copydoc get(plex<T1>&)
+    template<std::size_t I, typename T1>
+    [[nodiscard]]
+    constexpr auto&& get(plex<T1>&& p) noexcept {
+        static_assert(I < 1, "Index out of bounds");
+        return std::move(p.first);
+    }
+
+    /// @brief Get element by index from 2-element plex.
+    /// @tparam I Index (0 or 1).
+    /// @tparam T1 First element type.
+    /// @tparam T2 Second element type.
+    /// @param p The plex.
+    /// @return Reference to the element.
+    template<std::size_t I, typename T1, typename T2>
+    [[nodiscard]]
+    constexpr auto& get(plex<T1, T2>& p) noexcept {
+        static_assert(I < 2, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else return p.second;
+    }
+
+    /// @copydoc get(plex<T1,T2>&)
+    template<std::size_t I, typename T1, typename T2>
+    [[nodiscard]]
+    constexpr const auto& get(const plex<T1, T2>& p) noexcept {
+        static_assert(I < 2, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else return p.second;
+    }
+
+    /// @copydoc get(plex<T1,T2>&)
+    template<std::size_t I, typename T1, typename T2>
+    [[nodiscard]]
+    constexpr auto&& get(plex<T1, T2>&& p) noexcept {
+        static_assert(I < 2, "Index out of bounds");
+        if constexpr (I == 0) return std::move(p.first);
+        else return std::move(p.second);
+    }
+
+    /// @brief Get element by index from 3-element plex.
+    /// @tparam I Index (0, 1, or 2).
+    /// @param p The plex.
+    /// @return Reference to the element.
+    template<std::size_t I, typename T1, typename T2, typename T3>
+    [[nodiscard]]
+    constexpr auto& get(plex<T1, T2, T3>& p) noexcept {
+        static_assert(I < 3, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else if constexpr (I == 1) return p.second;
+        else return p.third;
+    }
+
+    /// @copydoc get(plex<T1,T2,T3>&)
+    template<std::size_t I, typename T1, typename T2, typename T3>
+    [[nodiscard]]
+    constexpr const auto& get(const plex<T1, T2, T3>& p) noexcept {
+        static_assert(I < 3, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else if constexpr (I == 1) return p.second;
+        else return p.third;
+    }
+
+    /// @copydoc get(plex<T1,T2,T3>&)
+    template<std::size_t I, typename T1, typename T2, typename T3>
+    [[nodiscard]]
+    constexpr auto&& get(plex<T1, T2, T3>&& p) noexcept {
+        static_assert(I < 3, "Index out of bounds");
+        if constexpr (I == 0) return std::move(p.first);
+        else if constexpr (I == 1) return std::move(p.second);
+        else return std::move(p.third);
+    }
+
+    /// @brief Get element by index from 4-element plex.
+    /// @tparam I Index (0, 1, 2, or 3).
+    /// @param p The plex.
+    /// @return Reference to the element.
+    template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
+    [[nodiscard]]
+    constexpr auto& get(plex<T1, T2, T3, T4>& p) noexcept {
+        static_assert(I < 4, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else if constexpr (I == 1) return p.second;
+        else if constexpr (I == 2) return p.third;
+        else return p.fourth;
+    }
+
+    /// @copydoc get(plex<T1,T2,T3,T4>&)
+    template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
+    [[nodiscard]]
+    constexpr const auto& get(const plex<T1, T2, T3, T4>& p) noexcept {
+        static_assert(I < 4, "Index out of bounds");
+        if constexpr (I == 0) return p.first;
+        else if constexpr (I == 1) return p.second;
+        else if constexpr (I == 2) return p.third;
+        else return p.fourth;
+    }
+
+    /// @copydoc get(plex<T1,T2,T3,T4>&)
+    template<std::size_t I, typename T1, typename T2, typename T3, typename T4>
+    [[nodiscard]]
+    constexpr auto&& get(plex<T1, T2, T3, T4>&& p) noexcept {
+        static_assert(I < 4, "Index out of bounds");
+        if constexpr (I == 0) return std::move(p.first);
+        else if constexpr (I == 1) return std::move(p.second);
+        else if constexpr (I == 2) return std::move(p.third);
+        else return std::move(p.fourth);
+    }
+
+    /// @brief Unique ownership pointer with type-erased deleter.
+    ///
+    /// Similar to std::unique_ptr but with a constexpr-compatible type-erased deleter.
+    /// Useful for managing resources from custom allocators like bitpool.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// // Create with custom deleter
+    /// gba::unique<int> ptr{new int{42}, [](const int* p) { delete p; }};
+    /// *ptr = 100;
+    ///
+    /// // Create via make_unique
+    /// auto ptr2 = gba::make_unique<int>(42);
+    /// @endcode
+    ///
+    /// @tparam T The managed object type.
+    template<typename T>
+    struct unique {
+        /// @brief Default constructor (null pointer).
+        constexpr unique() noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
+
+        /// @brief Construct from nullptr.
+        constexpr unique(std::nullptr_t) noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
+
+        /// @brief Construct with pointer and custom deleter.
+        /// @tparam Deleter The deleter type (must be callable with const T*).
+        /// @param ptr The pointer to manage.
+        /// @param deleter The deleter to invoke on destruction.
+        template<typename Deleter>
+        constexpr unique(T* ptr, Deleter&& deleter) noexcept : m_ptr{ptr}, m_deleter{std::forward<Deleter>(deleter)} {}
+
+        /// @brief Destructor. Invokes the deleter if pointer is non-null.
+        constexpr ~unique() { reset(); }
+
+        unique(const unique&) = delete;
+        unique& operator=(const unique&) = delete;
+
+        /// @brief Move constructor.
+        constexpr unique(unique&& other) noexcept : m_ptr{other.m_ptr}, m_deleter{std::move(other.m_deleter)} {
             other.m_ptr = nullptr;
         }
-        return *this;
-    }
 
-    /// @brief Release ownership and invoke deleter.
-    constexpr void reset() noexcept {
-        if (m_ptr) {
-            std::invoke(m_deleter, m_ptr);
-            m_ptr = nullptr;
-        }
-    }
-
-    /// @brief Get the managed pointer.
-    /// @return The raw pointer.
-    constexpr T* get() const noexcept { return m_ptr; }
-
-    /// @brief Arrow operator for member access.
-    /// @return The raw pointer.
-    constexpr T* operator->() const noexcept { return m_ptr; }
-
-    /// @brief Dereference operator.
-    /// @return Reference to the managed object.
-    constexpr T& operator*() const noexcept { return *m_ptr; }
-
-    /// @brief Check if pointer is non-null.
-    /// @return True if managing a valid pointer.
-    constexpr explicit operator bool() const noexcept { return m_ptr != nullptr; }
-private:
-    T* m_ptr;
-    bits::handler<const T*> m_deleter;
-};
-
-/// @brief Create a unique pointer with default delete.
-/// @tparam T The object type to create.
-/// @tparam Args Constructor argument types.
-/// @param args Arguments forwarded to T's constructor.
-/// @return A unique pointer managing the new object.
-///
-/// Example:
-/// @code{.cpp}
-/// auto ptr = gba::make_unique<int>(42);
-/// auto obj = gba::make_unique<MyClass>(arg1, arg2);
-/// @endcode
-template<typename T, typename... Args>
-constexpr unique<T> make_unique(Args&&... args) {
-    return {new T{std::forward<Args>(args)...}, [](const T* ptr) constexpr static { delete ptr; }};
-}
-
-/**
- * @brief Bitmap-based fixed memory pool allocator.
- *
- * Manages a contiguous memory region using a 32-bit bitmap to track allocations.
- * Each bit represents one chunk, allowing up to 32 chunks per pool.
- * Ideal for managing VRAM regions for dynamic sprite or tile allocation.
- *
- * @note The pool is limited to exactly 32 chunks due to the 32-bit bitmask.
- * Choose your chunk size accordingly: for 32KB of VRAM, use 1KB chunks (32 * 1KB = 32KB).
- *
- * Example:
- * @code{.cpp}
- * // Create a pool over object VRAM (32KB with 1KB chunks)
- * gba::bitpool obj_vram{gba::memory_map(gba::mem_vram_obj), 1024};
- *
- * // Allocate 2KB for sprite tiles
- * void* tiles = obj_vram.allocate(2048);
- *
- * // Allocate with alignment (e.g., for 8bpp tiles)
- * void* aligned_tiles = obj_vram.allocate(1024, 1024);
- *
- * // Deallocate when sprite is destroyed
- * obj_vram.deallocate(tiles, 2048);
- *
- * // Use allocate_unique for RAII
- * auto sprite_tiles = obj_vram.allocate_unique<char>(1024);
- * @endcode
- */
-struct bitpool {
-    /// @brief Construct a bitpool over a memory region.
-    /// @param base Pointer to the start of the managed memory.
-    /// @param chunkSize Size of each allocation chunk in bytes. Must be a power of two.
-    ///
-    /// Example:
-    /// @code{.cpp}
-    /// // Manage object VRAM with 512-byte chunks (16 tiles each)
-    /// gba::bitpool obj_vram{gba::memory_map(gba::mem_vram_obj), 512};
-    /// @endcode
-    constexpr explicit bitpool(void* base, const std::size_t chunkSize) noexcept
-        : m_base{reinterpret_cast<std::uintptr_t>(base)}
-        , m_chunkShift{static_cast<std::uint8_t>(std::countr_zero(chunkSize))}
-        , m_bitmask{} {}
-
-    /// @brief Get the maximum number of chunks (always 32).
-    /// @return The chunk capacity.
-    /// @note This is fixed at 32 due to the underlying 32-bit bitmask.
-    static constexpr std::size_t capacity() noexcept { return std::numeric_limits<std::uint32_t>::digits; }
-
-    /// @brief Get the chunk size in bytes.
-    /// @return The chunk size.
-    [[nodiscard]]
-    constexpr std::size_t chunk_size() const noexcept { return std::size_t{1} << m_chunkShift; }
-
-    /// @brief Get the total pool size in bytes.
-    /// @return capacity() * chunk_size().
-    [[nodiscard]]
-    constexpr std::size_t size() const noexcept { return capacity() * chunk_size(); }
-
-    /// @brief Allocate memory from the pool.
-    /// @param bytes Number of bytes to allocate.
-    /// @return Pointer to allocated memory, or nullptr if allocation fails.
-    ///
-    /// Example:
-    /// @code{.cpp}
-    /// void* ptr = pool.allocate(256);
-    /// if (ptr) { // use memory }
-    /// @endcode
-    constexpr void* allocate(const std::size_t bytes) noexcept {
-        const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
-
-        std::size_t chunkMask = (1 << chunkLen) - 1;
-        std::uintptr_t chunkStart = 0;
-        while (chunkStart < capacity()) {
-            if ((m_bitmask & chunkMask) == 0) {
-                m_bitmask |= chunkMask;
-                return reinterpret_cast<void*>(m_base + (chunkStart << m_chunkShift));
+        /// @brief Move assignment operator.
+        constexpr unique& operator=(unique&& other) noexcept {
+            if (this != &other) {
+                reset();
+                m_ptr = other.m_ptr;
+                m_deleter = std::move(other.m_deleter);
+                other.m_ptr = nullptr;
             }
-            chunkMask <<= 1;
-            chunkStart += 1;
+            return *this;
         }
 
-        return nullptr;
-    }
-
-    /// @brief Allocate memory with alignment.
-    /// @param bytes Number of bytes to allocate.
-    /// @param chunkAlignment Alignment in bytes (rounded up to chunk boundaries).
-    /// @return Pointer to allocated memory, or nullptr if allocation fails.
-    ///
-    /// Example:
-    /// @code{.cpp}
-    /// // Allocate 256 bytes aligned to 1KB boundary
-    /// void* ptr = pool.allocate(256, 1024);
-    /// @endcode
-    constexpr void* allocate(const std::size_t bytes, const std::size_t chunkAlignment) noexcept {
-        const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
-        const std::size_t chunkStep = (chunkAlignment + (chunk_size() - 1)) >> m_chunkShift;
-
-        std::size_t chunkMask = (1 << chunkLen) - 1;
-        std::uintptr_t chunkStart = 0;
-        while (chunkStart < capacity()) {
-            if ((m_bitmask & chunkMask) == 0) {
-                m_bitmask |= chunkMask;
-                return reinterpret_cast<void*>(m_base + (chunkStart << m_chunkShift));
+        /// @brief Release ownership and invoke deleter.
+        constexpr void reset() noexcept {
+            if (m_ptr) {
+                std::invoke(m_deleter, m_ptr);
+                m_ptr = nullptr;
             }
-            chunkMask <<= chunkStep;
-            chunkStart += chunkStep;
         }
 
-        return nullptr;
-    }
+        /// @brief Get the managed pointer.
+        /// @return The raw pointer.
+        constexpr T* get() const noexcept { return m_ptr; }
 
-    /// @brief Deallocate memory back to the pool.
-    /// @param ptr Pointer previously returned by allocate().
-    /// @param bytes The same size passed to allocate().
-    ///
-    /// Example:
-    /// @code{.cpp}
-    /// pool.deallocate(ptr, 256);
-    /// @endcode
-    constexpr void deallocate(const void* ptr, const std::size_t bytes) noexcept {
-        const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
-        const std::size_t chunkMask = (1 << chunkLen) - 1;
+        /// @brief Arrow operator for member access.
+        /// @return The raw pointer.
+        constexpr T* operator->() const noexcept { return m_ptr; }
 
-        const std::uintptr_t chunkStart = (reinterpret_cast<std::uintptr_t>(ptr) - m_base) >> m_chunkShift;
-        m_bitmask &= ~(chunkMask << chunkStart);
-    }
+        /// @brief Dereference operator.
+        /// @return Reference to the managed object.
+        constexpr T& operator*() const noexcept { return *m_ptr; }
 
-    /// @brief Allocate raw memory and return a unique pointer with automatic deallocation.
-    /// @tparam T The pointer type (used for alignment, no constructor called).
-    /// @param bytes Number of bytes to allocate.
-    /// @param chunkAlignment Alignment in bytes (default: alignof(T)).
-    /// @return A unique pointer that deallocates on destruction.
-    ///
-    /// Example:
-    /// @code{.cpp}
-    /// // Allocate VRAM for sprite tiles with RAII
-    /// auto sprite_tiles = vram_pool.allocate_unique<char>(512);
-    /// std::memcpy(sprite_tiles.get(), tile_data, 512);
-    /// // Memory is automatically returned to pool when sprite_tiles goes out of scope
-    /// @endcode
-    template<typename T>
-    constexpr unique<T> allocate_unique(const std::size_t bytes, const std::size_t chunkAlignment = alignof(T)) noexcept {
-        void* ptr = allocate(bytes, chunkAlignment);
-        if (!ptr) {
-            return nullptr;
-        }
+        /// @brief Check if pointer is non-null.
+        /// @return True if managing a valid pointer.
+        constexpr explicit operator bool() const noexcept { return m_ptr != nullptr; }
 
-        return {static_cast<T*>(ptr), [this, bytes](const T* p) constexpr {
-            this->deallocate(p, bytes);
-        }};
-    }
+    private:
+        T* m_ptr;
+        bits::handler<const T*> m_deleter;
+    };
 
-    /// @brief Construct an object in pool memory and return a unique pointer.
-    /// @tparam T The object type to construct.
+    /// @brief Create a unique pointer with default delete.
+    /// @tparam T The object type to create.
     /// @tparam Args Constructor argument types.
     /// @param args Arguments forwarded to T's constructor.
-    /// @return A unique pointer that destructs and deallocates on destruction.
+    /// @return A unique pointer managing the new object.
     ///
     /// Example:
     /// @code{.cpp}
-    /// // Construct an object in the pool
-    /// auto obj = pool.make_unique<MySprite>(x, y, tile_index);
-    /// obj->update();
-    /// // Destructor called and memory returned to pool when obj goes out of scope
+    /// auto ptr = gba::make_unique<int>(42);
+    /// auto obj = gba::make_unique<MyClass>(arg1, arg2);
     /// @endcode
     template<typename T, typename... Args>
     constexpr unique<T> make_unique(Args&&... args) {
-        void* ptr = allocate(sizeof(T), alignof(T));
-        if (!ptr) {
-            return nullptr;
-        }
-
-        auto* obj = new(ptr) T{std::forward<Args>(args)...};
-        return {obj, [this](const T* p) constexpr {
-            p->~T();
-            this->deallocate(p, sizeof(T));
-        }};
+        return {new T{std::forward<Args>(args)...}, [](const T* ptr) constexpr static { delete ptr; }};
     }
 
-    /// @brief Create a sub-pool from this pool's memory.
-    /// @param bytes Size of the sub-pool in bytes.
-    /// @param chunkAlignment Alignment for the sub-pool's base address.
-    /// @return A unique pointer to the sub-pool.
+    /// @brief Bitmap-based fixed memory pool allocator.
     ///
-    /// @warning The parent bitpool must outlive all subpools created from it.
-    /// Destroying the parent while subpools still exist results in undefined behavior.
+    /// Manages a contiguous memory region using a 32-bit bitmap to track allocations.
+    /// Each bit represents one chunk, allowing up to 32 chunks per pool.
+    /// Ideal for managing VRAM regions for dynamic sprite or tile allocation.
+    ///
+    /// @note The pool is limited to exactly 32 chunks due to the 32-bit bitmask.
+    /// Choose your chunk size accordingly: for 32KB of VRAM, use 1KB chunks (32 * 1KB = 32KB).
     ///
     /// Example:
     /// @code{.cpp}
-    /// // Create a 4KB sub-pool for a specific sprite sheet
-    /// auto sheet_pool = vram_pool.subpool(4096);
-    /// void* frame1 = sheet_pool->allocate(256);
-    /// void* frame2 = sheet_pool->allocate(256);
-    /// // Sub-pool memory returned to parent when sheet_pool goes out of scope
+    /// // Create a pool over object VRAM (32KB with 1KB chunks)
+    /// gba::bitpool obj_vram{gba::memory_map(gba::mem_vram_obj), 1024};
+    ///
+    /// // Allocate 2KB for sprite tiles
+    /// void* tiles = obj_vram.allocate(2048);
+    ///
+    /// // Allocate with alignment (e.g., for 8bpp tiles)
+    /// void* aligned_tiles = obj_vram.allocate(1024, 1024);
+    ///
+    /// // Deallocate when sprite is destroyed
+    /// obj_vram.deallocate(tiles, 2048);
+    ///
+    /// // Use allocate_unique for RAII
+    /// auto sprite_tiles = obj_vram.allocate_unique<char>(1024);
     /// @endcode
-    constexpr unique<bitpool> subpool(const std::size_t bytes, const std::size_t chunkAlignment = 1) noexcept {
-        const std::size_t chunkBytes = ((bytes + (chunk_size() - 1)) >> m_chunkShift) << m_chunkShift;
+    struct bitpool {
+        /// @brief Construct a bitpool over a memory region.
+        /// @param base Pointer to the start of the managed memory.
+        /// @param chunkSize Size of each allocation chunk in bytes. Must be a power of two.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// // Manage object VRAM with 512-byte chunks (16 tiles each)
+        /// gba::bitpool obj_vram{gba::memory_map(gba::mem_vram_obj), 512};
+        /// @endcode
+        constexpr explicit bitpool(void* base, const std::size_t chunkSize) noexcept
+            : m_base{reinterpret_cast<std::uintptr_t>(base)},
+              m_chunkShift{static_cast<std::uint8_t>(std::countr_zero(chunkSize))}, m_bitmask{} {}
 
-        void* ptr = allocate(chunkBytes, chunkAlignment);
-        if (!ptr) {
+        /// @brief Get the maximum number of chunks (always 32).
+        /// @return The chunk capacity.
+        /// @note This is fixed at 32 due to the underlying 32-bit bitmask.
+        static constexpr std::size_t capacity() noexcept { return std::numeric_limits<std::uint32_t>::digits; }
+
+        /// @brief Get the chunk size in bytes.
+        /// @return The chunk size.
+        [[nodiscard]]
+        constexpr std::size_t chunk_size() const noexcept {
+            return std::size_t{1} << m_chunkShift;
+        }
+
+        /// @brief Get the total pool size in bytes.
+        /// @return capacity() * chunk_size().
+        [[nodiscard]]
+        constexpr std::size_t size() const noexcept {
+            return capacity() * chunk_size();
+        }
+
+        /// @brief Allocate memory from the pool.
+        /// @param bytes Number of bytes to allocate.
+        /// @return Pointer to allocated memory, or nullptr if allocation fails.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// void* ptr = pool.allocate(256);
+        /// if (ptr) { // use memory }
+        /// @endcode
+        constexpr void* allocate(const std::size_t bytes) noexcept {
+            const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
+
+            std::size_t chunkMask = (1 << chunkLen) - 1;
+            std::uintptr_t chunkStart = 0;
+            while (chunkStart < capacity()) {
+                if ((m_bitmask & chunkMask) == 0) {
+                    m_bitmask |= chunkMask;
+                    return reinterpret_cast<void*>(m_base + (chunkStart << m_chunkShift));
+                }
+                chunkMask <<= 1;
+                chunkStart += 1;
+            }
+
             return nullptr;
         }
 
-        auto* sub = new bitpool{ptr, chunkBytes / 32};
-        return unique<bitpool>{sub, [this, ptr, chunkBytes](const bitpool* p) constexpr {
-            this->deallocate(ptr, chunkBytes);
-            delete p;
-        }};
-    }
-private:
-    std::uintptr_t m_base;
-    std::uint8_t m_chunkShift;
-    std::uint32_t m_bitmask;
-};
+        /// @brief Allocate memory with alignment.
+        /// @param bytes Number of bytes to allocate.
+        /// @param chunkAlignment Alignment in bytes (rounded up to chunk boundaries).
+        /// @return Pointer to allocated memory, or nullptr if allocation fails.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// // Allocate 256 bytes aligned to 1KB boundary
+        /// void* ptr = pool.allocate(256, 1024);
+        /// @endcode
+        constexpr void* allocate(const std::size_t bytes, const std::size_t chunkAlignment) noexcept {
+            const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
+            const std::size_t chunkStep = (chunkAlignment + (chunk_size() - 1)) >> m_chunkShift;
 
-/**
- * @brief PMR memory resource adapter for bitpool.
- *
- * Wraps a bitpool as a std::pmr::memory_resource, enabling use with
- * PMR containers like std::pmr::vector and std::pmr::string.
- *
- * Example:
- * @code{.cpp}
- * char buffer[4096];
- * gba::bitpool pool{buffer, 128};
- * gba::bitpool_buffer_resource resource{pool};
- *
- * std::pmr::vector<int> vec{&resource};
- * vec.push_back(42);
- * @endcode
- */
-struct bitpool_buffer_resource : std::pmr::memory_resource {
-    /// @brief Construct a PMR resource backed by a bitpool.
-    /// @param parent The bitpool to allocate from.
-    constexpr explicit bitpool_buffer_resource(bitpool& parent) noexcept : m_bitpool{&parent} {}
-protected:
-    /// @brief Allocate memory from the underlying bitpool.
-    void* do_allocate(const std::size_t bytes, const std::size_t alignment) override {
-        return m_bitpool->allocate(bytes, alignment);
-    }
+            std::size_t chunkMask = (1 << chunkLen) - 1;
+            std::uintptr_t chunkStart = 0;
+            while (chunkStart < capacity()) {
+                if ((m_bitmask & chunkMask) == 0) {
+                    m_bitmask |= chunkMask;
+                    return reinterpret_cast<void*>(m_base + (chunkStart << m_chunkShift));
+                }
+                chunkMask <<= chunkStep;
+                chunkStart += chunkStep;
+            }
 
-    /// @brief Deallocate memory back to the underlying bitpool.
-    void do_deallocate(void* ptr, const std::size_t bytes, std::size_t) override {
-        m_bitpool->deallocate(ptr, bytes);
-    }
+            return nullptr;
+        }
 
-    /// @brief Check if two resources are the same object.
-    [[nodiscard]]
-    bool do_is_equal(const memory_resource& other) const noexcept override {
-        return this == &other;
-    }
-private:
-    bitpool* m_bitpool;
-};
+        /// @brief Deallocate memory back to the pool.
+        /// @param ptr Pointer previously returned by allocate().
+        /// @param bytes The same size passed to allocate().
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// pool.deallocate(ptr, 256);
+        /// @endcode
+        constexpr void deallocate(const void* ptr, const std::size_t bytes) noexcept {
+            const std::size_t chunkLen = (bytes + (chunk_size() - 1)) >> m_chunkShift;
+            const std::size_t chunkMask = (1 << chunkLen) - 1;
+
+            const std::uintptr_t chunkStart = (reinterpret_cast<std::uintptr_t>(ptr) - m_base) >> m_chunkShift;
+            m_bitmask &= ~(chunkMask << chunkStart);
+        }
+
+        /// @brief Allocate raw memory and return a unique pointer with automatic deallocation.
+        /// @tparam T The pointer type (used for alignment, no constructor called).
+        /// @param bytes Number of bytes to allocate.
+        /// @param chunkAlignment Alignment in bytes (default: alignof(T)).
+        /// @return A unique pointer that deallocates on destruction.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// // Allocate VRAM for sprite tiles with RAII
+        /// auto sprite_tiles = vram_pool.allocate_unique<char>(512);
+        /// std::memcpy(sprite_tiles.get(), tile_data, 512);
+        /// // Memory is automatically returned to pool when sprite_tiles goes out of scope
+        /// @endcode
+        template<typename T>
+        constexpr unique<T> allocate_unique(const std::size_t bytes,
+                                            const std::size_t chunkAlignment = alignof(T)) noexcept {
+            void* ptr = allocate(bytes, chunkAlignment);
+            if (!ptr) {
+                return nullptr;
+            }
+
+            return {static_cast<T*>(ptr), [this, bytes](const T* p) constexpr { this->deallocate(p, bytes); }};
+        }
+
+        /// @brief Construct an object in pool memory and return a unique pointer.
+        /// @tparam T The object type to construct.
+        /// @tparam Args Constructor argument types.
+        /// @param args Arguments forwarded to T's constructor.
+        /// @return A unique pointer that destructs and deallocates on destruction.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// // Construct an object in the pool
+        /// auto obj = pool.make_unique<MySprite>(x, y, tile_index);
+        /// obj->update();
+        /// // Destructor called and memory returned to pool when obj goes out of scope
+        /// @endcode
+        template<typename T, typename... Args>
+        constexpr unique<T> make_unique(Args&&... args) {
+            void* ptr = allocate(sizeof(T), alignof(T));
+            if (!ptr) {
+                return nullptr;
+            }
+
+            auto* obj = new (ptr) T{std::forward<Args>(args)...};
+            return {obj, [this](const T* p) constexpr {
+                        p->~T();
+                        this->deallocate(p, sizeof(T));
+                    }};
+        }
+
+        /// @brief Create a sub-pool from this pool's memory.
+        /// @param bytes Size of the sub-pool in bytes.
+        /// @param chunkAlignment Alignment for the sub-pool's base address.
+        /// @return A unique pointer to the sub-pool.
+        ///
+        /// @warning The parent bitpool must outlive all subpools created from it.
+        /// Destroying the parent while subpools still exist results in undefined behavior.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// // Create a 4KB sub-pool for a specific sprite sheet
+        /// auto sheet_pool = vram_pool.subpool(4096);
+        /// void* frame1 = sheet_pool->allocate(256);
+        /// void* frame2 = sheet_pool->allocate(256);
+        /// // Sub-pool memory returned to parent when sheet_pool goes out of scope
+        /// @endcode
+        constexpr unique<bitpool> subpool(const std::size_t bytes, const std::size_t chunkAlignment = 1) noexcept {
+            const std::size_t chunkBytes = ((bytes + (chunk_size() - 1)) >> m_chunkShift) << m_chunkShift;
+
+            void* ptr = allocate(chunkBytes, chunkAlignment);
+            if (!ptr) {
+                return nullptr;
+            }
+
+            auto* sub = new bitpool{ptr, chunkBytes / 32};
+            return unique<bitpool>{sub, [this, ptr, chunkBytes](const bitpool* p) constexpr {
+                                       this->deallocate(ptr, chunkBytes);
+                                       delete p;
+                                   }};
+        }
+
+    private:
+        std::uintptr_t m_base;
+        std::uint8_t m_chunkShift;
+        std::uint32_t m_bitmask;
+    };
+
+    /// @brief PMR memory resource adapter for bitpool.
+    ///
+    /// Wraps a bitpool as a std::pmr::memory_resource, enabling use with
+    /// PMR containers like std::pmr::vector and std::pmr::string.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// char buffer[4096];
+    /// gba::bitpool pool{buffer, 128};
+    /// gba::bitpool_buffer_resource resource{pool};
+    ///
+    /// std::pmr::vector<int> vec{&resource};
+    /// vec.push_back(42);
+    /// @endcode
+    struct bitpool_buffer_resource : std::pmr::memory_resource {
+        /// @brief Construct a PMR resource backed by a bitpool.
+        /// @param parent The bitpool to allocate from.
+        constexpr explicit bitpool_buffer_resource(bitpool& parent) noexcept : m_bitpool{&parent} {}
+
+    protected:
+        /// @brief Allocate memory from the underlying bitpool.
+        void* do_allocate(const std::size_t bytes, const std::size_t alignment) override {
+            return m_bitpool->allocate(bytes, alignment);
+        }
+
+        /// @brief Deallocate memory back to the underlying bitpool.
+        void do_deallocate(void* ptr, const std::size_t bytes, std::size_t) override {
+            m_bitpool->deallocate(ptr, bytes);
+        }
+
+        /// @brief Check if two resources are the same object.
+        [[nodiscard]]
+        bool do_is_equal(const memory_resource& other) const noexcept override {
+            return this == &other;
+        }
+
+    private:
+        bitpool* m_bitpool;
+    };
 
 } // namespace gba
 
-
 namespace std {
 
-// 1-element plex
-template<typename T1>
-struct tuple_size<gba::plex<T1>> : integral_constant<size_t, 1> {}; // NOLINT(*-dcl58-cpp)
+    // 1-element plex
+    template<typename T1>
+    struct tuple_size<gba::plex<T1>> : integral_constant<size_t, 1> {}; // NOLINT(*-dcl58-cpp)
 
-template<typename T1>
-struct tuple_element<0, gba::plex<T1>> { using type = T1; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1>
+    struct tuple_element<0, gba::plex<T1>> {
+        using type = T1;
+    }; // NOLINT(*-dcl58-cpp)
 
-// 2-element plex
-template<typename T1, typename T2>
-struct tuple_size<gba::plex<T1, T2>> : integral_constant<size_t, 2> {}; // NOLINT(*-dcl58-cpp)
+    // 2-element plex
+    template<typename T1, typename T2>
+    struct tuple_size<gba::plex<T1, T2>> : integral_constant<size_t, 2> {}; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2>
-struct tuple_element<0, gba::plex<T1, T2>> { using type = T1; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2>
+    struct tuple_element<0, gba::plex<T1, T2>> {
+        using type = T1;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2>
-struct tuple_element<1, gba::plex<T1, T2>> { using type = T2; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2>
+    struct tuple_element<1, gba::plex<T1, T2>> {
+        using type = T2;
+    }; // NOLINT(*-dcl58-cpp)
 
-// 3-element plex
-template<typename T1, typename T2, typename T3>
-struct tuple_size<gba::plex<T1, T2, T3>> : integral_constant<size_t, 3> {}; // NOLINT(*-dcl58-cpp)
+    // 3-element plex
+    template<typename T1, typename T2, typename T3>
+    struct tuple_size<gba::plex<T1, T2, T3>> : integral_constant<size_t, 3> {}; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3>
-struct tuple_element<0, gba::plex<T1, T2, T3>> { using type = T1; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3>
+    struct tuple_element<0, gba::plex<T1, T2, T3>> {
+        using type = T1;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3>
-struct tuple_element<1, gba::plex<T1, T2, T3>> { using type = T2; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3>
+    struct tuple_element<1, gba::plex<T1, T2, T3>> {
+        using type = T2;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3>
-struct tuple_element<2, gba::plex<T1, T2, T3>> { using type = T3; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3>
+    struct tuple_element<2, gba::plex<T1, T2, T3>> {
+        using type = T3;
+    }; // NOLINT(*-dcl58-cpp)
 
-// 4-element plex
-template<typename T1, typename T2, typename T3, typename T4>
-struct tuple_size<gba::plex<T1, T2, T3, T4>> : integral_constant<size_t, 4> {}; // NOLINT(*-dcl58-cpp)
+    // 4-element plex
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct tuple_size<gba::plex<T1, T2, T3, T4>> : integral_constant<size_t, 4> {}; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3, typename T4>
-struct tuple_element<0, gba::plex<T1, T2, T3, T4>> { using type = T1; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct tuple_element<0, gba::plex<T1, T2, T3, T4>> {
+        using type = T1;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3, typename T4>
-struct tuple_element<1, gba::plex<T1, T2, T3, T4>> { using type = T2; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct tuple_element<1, gba::plex<T1, T2, T3, T4>> {
+        using type = T2;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3, typename T4>
-struct tuple_element<2, gba::plex<T1, T2, T3, T4>> { using type = T3; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct tuple_element<2, gba::plex<T1, T2, T3, T4>> {
+        using type = T3;
+    }; // NOLINT(*-dcl58-cpp)
 
-template<typename T1, typename T2, typename T3, typename T4>
-struct tuple_element<3, gba::plex<T1, T2, T3, T4>> { using type = T4; }; // NOLINT(*-dcl58-cpp)
+    template<typename T1, typename T2, typename T3, typename T4>
+    struct tuple_element<3, gba::plex<T1, T2, T3, T4>> {
+        using type = T4;
+    }; // NOLINT(*-dcl58-cpp)
 
 } // namespace std

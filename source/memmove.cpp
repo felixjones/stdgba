@@ -1,47 +1,44 @@
-/**
- * @file memmove.cpp
- * @brief C standard memmove wrapper with compile-time specialisation.
- *
- * Kept in a separate translation unit from the assembly __aeabi_memmove so
- * that link-time optimisation can see the wrapper and inline it at call
- * sites.
- *
- * Each specialisation is a flat, top-level guard where every term is
- * resolved purely at compile time by __builtin_constant_p. When a guard
- * is true, the body executes directly with no runtime branches. When
- * false, the entire if-body is dead code -- nothing is emitted.
- *
- * Specialisations (checked in order):
- *   1. n == 0:                            eliminated entirely
- *   2. n <= 6 (any alignment):            inline load-all then store-all
- *   3. aligned(4), any n:                 __aeabi_memmove4 (skip alignment)
- *   4. fallback:                          __aeabi_memmove
- *
- * Unlike memcpy.cpp, there is no inline ldr/str word-pair specialisation.
- * Forward ldr/str pairs are unsafe when dest > src (overlap), and proving
- * non-overlap at compile time is not reliable -- __builtin_constant_p on
- * pointer relationships resolves at the optimizer level, not as a sound
- * alias analysis.
- *
- * Specialisation 2 loads ALL source bytes into temporaries before storing
- * any of them, making it safe for overlapping regions in either direction.
- *
- * Uses .cpp (not .c) to avoid injecting the C language into downstream
- * targets that use stdgba as an INTERFACE library.
- */
+/// @file memmove.cpp
+/// @brief C standard memmove wrapper with compile-time specialisation.
+///
+/// Kept in a separate translation unit from the assembly __aeabi_memmove so
+/// that link-time optimisation can see the wrapper and inline it at call
+/// sites.
+///
+/// Each specialisation is a flat, top-level guard where every term is
+/// resolved purely at compile time by __builtin_constant_p. When a guard
+/// is true, the body executes directly with no runtime branches. When
+/// false, the entire if-body is dead code -- nothing is emitted.
+///
+/// Specialisations (checked in order):
+///   1. n == 0:                            eliminated entirely
+///   2. n <= 6 (any alignment):            inline load-all then store-all
+///   3. aligned(4), any n:                 __aeabi_memmove4 (skip alignment)
+///   4. fallback:                          __aeabi_memmove
+///
+/// Unlike memcpy.cpp, there is no inline ldr/str word-pair specialisation.
+/// Forward ldr/str pairs are unsafe when dest > src (overlap), and proving
+/// non-overlap at compile time is not reliable -- __builtin_constant_p on
+/// pointer relationships resolves at the optimizer level, not as a sound
+/// alias analysis.
+///
+/// Specialisation 2 loads ALL source bytes into temporaries before storing
+/// any of them, making it safe for overlapping regions in either direction.
+///
+/// Uses .cpp (not .c) to avoid injecting the C language into downstream
+/// targets that use stdgba as an INTERFACE library.
 
 #include <cstddef>
 #include <cstdint>
 
 extern "C" {
 
-extern void __aeabi_memmove(void *, const void *, std::size_t);
-extern void __aeabi_memmove4(void *, const void *, std::size_t);
+extern void __aeabi_memmove(void*, const void*, std::size_t);
+extern void __aeabi_memmove4(void*, const void*, std::size_t);
 
-void *memmove(void *dest, const void *src, std::size_t n) {
+void* memmove(void* dest, const void* src, std::size_t n) {
     // 1. Zero-size move: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0)
-        return dest;
+    if (__builtin_constant_p(n) && n == 0) return dest;
 
     // 2. Small constant move (1-6 bytes, any alignment): overlap-safe.
     //    Loads ALL source bytes into temporaries first, then stores them
@@ -73,8 +70,7 @@ void *memmove(void *dest, const void *src, std::size_t n) {
     if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
         __aeabi_memmove4(dest, src, n);
         return dest;
     }

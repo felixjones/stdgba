@@ -1,7 +1,5 @@
-/**
- * @file test_lz77.cpp
- * @brief Tests for compile-time LZ77 compression and BIOS decompression.
- */
+/// @file test_lz77.cpp
+/// @brief Tests for compile-time LZ77 compression and BIOS decompression.
 #include <gba/bios>
 #include <gba/compress>
 

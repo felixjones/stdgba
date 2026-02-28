@@ -1,11 +1,9 @@
-/**
- * @file tests/memory/test_bitpool.cpp
- * @brief Unit tests for bitpool optimizations.
- */
+/// @file tests/memory/test_bitpool.cpp
+/// @brief Unit tests for bitpool optimizations.
 
 #include <gba/memory>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;

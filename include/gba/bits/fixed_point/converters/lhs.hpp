@@ -4,17 +4,15 @@
 
 namespace gba {
 
-    /**
-     * @brief LHS (left-hand side) conversion - result matches wrapped value's type
-     *
-     * Best for performance when you want to keep the LHS type.
-     * Converts RHS to match LHS type.
-     *
-     * Usage:
-     *   fixed<int, 8> a = 3.5;
-     *   fixed<int, 4> b = 1.25;
-     *   auto result = as_lhs(a) + b;  // Result: fixed<int, 8>
-     */
+    /// @brief LHS (left-hand side) conversion - result matches wrapped value's type
+    ///
+    /// Best for performance when you want to keep the LHS type.
+    /// Converts RHS to match LHS type.
+    ///
+    /// Usage:
+    ///   fixed<int, 8> a = 3.5;
+    ///   fixed<int, 4> b = 1.25;
+    ///   auto result = as_lhs(a) + b;  // Result: fixed<int, 8>
     template<fixed_point T>
     struct lhs_wrapper : conversion_wrapper_base<T, lhs_wrapper<T>> {
         using base = conversion_wrapper_base<T, lhs_wrapper<T>>;

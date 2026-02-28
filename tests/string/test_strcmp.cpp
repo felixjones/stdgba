@@ -1,20 +1,18 @@
-/**
- * @file tests/string/test_strcmp.cpp
- * @brief Tests for optimized strcmp and strncmp implementations.
- *
- * Tests:
- *   - Equal strings (various lengths and alignments)
- *   - Strings differing at first byte, middle, and last byte
- *   - Strings of different lengths
- *   - Empty strings
- *   - strncmp with n < diff position, n == diff position, n > diff position
- *   - strncmp with n == 0
- *   - Word-aligned and misaligned pointer combinations
- */
+/// @file tests/string/test_strcmp.cpp
+/// @brief Tests for optimized strcmp and strncmp implementations.
+///
+/// Tests:
+/// - Equal strings (various lengths and alignments)
+/// - Strings differing at first byte, middle, and last byte
+/// - Strings of different lengths
+/// - Empty strings
+/// - strncmp with n < diff position, n == diff position, n > diff position
+/// - strncmp with n == 0
+/// - Word-aligned and misaligned pointer combinations
 
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 static int (*volatile strcmp_fn)(const char*, const char*) = &std::strcmp;
 static int (*volatile strncmp_fn)(const char*, const char*, std::size_t) = &std::strncmp;

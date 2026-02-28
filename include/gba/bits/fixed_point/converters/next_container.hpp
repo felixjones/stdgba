@@ -5,18 +5,16 @@
 
 namespace gba {
 
-    /**
-     * @brief Next largest container conversion
-     *
-     * Uses the next largest integer type that can hold both operands.
-     * Progression: char (8) -> short (16) -> int (32) -> long long (64)
-     * Preserves maximum fractional bits from either operand.
-     *
-     * Usage:
-     *   fixed<char, 4> a = 3.5;
-     *   fixed<short, 8> b = 1.25;
-     *   auto result = as_next_container(a) + b;  // Result: fixed<short, 8> or fixed<int, 8>
-     */
+    /// @brief Next largest container conversion
+    ///
+    /// Uses the next largest integer type that can hold both operands.
+    /// Progression: char (8) -> short (16) -> int (32) -> long long (64)
+    /// Preserves maximum fractional bits from either operand.
+    ///
+    /// Usage:
+    ///   fixed<char, 4> a = 3.5;
+    ///   fixed<short, 8> b = 1.25;
+    ///   auto result = as_next_container(a) + b;  // Result: fixed<short, 8> or fixed<int, 8>
     template<fixed_point T>
     struct next_container_wrapper : conversion_wrapper_base<T, next_container_wrapper<T>> {
         using base = conversion_wrapper_base<T, next_container_wrapper<T>>;

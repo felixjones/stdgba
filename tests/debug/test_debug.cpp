@@ -1,14 +1,12 @@
-/**
- * @file tests/debug/test_debug.cpp
- * @brief Tests for gba::log module.
- *
- * Run in mGBA with debug console to see output.
- */
+/// @file tests/debug/test_debug.cpp
+/// @brief Tests for gba::log module.
+///
+/// Run in mGBA with debug console to see output.
 
 #include <gba/format>
 #include <gba/logger>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 using namespace gba::format::literals;
 

@@ -1,21 +1,17 @@
-/**
- * @file test_div.cpp
- * @brief Exhaustive integer division and modulo test suite.
- *
- * Exercises __aeabi_idiv, __aeabi_uidiv, __aeabi_idivmod, __aeabi_uidivmod
- * and compiler-generated shifts for power-of-2 divisors. Covers all
- * combinations of signed/unsigned 8/16/32/64-bit operands.
- *
- * All operands are volatile to prevent constant folding.
- */
+/// @file test_div.cpp
+/// @brief Exhaustive integer division and modulo test suite.
+///
+/// Exercises __aeabi_idiv, __aeabi_uidiv, __aeabi_idivmod, __aeabi_uidivmod
+/// and compiler-generated shifts for power-of-2 divisors. Covers all
+/// combinations of signed/unsigned 8/16/32/64-bit operands.
+///
+/// All operands are volatile to prevent constant folding.
 #include <cstdint>
 #include <climits>
 
 #include <mgba_test.hpp>
 
-// ---------------------------------------------------------------------------
-// Helpers — volatile operands guarantee runtime division
-// ---------------------------------------------------------------------------
+// Helpers -- volatile operands guarantee runtime division
 
 template<typename T>
 struct vol {
@@ -28,9 +24,7 @@ struct vol {
 #define DIV(a, b) (vol<decltype(a)>{a}.get() / vol<decltype(b)>{b}.get())
 #define MOD(a, b) (vol<decltype(a)>{a}.get() % vol<decltype(b)>{b}.get())
 
-// ---------------------------------------------------------------------------
 // Signed 32-bit (__aeabi_idiv / __aeabi_idivmod)
-// ---------------------------------------------------------------------------
 
 static void test_signed_32_basic() {
     // Identity & simple
@@ -79,7 +73,7 @@ static void test_signed_32_negative() {
 }
 
 static void test_signed_32_power_of_two() {
-    // Powers of 2 — compiler may emit shifts, but the result must match
+    // Powers of 2 -- compiler may emit shifts, but the result must match
     EXPECT_EQ(DIV( 128,  2),   64);
     EXPECT_EQ(DIV(-128,  2),  -64);
     EXPECT_EQ(DIV( 128, -2),  -64);
@@ -141,9 +135,7 @@ static void test_signed_32_extreme() {
     EXPECT_EQ(MOD(IMAX, IMAX - 1), 1);
 }
 
-// ---------------------------------------------------------------------------
 // Unsigned 32-bit (__aeabi_uidiv / __aeabi_uidivmod)
-// ---------------------------------------------------------------------------
 
 static void test_unsigned_32_basic() {
     EXPECT_EQ(DIV(0u,  1u), 0u);
@@ -197,9 +189,7 @@ static void test_unsigned_32_extreme() {
     EXPECT_EQ(MOD(0xFFFFFFFFu, 0x10000u), 0xFFFFu);
 }
 
-// ---------------------------------------------------------------------------
 // Signed 64-bit (__aeabi_ldivmod)
-// ---------------------------------------------------------------------------
 
 static void test_signed_64() {
     using i64 = std::int64_t;
@@ -239,9 +229,7 @@ static void test_signed_64() {
     EXPECT_EQ(MOD(I64MIN, I64MIN), i64{0});
 }
 
-// ---------------------------------------------------------------------------
 // Unsigned 64-bit (__aeabi_uldivmod)
-// ---------------------------------------------------------------------------
 
 static void test_unsigned_64() {
     using u64 = std::uint64_t;
@@ -269,9 +257,7 @@ static void test_unsigned_64() {
     EXPECT_EQ(MOD(HI64, u64{3}), u64{2});
 }
 
-// ---------------------------------------------------------------------------
-// Narrow types — signed 8/16-bit (promoted to int, then __aeabi_idiv)
-// ---------------------------------------------------------------------------
+// Narrow types -- signed 8/16-bit (promoted to int, then __aeabi_idiv)
 
 static void test_signed_narrow() {
     // int8_t
@@ -301,9 +287,7 @@ static void test_signed_narrow() {
     EXPECT_EQ(MOD(i16{-30000}, i16{7}), -5);
 }
 
-// ---------------------------------------------------------------------------
-// Narrow types — unsigned 8/16-bit (promoted to int/unsigned, then uidiv)
-// ---------------------------------------------------------------------------
+// Narrow types -- unsigned 8/16-bit (promoted to int/unsigned, then uidiv)
 
 static void test_unsigned_narrow() {
     // uint8_t
@@ -326,9 +310,7 @@ static void test_unsigned_narrow() {
     EXPECT_EQ(DIV(u16{0},     u16{65535}), 0);
 }
 
-// ---------------------------------------------------------------------------
 // Mixed-width operations (implicit promotion rules)
-// ---------------------------------------------------------------------------
 
 static void test_mixed_width() {
     // int8_t / int32_t -> int (promoted)
@@ -343,16 +325,14 @@ static void test_mixed_width() {
     EXPECT_EQ(DIV(1000000, std::int64_t{7}), std::int64_t{142857});
     EXPECT_EQ(MOD(1000000, std::int64_t{7}), std::int64_t{1});
 
-    // Large unsigned fitting in 32 bits / small — verifies unsigned path
+    // Large unsigned fitting in 32 bits / small -- verifies unsigned path
     EXPECT_EQ(DIV(0xDEADBEEFu, 16u), 0xDEADBEEFu / 16u);
     EXPECT_EQ(MOD(0xDEADBEEFu, 16u), 0xDEADBEEFu % 16u);
     EXPECT_EQ(DIV(0xDEADBEEFu, 10u), 0xDEADBEEFu / 10u);
     EXPECT_EQ(MOD(0xDEADBEEFu, 10u), 0xDEADBEEFu % 10u);
 }
 
-// ---------------------------------------------------------------------------
 // Divisor = 1 (identity) and dividend = 0 (zero) sweeps
-// ---------------------------------------------------------------------------
 
 static void test_identity_and_zero() {
     // Division by 1 for many values
@@ -378,9 +358,7 @@ static void test_identity_and_zero() {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Divisor sweep — exercises many different divisors
-// ---------------------------------------------------------------------------
+// Divisor sweep -- exercises many different divisors
 
 static void test_divisor_sweep() {
     // Signed: divide a constant by many divisors
@@ -435,9 +413,7 @@ static void test_divisor_sweep() {
     EXPECT_EQ(vun / vol<unsigned>{0x10000}.get(), UN / 0x10000);
 }
 
-// ---------------------------------------------------------------------------
 // Quotient-remainder invariant: a == (a/b)*b + (a%b)
-// ---------------------------------------------------------------------------
 
 static void test_invariant_signed() {
     // Pairs of (dividend, divisor) that stress the invariant
@@ -478,9 +454,7 @@ static void test_invariant_unsigned() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Dividend close to divisor (quotient = 0 or 1 boundary)
-// ---------------------------------------------------------------------------
 
 static void test_boundary() {
     // Just below, at, and just above
@@ -503,9 +477,7 @@ static void test_boundary() {
     EXPECT_EQ(MOD(UINT_MAX, UINT_MAX - 1), 1u);
 }
 
-// ---------------------------------------------------------------------------
 // All powers of 2 as divisor (1 through 2^30 for signed, 2^31 for unsigned)
-// ---------------------------------------------------------------------------
 
 static void test_all_power_of_two_divisors() {
     constexpr int DIVIDEND = 0x7ABCDEF0;
@@ -536,10 +508,8 @@ static void test_all_power_of_two_divisors() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Bit-width boundary: numerator with exactly N bits / small denominator
 // Exercises every computed-jump entry in the unrolled loop
-// ---------------------------------------------------------------------------
 
 static void test_bit_width_boundaries() {
     // Unsigned: 2^N - 1 divided by 3 (exercises all bit positions)
@@ -573,10 +543,8 @@ static void test_bit_width_boundaries() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Sequential numerator sweep: many consecutive numerators / fixed denominator
 // Catches off-by-one in quotient transitions
-// ---------------------------------------------------------------------------
 
 static void test_sequential_sweep() {
     // Signed: -200 to +200 by 7
@@ -598,10 +566,8 @@ static void test_sequential_sweep() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Large numerator / small denominator stress
 // These maximize the number of iterations in the division loop
-// ---------------------------------------------------------------------------
 
 static void test_large_num_small_denom() {
     constexpr struct { unsigned a; unsigned b; unsigned q; unsigned r; } ucases[] = {
@@ -645,9 +611,7 @@ static void test_large_num_small_denom() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Near-equal operands (quotient 1, various remainders)
-// ---------------------------------------------------------------------------
 
 static void test_near_equal() {
     // n / (n-k) for small k
@@ -672,9 +636,7 @@ static void test_near_equal() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Denominator larger than numerator (quotient = 0)
-// ---------------------------------------------------------------------------
 
 static void test_denom_larger() {
     // Unsigned: small / large
@@ -694,10 +656,8 @@ static void test_denom_larger() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Alternating bit patterns (0xAAAAAAAA, 0x55555555, etc.)
 // Stress the carry chain in non-restoring division
-// ---------------------------------------------------------------------------
 
 static void test_alternating_bits() {
     constexpr struct { unsigned a; unsigned b; } cases[] = {
@@ -724,9 +684,7 @@ static void test_alternating_bits() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64/32 path: denom_hi == 0, num_hi != 0 (exercises .Luluidiv_checked)
-// ---------------------------------------------------------------------------
 
 static void test_u64_div32_basic() {
     using u64 = std::uint64_t;
@@ -765,9 +723,7 @@ static void test_u64_div32_basic() {
     EXPECT_EQ(MOD(u64{0xDEADBEEF12345678ULL}, u64{1}), u64{0});
 }
 
-// ---------------------------------------------------------------------------
 // 64/32 path: bit-width sweep (exercises every computed-jump entry point)
-// ---------------------------------------------------------------------------
 
 static void test_u64_div32_bit_sweep() {
     using u64 = std::uint64_t;
@@ -802,9 +758,7 @@ static void test_u64_div32_bit_sweep() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64/32 path: divisor sweep with fixed large numerator
-// ---------------------------------------------------------------------------
 
 static void test_u64_div32_divisor_sweep() {
     using u64 = std::uint64_t;
@@ -824,9 +778,7 @@ static void test_u64_div32_divisor_sweep() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64/64 path: both operands have nonzero high words (.Luldiv64_checked)
-// ---------------------------------------------------------------------------
 
 static void test_u64_div64_basic() {
     using u64 = std::uint64_t;
@@ -858,9 +810,7 @@ static void test_u64_div64_basic() {
     EXPECT_EQ(MOD(u64{0x100000000ULL}, u64{0x100000001ULL}), u64{0x100000000ULL});
 }
 
-// ---------------------------------------------------------------------------
 // 64/64 path: invariant check with varied operand sizes
-// ---------------------------------------------------------------------------
 
 static void test_u64_div64_invariant() {
     using u64 = std::uint64_t;
@@ -897,9 +847,7 @@ static void test_u64_div64_invariant() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64/64 path: bit-width sweep -- shift denom to hit every alignment
-// ---------------------------------------------------------------------------
 
 static void test_u64_div64_bit_sweep() {
     using u64 = std::uint64_t;
@@ -925,9 +873,7 @@ static void test_u64_div64_bit_sweep() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Signed 64-bit: comprehensive sign combinations + large values
-// ---------------------------------------------------------------------------
 
 static void test_signed_64_extended() {
     using i64 = std::int64_t;
@@ -968,9 +914,7 @@ static void test_signed_64_extended() {
     EXPECT_EQ(MOD(i64{-0x100000000LL}, i64{3}), i64{-1});
 }
 
-// ---------------------------------------------------------------------------
 // Signed 64-bit: invariant q*b+r==a with many sign/size combos
-// ---------------------------------------------------------------------------
 
 static void test_signed_64_invariant() {
     using i64 = std::int64_t;
@@ -1003,9 +947,7 @@ static void test_signed_64_invariant() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Bridge path: num_hi == 0, denom_hi == 0 (.Lbridge_32 -> __aeabi_uidivmod)
-// ---------------------------------------------------------------------------
 
 static void test_u64_bridge_32() {
     using u64 = std::uint64_t;
@@ -1024,9 +966,7 @@ static void test_u64_bridge_32() {
     EXPECT_EQ(MOD(u64{1}, u64{0xFFFFFFFF}), u64{1});
 }
 
-// ---------------------------------------------------------------------------
 // 64-bit alternating bit patterns (carry chain stress)
-// ---------------------------------------------------------------------------
 
 static void test_u64_alternating_bits() {
     using u64 = std::uint64_t;
@@ -1054,9 +994,7 @@ static void test_u64_alternating_bits() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64-bit near-equal values (quotient boundary at 0/1)
-// ---------------------------------------------------------------------------
 
 static void test_u64_near_equal() {
     using u64 = std::uint64_t;
@@ -1078,9 +1016,7 @@ static void test_u64_near_equal() {
     }
 }
 
-// ---------------------------------------------------------------------------
 // 64-bit denom larger than num (quotient = 0, remainder = num)
-// ---------------------------------------------------------------------------
 
 static void test_u64_denom_larger() {
     using u64 = std::uint64_t;
@@ -1103,7 +1039,6 @@ static void test_u64_denom_larger() {
     }
 }
 
-// ---------------------------------------------------------------------------
 
 int main() {
     test_signed_32_basic();

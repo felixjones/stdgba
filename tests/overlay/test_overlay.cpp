@@ -10,7 +10,7 @@
 #include <gba/overlay>
 #include <gba/bios>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 #include <cstdint>
 

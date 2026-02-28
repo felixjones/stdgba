@@ -1,23 +1,32 @@
 # Colors & Palettes
 
-The GBA uses 15-bit colors: 5 bits each for red, green, and blue, packed into a `short` (the top bit is unused).
+The GBA uses 16-bit colors: 5 bits each for red and blue, and 6 bits for green. The green channel is split across the halfword -- 5 bits in the standard position and the 6th (lowest) bit at position 15.
 
 ## Color format
 
 ```text
-Bit:  15  14-10  9-5  4-0
-       X  Blue  Green  Red
+Bit:  15    14-10  9-5       4-0
+      G_lo  Blue   Green(hi) Red
 ```
+
+Most software treats bit 15 as unused and works with 15-bit color (5-5-5). This is fine for general use. The extra green bit only matters when you need the full hardware precision.
 
 ```cpp
 #include <gba/video>
 
 // Write colors to background palette
-gba::mem_pal_bg[0] = 0x0000;  // Black (background color)
-gba::mem_pal_bg[1] = 0x001F;  // Red   (5 bits max = 31)
-gba::mem_pal_bg[2] = 0x03E0;  // Green
-gba::mem_pal_bg[3] = 0x7C00;  // Blue
-gba::mem_pal_bg[4] = 0x7FFF;  // White
+gba::pal_bg_mem[0] = { .red = 0 };                  // Black (background color)
+gba::pal_bg_mem[1] = { .red = 31 };                  // Red   (5 bits max = 31)
+gba::pal_bg_mem[2] = { .green = 31 };                // Green (5-bit, range 0-31)
+gba::pal_bg_mem[3] = { .blue = 31 };                 // Blue
+gba::pal_bg_mem[4] = { .red = 31, .green = 31, .blue = 31 }; // White
+
+// Use the 6th green bit for extra precision
+gba::pal_bg_mem[5] = { .green = 31, .green_lo = 1 }; // Brightest green (6-bit = 63)
+
+// Hex color literals ignore the extra green bit (standard 5-5-5)
+using namespace gba;
+gba::pal_bg_mem[6] = "#FF8040"_clr;
 ```
 
 ## Palette memory layout

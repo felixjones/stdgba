@@ -1,43 +1,40 @@
-/**
- * @file memset.cpp
- * @brief C standard memset wrapper with compile-time specialisation.
- *
- * Kept in a separate translation unit from the assembly __aeabi_memset so
- * that link-time optimisation can see the wrapper and inline it at call
- * sites.
- *
- * Each specialisation is a flat, top-level guard where every term is
- * resolved purely at compile time by __builtin_constant_p. When a guard
- * is true, the body executes directly with no runtime branches. When
- * false, the entire if-body is dead code -- nothing is emitted.
- *
- * Specialisations (checked in order):
- *   1. n == 0:                            eliminated entirely
- *   2. n % 4 == 0, n < 64, aligned(4):   inline str sequence
- *   3. n <= 12 (any alignment):           inline byte stores
- *   4. aligned(4), any n:                 __aeabi_memset4 (skip alignment check)
- *   5. fallback:                          __aeabi_memset
- *
- * AEABI memset has a different parameter order from C memset:
- *   __aeabi_memset(void *dest, size_t n, int c)
- *   memset(void *dest, int c, size_t n)
- *
- * Uses .cpp (not .c) to avoid injecting the C language into downstream
- * targets that use stdgba as an INTERFACE library.
- */
+/// @file memset.cpp
+/// @brief C standard memset wrapper with compile-time specialisation.
+///
+/// Kept in a separate translation unit from the assembly __aeabi_memset so
+/// that link-time optimisation can see the wrapper and inline it at call
+/// sites.
+///
+/// Each specialisation is a flat, top-level guard where every term is
+/// resolved purely at compile time by __builtin_constant_p. When a guard
+/// is true, the body executes directly with no runtime branches. When
+/// false, the entire if-body is dead code -- nothing is emitted.
+///
+/// Specialisations (checked in order):
+///   1. n == 0:                            eliminated entirely
+///   2. n % 4 == 0, n < 64, aligned(4):   inline str sequence
+///   3. n <= 12 (any alignment):           inline byte stores
+///   4. aligned(4), any n:                 __aeabi_memset4 (skip alignment check)
+///   5. fallback:                          __aeabi_memset
+///
+/// AEABI memset has a different parameter order from C memset:
+///   __aeabi_memset(void *dest, size_t n, int c)
+///   memset(void *dest, int c, size_t n)
+///
+/// Uses .cpp (not .c) to avoid injecting the C language into downstream
+/// targets that use stdgba as an INTERFACE library.
 
 #include <cstddef>
 #include <cstdint>
 
 extern "C" {
 
-extern void __aeabi_memset(void *, std::size_t, int);
-extern void __aeabi_memset4(void *, std::size_t, int);
+extern void __aeabi_memset(void*, std::size_t, int);
+extern void __aeabi_memset4(void*, std::size_t, int);
 
-void *memset(void *dest, int c, std::size_t n) {
+void* memset(void* dest, int c, std::size_t n) {
     // 1. Zero-size fill: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0)
-        return dest;
+    if (__builtin_constant_p(n) && n == 0) return dest;
 
     // 2. Word-aligned, word-multiple (4-60 bytes): inline str sequence.
     //    Eliminates ~25+ cycles of call overhead + byte broadcast + alignment.
@@ -53,20 +50,16 @@ void *memset(void *dest, int c, std::size_t n) {
     //    cannot, the entire guard is false and this block is dead code.
     if (__builtin_constant_p(n) && n % 4 == 0 && n > 0 && n < 64 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
-        __builtin_constant_p(c))
-    {
+        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 && __builtin_constant_p(c)) {
         const auto byte = static_cast<std::uint32_t>(static_cast<unsigned char>(c));
         const auto word = byte | (byte << 8) | (byte << 16) | (byte << 24);
-        asm volatile(
-            ".set i, 0\n"
-            ".rept %c[words]\n"
-            "str %[val], [%[d], #i]\n"
-            ".set i, i + 4\n"
-            ".endr"
-            :: [d]"l"(dest), [val]"l"(word), [words]"i"(n / 4)
-            : "memory"
-        );
+        asm volatile(".set i, 0\n"
+                     ".rept %c[words]\n"
+                     "str %[val], [%[d], #i]\n"
+                     ".set i, i + 4\n"
+                     ".endr" ::[d] "l"(dest),
+                     [val] "l"(word), [words] "i"(n / 4)
+                     : "memory");
         return dest;
     }
 
@@ -97,8 +90,7 @@ void *memset(void *dest, int c, std::size_t n) {
     //    the generic entry. Saves 8-13% by calling __aeabi_memset4 directly.
     //    Note the parameter order swap: AEABI is (dest, n, c).
     if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0) {
         __aeabi_memset4(dest, n, c);
         return dest;
     }

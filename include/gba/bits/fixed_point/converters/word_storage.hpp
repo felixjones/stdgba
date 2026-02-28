@@ -5,28 +5,24 @@
 
 namespace gba {
 
-    /**
-     * @brief Conversion wrapper that uses word-sized storage for GBA performance
-     *
-     * On GBA, word-sized types (int/unsigned int, 32-bit) are fastest.
-     * This converter promotes storage to word size while preserving fractional bits.
-     *
-     * Usage:
-     *   fixed<char, 4> small = 3.5;     // 8-bit storage
-     *   fixed<short, 6> medium = 1.25;  // 16-bit storage
-     *   auto result = as_word_storage(small) + medium;  // Uses int (32-bit) for performance
-     */
+    /// @brief Conversion wrapper that uses word-sized storage for GBA performance
+    ///
+    /// On GBA, word-sized types (int/unsigned int, 32-bit) are fastest.
+    /// This converter promotes storage to word size while preserving fractional bits.
+    ///
+    /// Usage:
+    ///   fixed<char, 4> small = 3.5;     // 8-bit storage
+    ///   fixed<short, 6> medium = 1.25;  // 16-bit storage
+    ///   auto result = as_word_storage(small) + medium;  // Uses int (32-bit) for performance
     template<fixed_point T>
     struct word_storage_wrapper : conversion_wrapper_base<T, word_storage_wrapper<T>> {
         using base = conversion_wrapper_base<T, word_storage_wrapper<T>>;
         using base::base;
 
-        /**
-         * @brief Convert binary operation result to use word-sized storage
-         *
-         * Promotes both operands to use int (signed) or unsigned int storage
-         * while preserving their fractional bit precision.
-         */
+        /// @brief Convert binary operation result to use word-sized storage
+        ///
+        /// Promotes both operands to use int (signed) or unsigned int storage
+        /// while preserving their fractional bit precision.
         template<fixed_point L, fixed_point R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
@@ -47,14 +43,12 @@ namespace gba {
         }
     };
 
-    /**
-     * @brief Helper function to create a word-storage wrapper
-     *
-     * Use this for GBA performance when working with sub-word types.
-     *
-     * @param value The fixed-point value to wrap for word-storage conversion
-     * @return A word_storage_wrapper that uses int/unsigned int for calculations
-     */
+    /// @brief Helper function to create a word-storage wrapper
+    ///
+    /// Use this for GBA performance when working with sub-word types.
+    ///
+    /// @param value The fixed-point value to wrap for word-storage conversion
+    /// @return A word_storage_wrapper that uses int/unsigned int for calculations
     template<fixed_point T>
     constexpr word_storage_wrapper<T> as_word_storage(const T& value) noexcept {
         return word_storage_wrapper<T>(value);

@@ -1,21 +1,19 @@
-/**
- * @file tests/string/test_strlen.cpp
- * @brief Tests for optimized strlen and strnlen implementations.
- *
- * Tests all code paths:
- *   - Empty string
- *   - Short strings (1-3 bytes, alignment scan only)
- *   - Strings at all 4 alignment offsets (0-3)
- *   - Medium strings (crossing word boundaries)
- *   - Long strings (exercising word-at-a-time loop)
- *   - Null byte at each position within a word
- *   - strnlen with maxlen < strlen, maxlen == strlen, maxlen > strlen
- *   - strnlen with maxlen == 0
- */
+/// @file tests/string/test_strlen.cpp
+/// @brief Tests for optimized strlen and strnlen implementations.
+///
+/// Tests all code paths:
+/// - Empty string
+/// - Short strings (1-3 bytes, alignment scan only)
+/// - Strings at all 4 alignment offsets (0-3)
+/// - Medium strings (crossing word boundaries)
+/// - Long strings (exercising word-at-a-time loop)
+/// - Null byte at each position within a word
+/// - strnlen with maxlen < strlen, maxlen == strlen, maxlen > strlen
+/// - strnlen with maxlen == 0
 
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 // Prevent compiler from replacing with builtins
 static std::size_t (*volatile strlen_fn)(const char*) = &std::strlen;

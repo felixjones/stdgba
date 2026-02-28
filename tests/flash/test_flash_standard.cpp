@@ -1,10 +1,8 @@
-/**
- * @file test_flash_standard.cpp
- * @brief Tests for Layer 1 standard Flash compiled command sequences.
- *
- * Exercises the consteval command compiler and runtime execution
- * against mgba's Flash emulation.
- */
+/// @file test_flash_standard.cpp
+/// @brief Tests for Layer 1 standard Flash compiled command sequences.
+///
+/// Exercises the consteval command compiler and runtime execution
+/// against mgba's Flash emulation.
 
 #include <gba/save>
 
@@ -16,7 +14,7 @@
 namespace flash = gba::flash;
 namespace sf = gba::flash::standard;
 
-// Global test data — callback functions reference these
+// Global test data -- callback functions reference these
 
 static std::array<std::byte, 64> g_write_data;
 static std::array<std::byte, 64> g_read_data;
@@ -146,13 +144,13 @@ int main() {
         ASSERT_EQ(g_b0_val, std::byte{0xAA});
         ASSERT_EQ(g_b1_val, std::byte{0x55});
 
-        flash::detail::switch_bank(0);
-        flash::detail::g_state.current_bank = 0;
+        flash::bits::switch_bank(0);
+        flash::bits::g_state.current_bank = 0;
     }
 
-    // Compile-time validation via detail::validate()
+    // Compile-time validation via bits::validate()
     {
-        using sf::detail::validate;
+        using sf::bits::validate;
 
         // Valid: erase then write
         {
@@ -215,7 +213,7 @@ int main() {
             ASSERT_EQ(g_full_read[i], g_full_write[i]);
     }
 
-    // Runtime placeholder — erase + write + read with arg(0) as sector
+    // Runtime placeholder -- erase + write + read with arg(0) as sector
     {
         g_marker = std::byte{0xCD};
 
@@ -239,7 +237,7 @@ int main() {
         ASSERT_EQ(g_marker, std::byte{0xCD});
     }
 
-    // Runtime placeholder — two args: bank + sector
+    // Runtime placeholder -- two args: bank + sector
     if (chip.chip_size == flash::size::flash_128k) {
         constexpr auto save = sf::compile(
             sf::switch_bank(sf::arg(0)),
@@ -274,11 +272,11 @@ int main() {
         ASSERT_EQ(g_marker, std::byte{0x55});
 
         // Restore bank 0
-        flash::detail::switch_bank(0);
-        flash::detail::g_state.current_bank = 0;
+        flash::bits::switch_bank(0);
+        flash::bits::g_state.current_bank = 0;
     }
 
-    // Runtime placeholder — mixed static and arg commands
+    // Runtime placeholder -- mixed static and arg commands
     {
         // Erase chip (static), write to runtime sector
         g_marker = std::byte{0x77};
@@ -297,7 +295,7 @@ int main() {
 
     // Compile-time validation with placeholders
     {
-        using sf::detail::validate;
+        using sf::bits::validate;
 
         // Valid: erase arg(0) then write arg(0)
         {

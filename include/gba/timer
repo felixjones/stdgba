@@ -1,42 +1,40 @@
-/**
- * @file timer
- * @brief GBA hardware timer utilities with std::chrono integration.
- *
- * This header provides a consteval timer compiler that configures GBA
- * hardware timers using standard C++ chrono durations. Prescaler
- * selection and timer cascading are handled automatically, with all
- * errors diagnosed at compile time.
- *
- * Example:
- * @code{.cpp}
- * #include <gba/timer>
- *
- * using namespace std::chrono_literals;
- *
- * // Compile a 1 second timer with overflow IRQ
- * constexpr auto timer = gba::compile_timer(1s, true);
- *
- * // Write the cascade chain to hardware timers starting at index 0
- * std::copy(timer.begin(), timer.end(), gba::reg_tmcnt.begin());
- *
- * // ... later, disable the timers
- * for (std::size_t i = 0; i < timer.size(); ++i)
- *     gba::reg_tmcnt_h[i] = {};
- * @endcode
- *
- * | Function | Description |
- * |----------|-------------|
- * | `compile_timer(duration, irq)` | Best-fit prescaler (recommended) |
- * | `compile_timer_exact(duration, irq)` | Exact representation only |
- * | `compile_cycle_timer(cycles, irq)` | Explicit prescaler selection |
- *
- * TONCLIB Equivalent:
- * @code{.c}
- * // Manual calculation required for cascading timers
- * REG_TM0D = reload_value;
- * REG_TM0CNT = TM_FREQ_1024 | TM_ENABLE;
- * @endcode
- */
+/// @file timer
+/// @brief GBA hardware timer utilities with std::chrono integration.
+///
+/// This header provides a consteval timer compiler that configures GBA
+/// hardware timers using standard C++ chrono durations. Prescaler
+/// selection and timer cascading are handled automatically, with all
+/// errors diagnosed at compile time.
+///
+/// Example:
+/// @code{.cpp}
+/// #include <gba/timer>
+///
+/// using namespace std::chrono_literals;
+///
+/// // Compile a 1 second timer with overflow IRQ
+/// constexpr auto timer = gba::compile_timer(1s, true);
+///
+/// // Write the cascade chain to hardware timers starting at index 0
+/// std::copy(timer.begin(), timer.end(), gba::reg_tmcnt.begin());
+///
+/// // ... later, disable the timers
+/// for (std::size_t i = 0; i < timer.size(); ++i)
+///     gba::reg_tmcnt_h[i] = {};
+/// @endcode
+///
+/// | Function | Description |
+/// |----------|-------------|
+/// | `compile_timer(duration, irq)` | Best-fit prescaler (recommended) |
+/// | `compile_timer_exact(duration, irq)` | Exact representation only |
+/// | `compile_cycle_timer(cycles, irq)` | Explicit prescaler selection |
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// // Manual calculation required for cascading timers
+/// REG_TM0D = reload_value;
+/// REG_TM0CNT = TM_FREQ_1024 | TM_ENABLE;
+/// @endcode
 #pragma once
 
 #include <gba/bits/timer/compiled.hpp>
@@ -86,4 +84,4 @@ namespace gba {
     template<typename Rep = int>
     using clock_duration_1024 = std::chrono::duration<Rep, std::ratio<1024, 16777216>>;
 
-}
+} // namespace gba

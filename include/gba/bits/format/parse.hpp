@@ -1,14 +1,12 @@
-/**
- * @file bits/format/parse.hpp
- * @brief Enhanced format string parser with max value hints and positional args.
- *
- * Extended syntax:
- * - `{}` - Positional argument (index 0, 1, 2...)
- * - `{0}` - Explicit positional index
- * - `{name}` - Named argument
- * - `{name:d<999}` - Named with decimal format, max value 999
- * - `{:x}` - Positional with hex format
- */
+/// @file bits/format/parse.hpp
+/// @brief Enhanced format string parser with max value hints and positional args.
+///
+/// Extended syntax:
+/// - `{}` - Positional argument (index 0, 1, 2...)
+/// - `{0}` - Explicit positional index
+/// - `{name}` - Named argument
+/// - `{name:d<999}` - Named with decimal format, max value 999
+/// - `{:x}` - Positional with hex format
 #pragma once
 
 #include <gba/bits/format/fixed_string.hpp>
@@ -22,10 +20,25 @@ namespace gba::format {
     // Format Spec (duplicated here to avoid circular deps, or could be shared)
 
     struct format_spec {
-        enum class align_t : std::uint8_t { none, left, right, center };
-        enum class sign_t : std::uint8_t { none, plus, minus, space };
+        enum class align_t : std::uint8_t {
+            none,
+            left,
+            right,
+            center
+        };
+        enum class sign_t : std::uint8_t {
+            none,
+            plus,
+            minus,
+            space
+        };
         enum class type_t : std::uint8_t {
-            default_fmt, decimal, hex_lower, hex_upper, binary, string
+            default_fmt,
+            decimal,
+            hex_lower,
+            hex_upper,
+            binary,
+            string
         };
 
         align_t alignment;
@@ -38,21 +51,17 @@ namespace gba::format {
         bool zero_pad;
 
         constexpr format_spec()
-            : alignment{align_t::none}
-            , sign{sign_t::none}
-            , fmt_type{type_t::default_fmt}
-            , fill{' '}
-            , width{0}
-            , precision{255}
-            , max_value{0}
-            , zero_pad{false}
-        {}
+            : alignment{align_t::none}, sign{sign_t::none}, fmt_type{type_t::default_fmt}, fill{' '}, width{0},
+              precision{255}, max_value{0}, zero_pad{false} {}
 
         [[nodiscard]] constexpr std::uint8_t max_digits() const {
             if (max_value == 0) return 10;
             std::uint8_t digits = 0;
             auto v = max_value;
-            while (v > 0) { ++digits; v /= 10; }
+            while (v > 0) {
+                ++digits;
+                v /= 10;
+            }
             return digits > 0 ? digits : 1;
         }
     };
@@ -91,12 +100,8 @@ namespace gba::format {
             return seg;
         }
 
-        static constexpr format_segment make_named(
-            unsigned int hash,
-            std::uint16_t start,
-            std::uint8_t len,
-            format_spec s = {}
-        ) {
+        static constexpr format_segment make_named(unsigned int hash, std::uint16_t start, std::uint8_t len,
+                                                   format_spec s = {}) {
             format_segment seg{};
             seg.type = segment_type::named_placeholder;
             seg.name_hash = hash;
@@ -138,16 +143,12 @@ namespace gba::format {
             }
         }
 
-        constexpr void add_named(
-            unsigned int hash,
-            std::uint16_t name_start,
-            std::uint8_t name_len,
-            format_spec spec = {}
-        ) {
+        constexpr void add_named(unsigned int hash, std::uint16_t name_start, std::uint8_t name_len,
+                                 format_spec spec = {}) {
             if (segment_count < MAX_SEGMENTS) {
                 segments[segment_count++] = format_segment::make_named(hash, name_start, name_len, spec);
                 ++named_count;
-                required_workspace += spec.max_digits() + 2;  // +2 for sign and padding
+                required_workspace += spec.max_digits() + 2; // +2 for sign and padding
             }
         }
 
@@ -167,12 +168,20 @@ namespace gba::format {
 
     // Parser Helpers
 
-    namespace detail {
+    namespace bits {
 
-        constexpr bool is_digit(char c) { return c >= '0' && c <= '9'; }
-        constexpr bool is_alpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
-        constexpr bool is_alnum(char c) { return is_digit(c) || is_alpha(c); }
-        constexpr bool is_name_char(char c) { return is_alnum(c) || c == '_'; }
+        constexpr bool is_digit(char c) {
+            return c >= '0' && c <= '9';
+        }
+        constexpr bool is_alpha(char c) {
+            return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+        }
+        constexpr bool is_alnum(char c) {
+            return is_digit(c) || is_alpha(c);
+        }
+        constexpr bool is_name_char(char c) {
+            return is_alnum(c) || c == '_';
+        }
 
         constexpr std::uint32_t parse_uint(const char* str, std::size_t& pos, std::size_t end) {
             std::uint32_t result = 0;
@@ -183,13 +192,11 @@ namespace gba::format {
             return result;
         }
 
-        /**
-         * @brief Parse extended format spec with max value hints.
-         *
-         * Syntax: [[fill]align][sign][#][0][width][.precision][<max_value][type]
-         *
-         * Extended: `<N` after width means "max value is N" for workspace sizing
-         */
+        /// @brief Parse extended format spec with max value hints.
+        ///
+        /// Syntax: [[fill]align][sign][#][0][width][.precision][<max_value][type]
+        ///
+        /// Extended: `<N` after width means "max value is N" for workspace sizing
         consteval format_spec parse_format_spec(const char* str, std::size_t& pos, std::size_t end) {
             format_spec spec{};
             if (pos >= end) return spec;
@@ -210,17 +217,31 @@ namespace gba::format {
             // Align without fill
             if (spec.alignment == format_spec::align_t::none && pos < end) {
                 char c = str[pos];
-                if (c == '<') { spec.alignment = format_spec::align_t::left; ++pos; }
-                else if (c == '>') { spec.alignment = format_spec::align_t::right; ++pos; }
-                else if (c == '^') { spec.alignment = format_spec::align_t::center; ++pos; }
+                if (c == '<') {
+                    spec.alignment = format_spec::align_t::left;
+                    ++pos;
+                } else if (c == '>') {
+                    spec.alignment = format_spec::align_t::right;
+                    ++pos;
+                } else if (c == '^') {
+                    spec.alignment = format_spec::align_t::center;
+                    ++pos;
+                }
             }
 
             // Sign
             if (pos < end) {
                 char c = str[pos];
-                if (c == '+') { spec.sign = format_spec::sign_t::plus; ++pos; }
-                else if (c == '-') { spec.sign = format_spec::sign_t::minus; ++pos; }
-                else if (c == ' ') { spec.sign = format_spec::sign_t::space; ++pos; }
+                if (c == '+') {
+                    spec.sign = format_spec::sign_t::plus;
+                    ++pos;
+                } else if (c == '-') {
+                    spec.sign = format_spec::sign_t::minus;
+                    ++pos;
+                } else if (c == ' ') {
+                    spec.sign = format_spec::sign_t::space;
+                    ++pos;
+                }
             }
 
             // Zero padding
@@ -250,11 +271,26 @@ namespace gba::format {
             if (pos < end) {
                 char c = str[pos];
                 switch (c) {
-                    case 'd': spec.fmt_type = format_spec::type_t::decimal; ++pos; break;
-                    case 'x': spec.fmt_type = format_spec::type_t::hex_lower; ++pos; break;
-                    case 'X': spec.fmt_type = format_spec::type_t::hex_upper; ++pos; break;
-                    case 'b': spec.fmt_type = format_spec::type_t::binary; ++pos; break;
-                    case 's': spec.fmt_type = format_spec::type_t::string; ++pos; break;
+                    case 'd':
+                        spec.fmt_type = format_spec::type_t::decimal;
+                        ++pos;
+                        break;
+                    case 'x':
+                        spec.fmt_type = format_spec::type_t::hex_lower;
+                        ++pos;
+                        break;
+                    case 'X':
+                        spec.fmt_type = format_spec::type_t::hex_upper;
+                        ++pos;
+                        break;
+                    case 'b':
+                        spec.fmt_type = format_spec::type_t::binary;
+                        ++pos;
+                        break;
+                    case 's':
+                        spec.fmt_type = format_spec::type_t::string;
+                        ++pos;
+                        break;
                     default: break;
                 }
             }
@@ -262,7 +298,7 @@ namespace gba::format {
             return spec;
         }
 
-    } // namespace detail
+    } // namespace bits
 
     // Main Parser
 
@@ -282,7 +318,7 @@ namespace gba::format {
                 if (pos + 1 < len && str[pos + 1] == '{') {
                     // Add literal up to and including first brace
                     ast.add_literal(static_cast<std::uint16_t>(literal_start),
-                                   static_cast<std::uint16_t>(pos - literal_start + 1));
+                                    static_cast<std::uint16_t>(pos - literal_start + 1));
                     pos += 2;
                     literal_start = pos;
                     continue;
@@ -291,10 +327,10 @@ namespace gba::format {
                 // Add preceding literal
                 if (pos > literal_start) {
                     ast.add_literal(static_cast<std::uint16_t>(literal_start),
-                                   static_cast<std::uint16_t>(pos - literal_start));
+                                    static_cast<std::uint16_t>(pos - literal_start));
                 }
 
-                ++pos;  // Skip '{'
+                ++pos; // Skip '{'
                 std::size_t placeholder_start = pos;
 
                 // Find closing brace
@@ -317,24 +353,22 @@ namespace gba::format {
                 format_spec spec{};
                 if (colon < close) {
                     std::size_t spec_pos = colon + 1;
-                    spec = detail::parse_format_spec(str, spec_pos, close);
+                    spec = bits::parse_format_spec(str, spec_pos, close);
                 }
 
                 if (name_len == 0) {
                     // Positional: {} or {:spec}
                     ast.add_positional(next_positional++, spec);
-                } else if (detail::is_digit(str[name_start])) {
+                } else if (bits::is_digit(str[name_start])) {
                     // Explicit positional: {0} or {1:spec}
                     std::size_t idx_pos = name_start;
-                    auto idx = detail::parse_uint(str, idx_pos, name_end);
+                    auto idx = bits::parse_uint(str, idx_pos, name_end);
                     ast.add_positional(static_cast<std::uint8_t>(idx), spec);
                 } else {
                     // Named: {foo} or {foo:spec}
                     unsigned int hash = fnv1a_hash(str + name_start, name_len);
-                    ast.add_named(hash,
-                                 static_cast<std::uint16_t>(name_start),
-                                 static_cast<std::uint8_t>(name_len),
-                                 spec);
+                    ast.add_named(hash, static_cast<std::uint16_t>(name_start), static_cast<std::uint8_t>(name_len),
+                                  spec);
                 }
 
                 pos = close + 1;
@@ -344,7 +378,7 @@ namespace gba::format {
                 // Escaped brace?
                 if (pos + 1 < len && str[pos + 1] == '}') {
                     ast.add_literal(static_cast<std::uint16_t>(literal_start),
-                                   static_cast<std::uint16_t>(pos - literal_start + 1));
+                                    static_cast<std::uint16_t>(pos - literal_start + 1));
                     pos += 2;
                     literal_start = pos;
                     continue;
@@ -359,8 +393,7 @@ namespace gba::format {
 
         // Trailing literal
         if (pos > literal_start) {
-            ast.add_literal(static_cast<std::uint16_t>(literal_start),
-                           static_cast<std::uint16_t>(pos - literal_start));
+            ast.add_literal(static_cast<std::uint16_t>(literal_start), static_cast<std::uint16_t>(pos - literal_start));
         }
 
         return ast;

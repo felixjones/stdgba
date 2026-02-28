@@ -27,36 +27,36 @@
 /// EEPROM_ReadData(offset, data) / EEPROM_WriteData(offset, data)
 #pragma once
 
-#include <gba/bits/eeprom/detail.hpp>
+#include <gba/bits/eeprom/eeprom_base.hpp>
 
 namespace gba::eeprom::eeprom_8k {
 
-/// Number of 64-bit blocks on chip.
-inline constexpr int block_count = 1024;
+    /// Number of 64-bit blocks on chip.
+    inline constexpr int block_count = 1024;
 
-/// Total capacity in bytes.
-inline constexpr std::size_t capacity = 8192;
+    /// Total capacity in bytes.
+    inline constexpr std::size_t capacity = 8192;
 
-/// Address width in bits.
-inline constexpr int addr_bits = 14;
+    /// Address width in bits.
+    inline constexpr int addr_bits = 14;
 
-/// Read one block by address (0-1023).
-inline block read_block(int address) noexcept {
-    return detail::read_block<addr_bits>(address);
-}
+    /// Read one block by address (0-1023).
+    inline block read_block(int address) noexcept {
+        return bits::read_block<addr_bits>(address);
+    }
 
-/// Write one block by address (0-1023).
-inline void write_block(int address, const block& data) noexcept {
-    detail::write_block<addr_bits>(address, data);
-}
+    /// Write one block by address (0-1023).
+    inline void write_block(int address, const block& data) noexcept {
+        bits::write_block<addr_bits>(address, data);
+    }
 
-/// Sequential block reader (0-1023).
-using istream = detail::basic_istream<addr_bits, block_count>;
+    /// Sequential block reader (0-1023).
+    using istream = bits::basic_istream<addr_bits, block_count>;
 
-/// Sequential block writer (0-1023).
-using ostream = detail::basic_ostream<addr_bits, block_count>;
+    /// Sequential block writer (0-1023).
+    using ostream = bits::basic_ostream<addr_bits, block_count>;
 
-/// Bidirectional block stream (0-1023).
-using iostream = detail::basic_iostream<addr_bits, block_count>;
+    /// Bidirectional block stream (0-1023).
+    using iostream = bits::basic_iostream<addr_bits, block_count>;
 
 } // namespace gba::eeprom::eeprom_8k

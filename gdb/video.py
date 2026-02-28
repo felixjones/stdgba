@@ -1,4 +1,3 @@
-# AI Generated file! TODO: Replace with human code
 """
 GDB pretty printer for gba::video types
 

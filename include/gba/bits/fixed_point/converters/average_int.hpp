@@ -5,17 +5,15 @@
 
 namespace gba {
 
-    /**
-     * @brief Average integer bits conversion
-     *
-     * Result has (lhs_int + rhs_int) / 2 integer bits.
-     * Minimizes fractional bits to average the integer range.
-     *
-     * Usage:
-     *   fixed<int, 8> a = 3.5;   // 24 int bits (32-8)
-     *   fixed<int, 4> b = 1.25;  // 28 int bits (32-4)
-     *   auto result = as_average_int(a) + b;  // Result: fixed<int, 6> (26 int bits)
-     */
+    /// @brief Average integer bits conversion
+    ///
+    /// Result has (lhs_int + rhs_int) / 2 integer bits.
+    /// Minimizes fractional bits to average the integer range.
+    ///
+    /// Usage:
+    ///   fixed<int, 8> a = 3.5;   // 24 int bits (32-8)
+    ///   fixed<int, 4> b = 1.25;  // 28 int bits (32-4)
+    ///   auto result = as_average_int(a) + b;  // Result: fixed<int, 6> (26 int bits)
     template<fixed_point T>
     struct average_int_wrapper : conversion_wrapper_base<T, average_int_wrapper<T>> {
         using base = conversion_wrapper_base<T, average_int_wrapper<T>>;

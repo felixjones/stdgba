@@ -6,18 +6,19 @@ add_library(stdgba INTERFACE
         include/gba/angle
         include/gba/bios
         include/gba/compress
-        include/gba/dma
         include/gba/filter
         include/gba/fixed_point
         include/gba/format
         include/gba/functional
         include/gba/interrupt
         include/gba/keyinput
+        include/gba/logger
         include/gba/memory
         include/gba/music
         include/gba/overlay
         include/gba/peripherals
         include/gba/save
+        include/gba/shapes
         include/gba/timer
         include/gba/video
 )

@@ -1,11 +1,9 @@
-/**
- * @file test_flash_ops.cpp
- * @brief Tests for Layer 0 Flash hardware operations.
- *
- * Exercises the raw Flash primitives in gba::flash::detail against
- * the mgba Flash emulation. mgba emulates a 128KB Sanyo LE26FV10N1TS
- * by default (or 64KB depending on the save type string).
- */
+/// @file test_flash_ops.cpp
+/// @brief Tests for Layer 0 Flash hardware operations.
+///
+/// Exercises the raw Flash primitives in gba::flash::bits against
+/// the mgba Flash emulation. mgba emulates a 128KB Sanyo LE26FV10N1TS
+/// by default (or 64KB depending on the save type string).
 
 #include <gba/save>
 
@@ -15,10 +13,10 @@
 #include <cstring>
 
 namespace flash = gba::flash;
-namespace ops = gba::flash::detail;
+namespace ops = gba::flash::bits;
 
 int main() {
-    // detect() — chip identification
+    // detect() -- chip identification
 
     // Detect should populate global state
     {
@@ -58,7 +56,7 @@ int main() {
     // Re-detect without hint to restore actual chip info
     const auto chip = flash::detect();
 
-    // read_bytes() — basic Flash read
+    // read_bytes() -- basic Flash read
 
     // Reading from Flash should not crash and should return data
     {
@@ -69,7 +67,7 @@ int main() {
         ASSERT_TRUE(true);
     }
 
-    // erase_sector() + write_byte() + read_bytes() — standard write cycle
+    // erase_sector() + write_byte() + read_bytes() -- standard write cycle
     //
     // Skip if chip is Atmel (uses page writes, not byte writes)
 
@@ -157,7 +155,7 @@ int main() {
         }
     }
 
-    // write_atmel_page() — Atmel 128-byte page write
+    // write_atmel_page() -- Atmel 128-byte page write
     //
     // Only runs if chip is Atmel
 
@@ -185,7 +183,7 @@ int main() {
         }
     }
 
-    // switch_bank() — bank switching (128KB chips only)
+    // switch_bank() -- bank switching (128KB chips only)
 
     if (chip.chip_size == flash::size::flash_128k) {
         // Write a marker to bank 0, sector 0
@@ -214,7 +212,7 @@ int main() {
             ops::write_atmel_page(0, page.data());
         }
 
-        // Read bank 1 — should see 0x55
+        // Read bank 1 -- should see 0x55
         {
             std::uint8_t val = 0;
             ops::read_bytes(&val, ops::flash_ptr(0), 1);
@@ -225,7 +223,7 @@ int main() {
         ops::switch_bank(0);
         ops::g_state.current_bank = 0;
 
-        // Read bank 0 — should see 0xAA
+        // Read bank 0 -- should see 0xAA
         {
             std::uint8_t val = 0;
             ops::read_bytes(&val, ops::flash_ptr(0), 1);
@@ -233,7 +231,7 @@ int main() {
         }
     }
 
-    // erase_chip() — full chip erase
+    // erase_chip() -- full chip erase
 
     {
         // Determine erased byte value (0xFF on real hardware, 0x00 on mgba)
@@ -263,7 +261,7 @@ int main() {
         }
     }
 
-    // flash_ptr() / flash_cmd_ptr() — address computation
+    // flash_ptr() / flash_cmd_ptr() -- address computation
 
     {
         // These are constexpr-friendly, but test them at runtime too
@@ -277,7 +275,7 @@ int main() {
         ASSERT_EQ(reinterpret_cast<std::uintptr_t>(cmd), 0x0E005555u);
     }
 
-    // Constants — compile-time verification
+    // Constants -- compile-time verification
 
     {
         static_assert(flash::sector_size == 4096);

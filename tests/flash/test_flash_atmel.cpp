@@ -1,12 +1,10 @@
-/**
- * @file test_flash_atmel.cpp
- * @brief Tests for Layer 1 Atmel Flash compiled command sequences.
- *
- * Exercises the consteval command compiler for Atmel Flash chips.
- * mgba emulates a standard (non-Atmel) chip, so hardware execution
- * tests only run when an Atmel chip is detected. Compile-time
- * validation and API surface tests always run.
- */
+/// @file test_flash_atmel.cpp
+/// @brief Tests for Layer 1 Atmel Flash compiled command sequences.
+///
+/// Exercises the consteval command compiler for Atmel Flash chips.
+/// mgba emulates a standard (non-Atmel) chip, so hardware execution
+/// tests only run when an Atmel chip is detected. Compile-time
+/// validation and API surface tests always run.
 
 #include <gba/save>
 
@@ -49,7 +47,7 @@ int main() {
     const auto chip = flash::detect();
     ASSERT_TRUE(chip.chip_size != flash::size::detect);
 
-    // Compile-time validation — always runs regardless of chip type
+    // Compile-time validation -- always runs regardless of chip type
 
     // compile() accepts write_page, read_page, switch_bank
     {
@@ -125,7 +123,7 @@ int main() {
         ASSERT_TRUE(true);
     }
 
-    // Hardware tests — only run on Atmel chips
+    // Hardware tests -- only run on Atmel chips
 
     if (chip.mfr == flash::manufacturer::atmel) {
         // Basic write + read cycle
@@ -198,8 +196,8 @@ int main() {
             ASSERT_EQ(g_b0_val, std::byte{0xAA});
             ASSERT_EQ(g_b1_val, std::byte{0x55});
 
-            flash::detail::switch_bank(0);
-            flash::detail::g_state.current_bank = 0;
+            flash::bits::switch_bank(0);
+            flash::bits::g_state.current_bank = 0;
         }
 
         // Read-only sequence
@@ -216,12 +214,12 @@ int main() {
         }
     }
 
-    // operator() on non-Atmel — test it compiles and invokes execute()
+    // operator() on non-Atmel -- test it compiles and invokes execute()
     // (uses standard chip, but we can at least verify the call works
     //  on the compiled struct even if the hardware write would differ)
 
     if (chip.mfr != flash::manufacturer::atmel) {
-        // Just verify operator() compiles and returns — read from page 0
+        // Just verify operator() compiles and returns -- read from page 0
         // which is safe regardless of chip type (read_bytes is universal)
         g_marker = std::byte{0};
 
@@ -234,7 +232,7 @@ int main() {
         ASSERT_EQ(static_cast<int>(err), static_cast<int>(flash::error::success));
     }
 
-    // Placeholder arg compile-time validation — always runs
+    // Placeholder arg compile-time validation -- always runs
 
     // Single arg: write + read with arg(0) as page
     {
@@ -267,7 +265,7 @@ int main() {
         ASSERT_EQ(cmds.count, 3u);
     }
 
-    // No args — num_args should be 0
+    // No args -- num_args should be 0
     {
         constexpr auto cmds = af::compile(
             af::write_page(0, write_marker)
@@ -291,7 +289,7 @@ int main() {
         ASSERT_TRUE(true);
     }
 
-    // Placeholder arg hardware tests — only on Atmel chips
+    // Placeholder arg hardware tests -- only on Atmel chips
 
     if (chip.mfr == flash::manufacturer::atmel) {
         // Write + read with runtime page via arg(0)
@@ -339,8 +337,8 @@ int main() {
             ASSERT_EQ(static_cast<int>(load(1, 100)), static_cast<int>(flash::error::success));
             ASSERT_EQ(g_marker, std::byte{0x55});
 
-            flash::detail::switch_bank(0);
-            flash::detail::g_state.current_bank = 0;
+            flash::bits::switch_bank(0);
+            flash::bits::g_state.current_bank = 0;
         }
 
         // operator() with args

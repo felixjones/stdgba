@@ -1,11 +1,9 @@
-/**
- * @file tests/fixed_point/test_16bit_fastpath.cpp
- * @brief Tests for 16-bit fixed-point optimization.
- */
+/// @file tests/fixed_point/test_16bit_fastpath.cpp
+/// @brief Tests for 16-bit fixed-point optimization.
 
 #include <gba/fixed_point>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;

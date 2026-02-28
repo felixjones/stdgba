@@ -1,43 +1,40 @@
-/**
- * @file memcmp.cpp
- * @brief C standard memcmp / bcmp wrappers with compile-time specialisation.
- *
- * Kept in a separate translation unit from the assembly __stdgba_memcmp so
- * that link-time optimisation can see the wrapper and inline it at call
- * sites.
- *
- * Each specialisation is a flat, top-level guard where every term is
- * resolved purely at compile time by __builtin_constant_p. When a guard
- * is true, the body executes directly with no runtime branches. When
- * false, the entire if-body is dead code -- nothing is emitted.
- *
- * Specialisations for memcmp (checked in order):
- *   1. n == 0:                             return 0 (eliminated entirely)
- *   2. n == 1:                             inline single-byte compare
- *   3. n % 4 == 0, n < 20, aligned(4):    inline ldr + XOR word compare
- *   4. n == 2 (any alignment):             inline byte compare
- *   5. fallback:                           __stdgba_memcmp
- *
- * bcmp mirrors memcmp but returns 0 (equal) or 1 (not equal). GCC lowers
- * memcmp(...) == 0 to bcmp at -O2+, so the bcmp wrapper is equally
- * important.
- *
- * Uses .cpp (not .c) to avoid injecting the C language into downstream
- * targets that use stdgba as an INTERFACE library.
- */
+/// @file memcmp.cpp
+/// @brief C standard memcmp / bcmp wrappers with compile-time specialisation.
+///
+/// Kept in a separate translation unit from the assembly __stdgba_memcmp so
+/// that link-time optimisation can see the wrapper and inline it at call
+/// sites.
+///
+/// Each specialisation is a flat, top-level guard where every term is
+/// resolved purely at compile time by __builtin_constant_p. When a guard
+/// is true, the body executes directly with no runtime branches. When
+/// false, the entire if-body is dead code -- nothing is emitted.
+///
+/// Specialisations for memcmp (checked in order):
+///   1. n == 0:                             return 0 (eliminated entirely)
+///   2. n == 1:                             inline single-byte compare
+///   3. n % 4 == 0, n < 20, aligned(4):    inline ldr + XOR word compare
+///   4. n == 2 (any alignment):             inline byte compare
+///   5. fallback:                           __stdgba_memcmp
+///
+/// bcmp mirrors memcmp but returns 0 (equal) or 1 (not equal). GCC lowers
+/// memcmp(...) == 0 to bcmp at -O2+, so the bcmp wrapper is equally
+/// important.
+///
+/// Uses .cpp (not .c) to avoid injecting the C language into downstream
+/// targets that use stdgba as an INTERFACE library.
 
 #include <cstddef>
 #include <cstdint>
 
 extern "C" {
 
-extern int __stdgba_memcmp(const void *, const void *, std::size_t);
-extern int __stdgba_bcmp(const void *, const void *, std::size_t);
+extern int __stdgba_memcmp(const void*, const void*, std::size_t);
+extern int __stdgba_bcmp(const void*, const void*, std::size_t);
 
-int memcmp(const void *s1, const void *s2, std::size_t n) {
+int memcmp(const void* s1, const void* s2, std::size_t n) {
     // 1. Zero-size compare: compile-time elimination.
-    if (__builtin_constant_p(n) && n == 0)
-        return 0;
+    if (__builtin_constant_p(n) && n == 0) return 0;
 
     // 2. Single byte: inline compare.
     //    Saves all entry overhead (alignment check, byte loop setup).
@@ -62,8 +59,7 @@ int memcmp(const void *s1, const void *s2, std::size_t n) {
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(s1) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0) {
         auto p1 = static_cast<const std::uint32_t*>(s1);
         auto p2 = static_cast<const std::uint32_t*>(s2);
         for (std::size_t i = 0; i < n / 4; ++i) {
@@ -74,8 +70,7 @@ int memcmp(const void *s1, const void *s2, std::size_t n) {
                 auto a = reinterpret_cast<const unsigned char*>(&p1[i]);
                 auto b = reinterpret_cast<const unsigned char*>(&p2[i]);
                 for (int j = 0; j < 4; ++j) {
-                    if (a[j] != b[j])
-                        return static_cast<int>(a[j]) - static_cast<int>(b[j]);
+                    if (a[j] != b[j]) return static_cast<int>(a[j]) - static_cast<int>(b[j]);
                 }
             }
         }
@@ -90,8 +85,7 @@ int memcmp(const void *s1, const void *s2, std::size_t n) {
         auto a = static_cast<const unsigned char*>(s1);
         auto b = static_cast<const unsigned char*>(s2);
         for (std::size_t i = 0; i < n; ++i) {
-            if (a[i] != b[i])
-                return static_cast<int>(a[i]) - static_cast<int>(b[i]);
+            if (a[i] != b[i]) return static_cast<int>(a[i]) - static_cast<int>(b[i]);
         }
         return 0;
     }
@@ -100,15 +94,13 @@ int memcmp(const void *s1, const void *s2, std::size_t n) {
     return __stdgba_memcmp(s1, s2, n);
 }
 
-int bcmp(const void *s1, const void *s2, std::size_t n) {
+int bcmp(const void* s1, const void* s2, std::size_t n) {
     // 1. Zero-size: always equal.
-    if (__builtin_constant_p(n) && n == 0)
-        return 0;
+    if (__builtin_constant_p(n) && n == 0) return 0;
 
     // 2. Single byte: inline compare.
     if (__builtin_constant_p(n) && n == 1) {
-        return *static_cast<const unsigned char*>(s1) !=
-               *static_cast<const unsigned char*>(s2);
+        return *static_cast<const unsigned char*>(s1) != *static_cast<const unsigned char*>(s2);
     }
 
     // 3. Word-aligned, word-multiple (4-16 bytes): inline word XOR.
@@ -119,13 +111,11 @@ int bcmp(const void *s1, const void *s2, std::size_t n) {
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(s1) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0) {
         auto p1 = static_cast<const std::uint32_t*>(s1);
         auto p2 = static_cast<const std::uint32_t*>(s2);
         std::uint32_t diff = 0;
-        for (std::size_t i = 0; i < n / 4; ++i)
-            diff |= p1[i] ^ p2[i];
+        for (std::size_t i = 0; i < n / 4; ++i) diff |= p1[i] ^ p2[i];
         return diff != 0;
     }
 
@@ -135,8 +125,7 @@ int bcmp(const void *s1, const void *s2, std::size_t n) {
         auto a = static_cast<const unsigned char*>(s1);
         auto b = static_cast<const unsigned char*>(s2);
         for (std::size_t i = 0; i < n; ++i) {
-            if (a[i] != b[i])
-                return 1;
+            if (a[i] != b[i]) return 1;
         }
         return 0;
     }

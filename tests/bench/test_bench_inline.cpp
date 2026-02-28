@@ -1,17 +1,15 @@
-/**
- * @file tests/bench/test_bench_inline.cpp
- * @brief Benchmark the compile-time specialisation paths in memcpy.cpp
- *        and memset.cpp to determine optimal thresholds.
- *
- * Tests three questions:
- *   1. What is the crossover for inline byte stores vs __aeabi_memcpy/memset?
- *   2. What is the crossover for inline str vs __aeabi_memcpy4/memset4?
- *   3. Does calling __aeabi_*4 directly (skipping alignment check) help?
- *
- * All from ROM/Thumb context (the common case that determines the cap).
- *
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- */
+/// @file tests/bench/test_bench_inline.cpp
+/// @brief Benchmark the compile-time specialisation paths in memcpy.cpp
+/// and memset.cpp to determine optimal thresholds.
+///
+/// Tests three questions:
+/// 1. What is the crossover for inline byte stores vs __aeabi_memcpy/memset?
+/// 2. What is the crossover for inline str vs __aeabi_memcpy4/memset4?
+/// 3. Does calling __aeabi_*4 directly (skipping alignment check) help?
+///
+/// All from ROM/Thumb context (the common case that determines the cap).
+///
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
 
 #include <cstddef>
 #include <cstdint>

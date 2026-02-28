@@ -1,26 +1,24 @@
-/**
- * @file tests/memory/test_memmove_inline.cpp
- * @brief Tests for memmove.cpp inline specialisations with overlapping data.
- *
- * The inline specialisations in memmove.cpp are guarded by
- * __builtin_constant_p, which only resolves to true with optimizations
- * enabled (-O1 or higher) AND when the function body is visible at the
- * call site (same TU or LTO). This test includes the memmove logic
- * directly and compiles with -O3 (via CMakeLists.txt) to exercise the
- * actual inline code paths.
- *
- * The critical property being tested: the small-constant specialisation
- * (n <= 6) must load ALL source bytes into temporaries BEFORE storing
- * any of them, making it safe for overlapping regions where dest > src.
- * A naive forward copy (d[0]=s[0]; d[1]=s[1]; ...) corrupts data when
- * dest = src + 1.
- */
+/// @file tests/memory/test_memmove_inline.cpp
+/// @brief Tests for memmove.cpp inline specialisations with overlapping data.
+///
+/// The inline specialisations in memmove.cpp are guarded by
+/// __builtin_constant_p, which only resolves to true with optimizations
+/// enabled (-O1 or higher) AND when the function body is visible at the
+/// call site (same TU or LTO). This test includes the memmove logic
+/// directly and compiles with -O3 (via CMakeLists.txt) to exercise the
+/// actual inline code paths.
+///
+/// The critical property being tested: the small-constant specialisation
+/// (n <= 6) must load ALL source bytes into temporaries BEFORE storing
+/// any of them, making it safe for overlapping regions where dest > src.
+/// A naive forward copy (d[0]=s[0]; d[1]=s[1]; ...) corrupts data when
+/// dest = src + 1.
 
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 // Pull in the aeabi symbols for the fallback path
 extern "C" {

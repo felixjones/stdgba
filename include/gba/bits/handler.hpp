@@ -12,14 +12,12 @@ namespace gba {
 
 namespace gba::bits {
 
-    /**
-     * @brief Type-erased callable wrapper optimized for embedded systems.
-     *
-     * Uses function pointers instead of virtual dispatch for lower overhead.
-     * Supports small buffer optimization for callables up to 12 bytes.
-     *
-     * @tparam Args The argument types for the callable.
-     */
+    /// @brief Type-erased callable wrapper optimized for embedded systems.
+    ///
+    /// Uses function pointers instead of virtual dispatch for lower overhead.
+    /// Supports small buffer optimization for callables up to 12 bytes.
+    ///
+    /// @tparam Args The argument types for the callable.
     template<typename... Args>
     struct handler {
         constexpr handler() noexcept : m_invoke{nullptr}, m_ops{nullptr}, m_storage{} {}
@@ -53,7 +51,7 @@ namespace gba::bits {
         using storage_type = std::array<std::byte, storage_size>;
 
         // Function pointer types for type-erased operations
-        using invoke_fn = void(*)(void*, Args...);
+        using invoke_fn = void (*)(void*, Args...);
 
         struct ops_table {
             void (*destroy)(void*) noexcept;
@@ -63,20 +61,12 @@ namespace gba::bits {
 
         template<typename Callable>
         static constexpr ops_table make_ops_table() noexcept {
-            return {
-                // destroy
-                [](void* p) noexcept {
-                    static_cast<Callable*>(p)->~Callable();
-                },
-                // copy
-                [](void* dst, const void* src) {
-                    new (dst) Callable(*static_cast<const Callable*>(src));
-                },
-                // move
-                [](void* dst, void* src) noexcept {
-                    new (dst) Callable(std::move(*static_cast<Callable*>(src)));
-                }
-            };
+            return {// destroy
+                    [](void* p) noexcept { static_cast<Callable*>(p)->~Callable(); },
+                    // copy
+                    [](void* dst, const void* src) { new (dst) Callable(*static_cast<const Callable*>(src)); },
+                    // move
+                    [](void* dst, void* src) noexcept { new (dst) Callable(std::move(*static_cast<Callable*>(src))); }};
         }
 
         template<typename Callable>
@@ -116,7 +106,8 @@ namespace gba::bits {
     }
 
     template<typename... Args>
-    handler<Args...>::handler(const handler& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+    handler<Args...>::handler(const handler& other) noexcept
+        : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
         if (m_ops) {
             m_ops->copy(storage(), other.storage());
         }

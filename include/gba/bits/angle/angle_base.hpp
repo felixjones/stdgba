@@ -39,17 +39,15 @@ namespace gba {
     template<typename T>
     concept AnyAngleType = AngleType<T> || PackedAngleType<T>;
 
-    /**
-     * @brief 32-bit angle type for arithmetic operations.
-     *
-     * This is the primary type for angle computations. Uses natural 32-bit
-     * unsigned overflow for wraparound behavior (no masking required).
-     *
-     * Full rotation = 2^32 steps. Convert to/from packed_angle<Bits> as needed.
-     *
-     * @note All arithmetic should use this type. packed_angle<Bits> types exist
-     * only for memory efficiency when storing many angles.
-     */
+    /// @brief 32-bit angle type for arithmetic operations.
+    ///
+    /// This is the primary type for angle computations. Uses natural 32-bit
+    /// unsigned overflow for wraparound behavior (no masking required).
+    ///
+    /// Full rotation = 2^32 steps. Convert to/from packed_angle<Bits> as needed.
+    ///
+    /// @note All arithmetic should use this type. packed_angle<Bits> types exist
+    /// only for memory efficiency when storing many angles.
     class angle {
     public:
         /// @brief Underlying type (register-sized).
@@ -87,9 +85,21 @@ namespace gba {
             return *this;
         }
 
+        /// @brief Add raw value.
+        constexpr angle& operator+=(value_type rhs) noexcept {
+            m_data += rhs;
+            return *this;
+        }
+
         /// @brief Subtract angle.
         constexpr angle& operator-=(angle rhs) noexcept {
             m_data -= rhs.m_data;
+            return *this;
+        }
+
+        /// @brief Subtract raw value.
+        constexpr angle& operator-=(value_type rhs) noexcept {
+            m_data -= rhs;
             return *this;
         }
 
@@ -123,10 +133,34 @@ namespace gba {
             return angle{lhs.m_data + rhs.m_data};
         }
 
+        /// @brief Add raw value.
+        [[nodiscard]]
+        friend constexpr angle operator+(angle lhs, value_type rhs) noexcept {
+            return angle{lhs.m_data + rhs};
+        }
+
+        /// @brief Add raw value (reversed).
+        [[nodiscard]]
+        friend constexpr angle operator+(value_type lhs, angle rhs) noexcept {
+            return angle{lhs + rhs.m_data};
+        }
+
         /// @brief Subtraction.
         [[nodiscard]]
         friend constexpr angle operator-(angle lhs, angle rhs) noexcept {
             return angle{lhs.m_data - rhs.m_data};
+        }
+
+        /// @brief Subtract raw value.
+        [[nodiscard]]
+        friend constexpr angle operator-(angle lhs, value_type rhs) noexcept {
+            return angle{lhs.m_data - rhs};
+        }
+
+        /// @brief Subtract from raw value.
+        [[nodiscard]]
+        friend constexpr angle operator-(value_type lhs, angle rhs) noexcept {
+            return angle{lhs - rhs.m_data};
         }
 
         /// @brief Multiply by scalar.

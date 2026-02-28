@@ -21,7 +21,7 @@ gba::reg_dispcnt |= { .enable_obj = true };
 
 ### How it compiles
 
-`registral<T>` has no data members. The hardware address is a template parameter stored in the type itself. Every operation compiles to a single `ldr`/`str` instruction -- exactly what you would write in assembly.
+`registral<T>` stores the hardware address as a data member. Every operation compiles to a single `ldr`/`str` instruction -- exactly what you would write in assembly.
 
 ```cpp
 // This:

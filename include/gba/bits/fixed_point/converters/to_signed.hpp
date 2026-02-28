@@ -5,17 +5,15 @@
 
 namespace gba {
 
-    /**
-     * @brief Convert to signed representation
-     *
-     * Converts to a signed integer type with the next larger size if needed.
-     * Useful for operations that require signed values (e.g., negation).
-     * Progression: unsigned char -> short, unsigned short -> int, unsigned int -> long long
-     *
-     * Usage:
-     *   fixed<unsigned char, 4> a = 3.5;
-     *   auto result = -as_signed(a);  // Result: fixed<short, 4> with value -3.5
-     */
+    /// @brief Convert to signed representation
+    ///
+    /// Converts to a signed integer type with the next larger size if needed.
+    /// Useful for operations that require signed values (e.g., negation).
+    /// Progression: unsigned char -> short, unsigned short -> int, unsigned int -> long long
+    ///
+    /// Usage:
+    ///   fixed<unsigned char, 4> a = 3.5;
+    ///   auto result = -as_signed(a);  // Result: fixed<short, 4> with value -3.5
     template<fixed_point T>
     struct signed_wrapper : conversion_wrapper_base<T, signed_wrapper<T>> {
         using base = conversion_wrapper_base<T, signed_wrapper<T>>;

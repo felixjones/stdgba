@@ -1,4 +1,3 @@
-# AI Generated file! TODO: Replace with human code
 """
 stdgba GDB Pretty Printers
 

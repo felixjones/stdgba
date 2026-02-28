@@ -1,41 +1,38 @@
-/**
- * @file memcpy.cpp
- * @brief C standard memcpy wrapper with compile-time specialisation.
- *
- * Kept in a separate translation unit from the assembly __aeabi_memcpy so
- * that link-time optimisation can see the wrapper and inline it at call
- * sites.
- *
- * Each specialisation is a flat, top-level guard where every term is
- * resolved purely at compile time by __builtin_constant_p. When a guard
- * is true, the body executes directly with no runtime branches. When
- * false, the entire if-body is dead code -- nothing is emitted.
- *
- * Specialisations (checked in order):
- *   1. n == 0:                            eliminated entirely
- *   2. n % 4 == 0, n < 64, aligned(4):   inline ldr/str pairs
- *   3. n <= 6 (any alignment):            inline byte copies
- *   4. aligned(4), any n:                 __aeabi_memcpy4 (skip alignment check)
- *   5. fallback:                          __aeabi_memcpy
- *
- * Uses .cpp (not .c) to avoid injecting the C language into downstream
- * targets that use stdgba as an INTERFACE library -- a .c INTERFACE source
- * would cause CMake to generate a C precompiled header for targets that
- * only expect C++.
- */
+/// @file memcpy.cpp
+/// @brief C standard memcpy wrapper with compile-time specialisation.
+///
+/// Kept in a separate translation unit from the assembly __aeabi_memcpy so
+/// that link-time optimisation can see the wrapper and inline it at call
+/// sites.
+///
+/// Each specialisation is a flat, top-level guard where every term is
+/// resolved purely at compile time by __builtin_constant_p. When a guard
+/// is true, the body executes directly with no runtime branches. When
+/// false, the entire if-body is dead code -- nothing is emitted.
+///
+/// Specialisations (checked in order):
+///   1. n == 0:                            eliminated entirely
+///   2. n % 4 == 0, n < 64, aligned(4):   inline ldr/str pairs
+///   3. n <= 6 (any alignment):            inline byte copies
+///   4. aligned(4), any n:                 __aeabi_memcpy4 (skip alignment check)
+///   5. fallback:                          __aeabi_memcpy
+///
+/// Uses .cpp (not .c) to avoid injecting the C language into downstream
+/// targets that use stdgba as an INTERFACE library -- a .c INTERFACE source
+/// would cause CMake to generate a C precompiled header for targets that
+/// only expect C++.
 
 #include <cstddef>
 #include <cstdint>
 
 extern "C" {
 
-extern void __aeabi_memcpy(void *, const void *, std::size_t);
-extern void __aeabi_memcpy4(void *, const void *, std::size_t);
+extern void __aeabi_memcpy(void*, const void*, std::size_t);
+extern void __aeabi_memcpy4(void*, const void*, std::size_t);
 
-void *memcpy(void *__restrict dest, const void *__restrict src, std::size_t n) {
+void* memcpy(void* __restrict dest, const void* __restrict src, std::size_t n) {
     // 1. Zero-size copy: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0)
-        return dest;
+    if (__builtin_constant_p(n) && n == 0) return dest;
 
     // 2. Word-aligned, word-multiple (4-60 bytes): inline ldr/str pairs.
     //    Eliminates ~25+ cycles of call overhead + alignment detection.
@@ -55,20 +52,17 @@ void *memcpy(void *__restrict dest, const void *__restrict src, std::size_t n) {
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
         std::uint32_t tmp;
-        asm volatile(
-            ".set i, 0\n"
-            ".rept %c[words]\n"
-            "ldr %[tmp], [%[s], #i]\n"
-            "str %[tmp], [%[d], #i]\n"
-            ".set i, i + 4\n"
-            ".endr"
-            : [tmp]"=&l"(tmp)
-            : [d]"l"(dest), [s]"l"(src), [words]"i"(n / 4)
-            : "memory"
-        );
+        asm volatile(".set i, 0\n"
+                     ".rept %c[words]\n"
+                     "ldr %[tmp], [%[s], #i]\n"
+                     "str %[tmp], [%[d], #i]\n"
+                     ".set i, i + 4\n"
+                     ".endr"
+                     : [tmp] "=&l"(tmp)
+                     : [d] "l"(dest), [s] "l"(src), [words] "i"(n / 4)
+                     : "memory");
         return dest;
     }
 
@@ -94,8 +88,7 @@ void *memcpy(void *__restrict dest, const void *__restrict src, std::size_t n) {
     if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
         __aeabi_memcpy4(dest, src, n);
         return dest;
     }

@@ -1,7 +1,5 @@
-/**
- * @file test_bitpack.cpp
- * @brief Tests for compile-time bit packing and BIOS BitUnPack decompression.
- */
+/// @file test_bitpack.cpp
+/// @brief Tests for compile-time bit packing and BIOS BitUnPack decompression.
 #include <gba/bios>
 #include <gba/compress>
 
@@ -46,9 +44,7 @@ static constexpr auto test_data_2bit = std::array<unsigned char, 16>{
 static constexpr auto packed_2bit = gba::bit_pack([] { return test_data_2bit; });
 
 int main() {
-    // ========================================
     // Test 8-bit source packed to 4-bit
-    // ========================================
     {
         // Verify packing reduced size (16 bytes -> 8 bytes for 4bpp)
         EXPECT_TRUE(sizeof(packed_8bit) <= sizeof(test_data_8bit));
@@ -67,9 +63,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test 16-bit source packed to 4-bit
-    // ========================================
     {
         EXPECT_EQ(packed_16bit.src_bpp, 4);
         EXPECT_EQ(packed_16bit.dst_bpp, 16);
@@ -82,9 +76,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test 32-bit source packed to 2-bit
-    // ========================================
     {
         EXPECT_EQ(packed_32bit.src_bpp, 2);
         EXPECT_EQ(packed_32bit.dst_bpp, 32);
@@ -97,9 +89,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test 8-bit source packed to 1-bit
-    // ========================================
     {
         EXPECT_EQ(packed_1bit.src_bpp, 1);
         EXPECT_EQ(packed_1bit.dst_bpp, 8);
@@ -112,9 +102,7 @@ int main() {
         }
     }
 
-    // ========================================
     // Test 8-bit source packed to 2-bit
-    // ========================================
     {
         EXPECT_EQ(packed_2bit.src_bpp, 2);
         EXPECT_EQ(packed_2bit.dst_bpp, 8);

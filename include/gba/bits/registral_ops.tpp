@@ -1,4 +1,3 @@
-// ReSharper disable CppRedundantInlineSpecifier
 #pragma once
 
 #include <bit>
@@ -12,7 +11,6 @@ namespace gba::bits {
         requires(sizeof(ValueType) == 8)
     [[gnu::always_inline]]
     inline ValueType value_by_copy8(std::uintptr_t address) {
-        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register std::uint64_t destination asm("r0");
         asm volatile("ldm %[address]!, {%[destination]-r1}" : [destination] "=l"(destination), [address] "+l"(address));
         return __builtin_bit_cast(ValueType, destination);
@@ -57,7 +55,7 @@ namespace gba::bits {
                          : "memory");
             return __builtin_bit_cast(value_type, destination);
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral read not implemented for non-power-of-two sizes > 8");
         }
     }
 
@@ -78,7 +76,6 @@ namespace gba::bits {
     inline void write_by_copy8(std::uintptr_t address, auto value)
         requires(sizeof(decltype(value)) == 8)
     {
-        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register const auto valueTemp asm("r1") = __builtin_bit_cast(std::uint64_t, value);
         asm volatile("stm %[address]!, {%[value]-r2}" : [address] "+l"(address) : [value] "l"(valueTemp) : "memory");
     }
@@ -87,7 +84,6 @@ namespace gba::bits {
     inline void write_by_copy12(std::uintptr_t address, auto value)
         requires(sizeof(decltype(value)) == 12)
     {
-        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register const auto valueTemp asm("r1") = &value;
         asm volatile("ldm %[value_ptr], {%[value_ptr]-r3}\n"
                      "stm %[address]!, {%[value_ptr]-r3}"
@@ -131,7 +127,7 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address), [value] "l"(&rhs), "i"(sizeof(value_type))
                          : "memory");
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral write (rvalue) not implemented for non-power-of-two sizes > 12");
         }
     }
 
@@ -149,6 +145,8 @@ namespace gba::bits {
             asm volatile("str %[value], [%[address]]" ::[value] "l"(value), [address] "l"(lhs.m_address) : "memory");
         } else if constexpr (sizeof(value_type) == 4) {
             asm volatile("str %[value], [%[address]]" ::[value] "l"(rhs), [address] "l"(lhs.m_address) : "memory");
+        } else if constexpr (sizeof(value_type) == 6) {
+            write_by_copy6(lhs.m_address, rhs);
         } else if constexpr (sizeof(value_type) == 8) {
             write_by_copy8(lhs.m_address, rhs);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
@@ -163,7 +161,7 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address), [value] "l"(&rhs), "i"(sizeof(value_type))
                          : "memory");
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral write (lvalue) not implemented for non-power-of-two sizes > 8");
         }
     }
 
@@ -205,7 +203,6 @@ namespace gba::bits {
 
     [[gnu::always_inline]]
     inline void copy_by_copy8(std::uintptr_t dest, std::uintptr_t source) {
-        // ReSharper disable once CppDeprecatedRegisterStorageClassSpecifier
         register auto temp asm("r1") = static_cast<std::uint64_t>(source);
         asm volatile("ldm %[rhs], {%[rhs]-r2}\n"
                      "stm %[lhs]!, {%[rhs]-r2}"
@@ -255,16 +252,14 @@ namespace gba::bits {
                          : [dest] "l"(lhs.m_address), [src] "l"(rhs.m_address), "i"(sizeof(value_type))
                          : "memory");
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral copy not implemented for non-power-of-two sizes > 8");
         }
     }
 
     [[gnu::always_inline]]
     inline void swap_by_copy8(std::uintptr_t a, std::uintptr_t b) {
-        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
         register auto tempA asm("r0") = static_cast<std::uint64_t>(a);
         register auto tempB asm("r2") = static_cast<std::uint64_t>(b);
-        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
         asm volatile("ldm %[temp_a], {%[temp_a]-r1}\n"
                      "ldm %[temp_b], {%[temp_b]-r3}\n"
                      "stm %[b]!, {%[temp_a]-r1}\n"
@@ -322,17 +317,15 @@ namespace gba::bits {
                          : [a] "l"(lhs.m_address), [b] "l"(rhs.m_address), "i"(sizeof(value_type))
                          : "memory");
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral swap not implemented for non-power-of-two sizes > 8");
         }
     }
 
     template<typename ValueType>
     [[gnu::always_inline]]
     inline void swap_by_copy8(std::uintptr_t a, ValueType b) {
-        // ReSharper disable CppDeprecatedRegisterStorageClassSpecifier
         register auto tempA asm("r0") = static_cast<std::uint64_t>(a);
         register auto tempB asm("r2") = __builtin_bit_cast(std::uint64_t, b);
-        // ReSharper restore CppDeprecatedRegisterStorageClassSpecifier
         asm volatile("ldm %[temp_a], {%[temp_a]-r1}\n"
                      "ldm %[temp_b], {%[temp_b]-r3}\n"
                      "stm %[b]!, {%[temp_a]-r1}\n"
@@ -387,7 +380,7 @@ namespace gba::bits {
                          : [a] "l"(lhs.m_address), [b] "l"(&rhs), "i"(sizeof(value_type))
                          : "memory");
         } else {
-            static_assert(false, "Unimplemented"); // TODO
+            static_assert(false, "registral swap (ref) not implemented for non-power-of-two sizes > 8");
         }
     }
 

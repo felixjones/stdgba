@@ -1,13 +1,11 @@
-/**
- * @file tests/bench/test_bench_div.cpp
- * @brief Benchmark comparing stdgba div/ldiv vs agbabi div/ldiv.
- *
- * Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- *
- * Tests 32-bit (idiv, uidiv) and 64-bit (ldiv, uldiv) division with
- * various operand patterns: small/large, balanced, worst-case, etc.
- */
+/// @file tests/bench/test_bench_div.cpp
+/// @brief Benchmark comparing stdgba div/ldiv vs agbabi div/ldiv.
+///
+/// Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
+///
+/// Tests 32-bit (idiv, uidiv) and 64-bit (ldiv, uldiv) division with
+/// various operand patterns: small/large, balanced, worst-case, etc.
 
 #include <cstdint>
 

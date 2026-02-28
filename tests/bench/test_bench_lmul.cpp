@@ -1,13 +1,11 @@
-/**
- * @file tests/bench/test_bench_lmul.cpp
- * @brief Benchmark comparing stdgba lmul/shifts vs agbabi lmul/shifts.
- *
- * Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
- * This is a manual test (excluded from ctest). Run in mgba to see output.
- *
- * Tests 64-bit multiplication (__aeabi_lmul) and 64-bit shifts
- * (__aeabi_llsl, __aeabi_llsr, __aeabi_lasr) with various operand patterns.
- */
+/// @file tests/bench/test_bench_lmul.cpp
+/// @brief Benchmark comparing stdgba lmul/shifts vs agbabi lmul/shifts.
+///
+/// Uses GBA hardware timers via bench::timer for cycle-accurate measurement.
+/// This is a manual test (excluded from ctest). Run in mgba to see output.
+///
+/// Tests 64-bit multiplication (__aeabi_lmul) and 64-bit shifts
+/// (__aeabi_llsl, __aeabi_llsr, __aeabi_lasr) with various operand patterns.
 
 #include <cstdint>
 

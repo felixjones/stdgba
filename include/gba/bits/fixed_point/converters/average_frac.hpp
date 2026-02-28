@@ -5,17 +5,15 @@
 
 namespace gba {
 
-    /**
-     * @brief Average fractional bits conversion
-     *
-     * Result has (lhs_frac + rhs_frac) / 2 fractional bits.
-     * Balances precision between operands.
-     *
-     * Usage:
-     *   fixed<int, 8> a = 3.5;   // 8 frac bits
-     *   fixed<int, 4> b = 1.25;  // 4 frac bits
-     *   auto result = as_average_frac(a) + b;  // Result: fixed<int, 6>
-     */
+    /// @brief Average fractional bits conversion
+    ///
+    /// Result has (lhs_frac + rhs_frac) / 2 fractional bits.
+    /// Balances precision between operands.
+    ///
+    /// Usage:
+    ///   fixed<int, 8> a = 3.5;   // 8 frac bits
+    ///   fixed<int, 4> b = 1.25;  // 4 frac bits
+    ///   auto result = as_average_frac(a) + b;  // Result: fixed<int, 6>
     template<fixed_point T>
     struct average_frac_wrapper : conversion_wrapper_base<T, average_frac_wrapper<T>> {
         using base = conversion_wrapper_base<T, average_frac_wrapper<T>>;

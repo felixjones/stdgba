@@ -1,12 +1,10 @@
-/**
- * @file tests/string/test_strchr.cpp
- * @brief Tests for optimized strchr and strrchr implementations.
- */
+/// @file tests/string/test_strchr.cpp
+/// @brief Tests for optimized strchr and strrchr implementations.
 
 #include <cstring>
 #include <cstdint>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 extern "C" {
     char* strchr(const char*, int);

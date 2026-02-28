@@ -1,7 +1,5 @@
-/**
- * @file tests/bench/test_bench_memcmp.cpp
- * @brief Benchmark comparing stdgba memcmp/bcmp vs simple reference.
- */
+/// @file tests/bench/test_bench_memcmp.cpp
+/// @brief Benchmark comparing stdgba memcmp/bcmp vs simple reference.
 
 #include <cstdio>
 #include <cstring>

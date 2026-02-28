@@ -5,23 +5,21 @@
 
 namespace gba {
 
-    /**
-     * @brief Meta-converter that adds rounding to any conversion wrapper
-     *
-     * Wraps another converter and applies rounding during the conversion.
-     * This implements the behavior that was previously in the Round template parameter.
-     *
-     * Usage:
-     *   // Round when narrowing
-     *   auto result = with_rounding(as_narrowing(high)) + low;
-     *
-     *   // Round when using LHS converter
-     *   auto result2 = with_rounding(as_lhs(a)) + b;
-     *
-     * Rounding behavior:
-     *   - Adds 0.5 (in source precision) before truncating for positive values
-     *   - Subtracts 0.5 before truncating for negative values
-     */
+    /// @brief Meta-converter that adds rounding to any conversion wrapper
+    ///
+    /// Wraps another converter and applies rounding during the conversion.
+    /// This implements the behavior that was previously in the Round template parameter.
+    ///
+    /// Usage:
+    ///   // Round when narrowing
+    ///   auto result = with_rounding(as_narrowing(high)) + low;
+    ///
+    ///   // Round when using LHS converter
+    ///   auto result2 = with_rounding(as_lhs(a)) + b;
+    ///
+    /// Rounding behavior:
+    ///   - Adds 0.5 (in source precision) before truncating for positive values
+    ///   - Subtracts 0.5 before truncating for negative values
     template<conversion_wrapper W>
     struct rounding_wrapper {
         const W& wrapped;
@@ -71,12 +69,10 @@ namespace gba {
         }
     };
 
-    /**
-     * @brief Helper function to create a rounding meta-wrapper
-     *
-     * @param wrapper Any conversion wrapper to apply rounding to
-     * @return A rounding_wrapper that adds rounding behavior
-     */
+    /// @brief Helper function to create a rounding meta-wrapper
+    ///
+    /// @param wrapper Any conversion wrapper to apply rounding to
+    /// @return A rounding_wrapper that adds rounding behavior
     template<conversion_wrapper W>
     constexpr rounding_wrapper<W> with_rounding(const W& wrapper) noexcept {
         return rounding_wrapper<W>(wrapper);

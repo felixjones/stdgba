@@ -4,17 +4,15 @@
 
 namespace gba {
 
-    /**
-     * @brief Conversion wrapper for widening conversions
-     *
-     * Widens to match the RHS operand's type if it has more fractional bits.
-     * Never loses precision.
-     *
-     * Usage:
-     *   fixed<int, 4> low = 1.25;
-     *   fixed<int, 8> high = 3.5;
-     *   auto result = as_widening(low) + high;  // Result: fixed<int, 8>
-     */
+    /// @brief Conversion wrapper for widening conversions
+    ///
+    /// Widens to match the RHS operand's type if it has more fractional bits.
+    /// Never loses precision.
+    ///
+    /// Usage:
+    ///   fixed<int, 4> low = 1.25;
+    ///   fixed<int, 8> high = 3.5;
+    ///   auto result = as_widening(low) + high;  // Result: fixed<int, 8>
     template<fixed_point T>
     struct widening_wrapper : conversion_wrapper_base<T, widening_wrapper<T>> {
         using base = conversion_wrapper_base<T, widening_wrapper<T>>;

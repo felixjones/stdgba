@@ -1,7 +1,5 @@
-/**
- * @file test_rle.cpp
- * @brief Tests for compile-time RLE compression and BIOS decompression.
- */
+/// @file test_rle.cpp
+/// @brief Tests for compile-time RLE compression and BIOS decompression.
 #include <gba/bios>
 #include <gba/compress>
 

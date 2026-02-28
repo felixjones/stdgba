@@ -1,24 +1,22 @@
-/**
- * @file tests/memory/test_memset.cpp
- * @brief Unit tests for optimized memset implementation.
- *
- * Tests every code path in memset.s:
- *   - Byte early-out (n <= 3)
- *   - Alignment fixup (all 4 offsets: 0, 1, 2, 3)
- *   - Bulk 32-byte stm loop (exact, +1, +2, +3 remainder)
- *   - Word loop via computed jump (various counts)
- *   - Joaobapt byte/half tail (tail = 0, 1, 2, 3)
- *   - Byte fallback (small sizes)
- *   - __aeabi_memset4 / __aeabi_memset8 direct entry
- *   - __aeabi_memclr / __aeabi_memclr4 / __aeabi_memclr8 direct entry
- *   - C memset return value
- *   - Various fill byte values (0x00, 0xFF, 0xAB, 0x01)
- */
+/// @file tests/memory/test_memset.cpp
+/// @brief Unit tests for optimized memset implementation.
+///
+/// Tests every code path in memset.s:
+/// - Byte early-out (n <= 3)
+/// - Alignment fixup (all 4 offsets: 0, 1, 2, 3)
+/// - Bulk 32-byte stm loop (exact, +1, +2, +3 remainder)
+/// - Word loop via computed jump (various counts)
+/// - Joaobapt byte/half tail (tail = 0, 1, 2, 3)
+/// - Byte fallback (small sizes)
+/// - __aeabi_memset4 / __aeabi_memset8 direct entry
+/// - __aeabi_memclr / __aeabi_memclr4 / __aeabi_memclr8 direct entry
+/// - C memset return value
+/// - Various fill byte values (0x00, 0xFF, 0xAB, 0x01)
 
 #include <cstdint>
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 // Prevent compiler from replacing memset calls with builtins
 static void* (*volatile memset_fn)(void*, int, std::size_t) = &std::memset;
@@ -91,10 +89,8 @@ void do_clr8(void* d, std::size_t n) {
 } // namespace
 
 int main() {
-    // =========================================================================
     // Byte early-out path (n <= 3)
     // Exercises: cmp r1, #3; ble .Lfill_bytes
-    // =========================================================================
 
     // n=0: no bytes set
     {
@@ -125,9 +121,7 @@ int main() {
         verify(0, 3, 0xAB);
     }
 
-    // =========================================================================
     // Word-promotable path, already word-aligned (fixup offset = 0)
-    // =========================================================================
 
     // n=4: single word via word loop
     {
@@ -199,9 +193,7 @@ int main() {
         verify(0, 28, 0xAB);
     }
 
-    // =========================================================================
     // Bulk stm loop (n >= 32)
-    // =========================================================================
 
     // n=32: exactly one bulk block
     {
@@ -287,9 +279,7 @@ int main() {
         verify(0, 512, 0xAB);
     }
 
-    // =========================================================================
     // Alignment fixup path: dest not word-aligned
-    // =========================================================================
 
     // offset=1: fixup 1 byte, then word-aligned
     {
@@ -333,9 +323,7 @@ int main() {
         verify(3, 65, 0xAB);
     }
 
-    // =========================================================================
     // __aeabi_memset4 / __aeabi_memset8 direct entry
-    // =========================================================================
 
     // memset4: small
     {
@@ -379,9 +367,7 @@ int main() {
         verify(0, 256, 0xAB);
     }
 
-    // =========================================================================
     // __aeabi_memclr / __aeabi_memclr4 / __aeabi_memclr8
-    // =========================================================================
 
     // memclr: small
     {
@@ -425,9 +411,7 @@ int main() {
         verify(0, 128, 0x00);
     }
 
-    // =========================================================================
     // Various fill byte values
-    // =========================================================================
 
     // 0x00 (zero fill)
     {
@@ -478,9 +462,7 @@ int main() {
         verify(0, 8, 0xAB);
     }
 
-    // =========================================================================
     // C memset wrapper: return value
-    // =========================================================================
 
     // memset must return dest
     {
@@ -498,10 +480,8 @@ int main() {
         ASSERT_EQ(buf[0], SENTINEL);
     }
 
-    // =========================================================================
     // Sweep: exhaustive sizes 0..68 for each alignment offset 0..3
     // This catches off-by-one errors in every code path.
-    // =========================================================================
     for (std::size_t off = 0; off < 4; ++off) {
         for (std::size_t n = 0; n <= 68; ++n) {
             if (off + n > sizeof(buf)) break;
@@ -519,9 +499,7 @@ int main() {
         }
     }
 
-    // =========================================================================
     // Sweep: memset4 for sizes 0..68 (word-aligned dest)
-    // =========================================================================
     for (std::size_t n = 0; n <= 68; ++n) {
         clear_buf();
         do_set4(buf, n, 0xBE);

@@ -1,25 +1,23 @@
-/**
- * @file keyinput
- * @brief GBA keypad input handling.
- *
- * This header provides a high-level interface for reading and processing GBA button inputs,
- * including edge detection (pressed/released) and axis helpers for D-pad movement.
- *
- * Example:
- * @code{.cpp}
- * gba::keypad keys;
- * keys = gba::reg_keyinput; // Update from hardware
- * if (keys.pressed(gba::key_a)) { }
- * int dx = keys.xaxis(); // -1, 0, or 1
- * @endcode
- *
- * TONCLIB Equivalent:
- * @code{.c}
- * key_poll();
- * if (key_hit(KEY_A)) { }
- * int dx = key_tri_horz();
- * @endcode
- */
+/// @file keyinput
+/// @brief GBA keypad input handling.
+///
+/// This header provides a high-level interface for reading and processing GBA button inputs,
+/// including edge detection (pressed/released) and axis helpers for D-pad movement.
+///
+/// Example:
+/// @code{.cpp}
+/// gba::keypad keys;
+/// keys = gba::reg_keyinput; // Update from hardware
+/// if (keys.pressed(gba::key_a)) { }
+/// int dx = keys.xaxis(); // -1, 0, or 1
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// key_poll();
+/// if (key_hit(KEY_A)) { }
+/// int dx = key_tri_horz();
+/// @endcode
 #pragma once
 
 #include <gba/peripherals>
@@ -28,16 +26,14 @@
 
 namespace gba {
 
-    /**
-     * @brief Key mask type for combining button flags.
-     *
-     * Use the predefined key constants and combine with operator|.
-     *
-     * Example:
-     * @code{.cpp}
-     * auto combo = gba::key_a | gba::key_b;
-     * @endcode
-     */
+    /// @brief Key mask type for combining button flags.
+    ///
+    /// Use the predefined key constants and combine with operator|.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// auto combo = gba::key_a | gba::key_b;
+    /// @endcode
     struct key {
         /// @brief Construct a key mask from a raw bitmask.
         /// @param data The raw key bitmask.
@@ -75,30 +71,28 @@ namespace gba {
     /// @brief Common soft-reset button combination (A+B+Select+Start).
     inline constexpr auto reset_combo = key_a | key_b | key_select | key_start;
 
-    /**
-     * @brief Keypad state tracker with edge detection.
-     *
-     * Tracks current and previous key states to detect pressed/released edges.
-     * Update each frame by assigning the inverted key input register.
-     *
-     * Example:
-     * @code{.cpp}
-     * gba::keypad keys;
-     * // In game loop:
-     * keys = gba::reg_keyinput;
-     * if (keys.pressed(gba::key_a)) { // A just pressed this frame }
-     * if (keys.held(gba::key_b)) { // B is currently held }
-     * if (keys.released(gba::key_start)) { // Start just released }
-     * @endcode
-     *
-     * TONCLIB Equivalent:
-     * @code{.c}
-     * key_poll();
-     * if (key_hit(KEY_A)) { }
-     * if (key_is_down(KEY_B)) { }
-     * if (key_released(KEY_START)) { }
-     * @endcode
-     */
+    /// @brief Keypad state tracker with edge detection.
+    ///
+    /// Tracks current and previous key states to detect pressed/released edges.
+    /// Update each frame by assigning the inverted key input register.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::keypad keys;
+    /// // In game loop:
+    /// keys = gba::reg_keyinput;
+    /// if (keys.pressed(gba::key_a)) { // A just pressed this frame }
+    /// if (keys.held(gba::key_b)) { // B is currently held }
+    /// if (keys.released(gba::key_start)) { // Start just released }
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// key_poll();
+    /// if (key_hit(KEY_A)) { }
+    /// if (key_is_down(KEY_B)) { }
+    /// if (key_released(KEY_START)) { }
+    /// @endcode
     struct keypad {
         /// @brief Update keypad state from hardware.
         /// @param keys The current key state from reg_keyinput (active-low handled internally).
@@ -122,12 +116,12 @@ namespace gba {
             } else {
                 asm volatile (
                     "eor %[data], %[keys]\n" // m_data ^= keys
-#if __thumb__
+                #if __thumb__
                     "lsl %[data], #16\n"     // m_data <<= 16
                     "orr %[data], %[keys]"   // m_data |= keys
-#else
+                #else
                     "orr %[data], %[keys], %[data], lsl #16"   // m_data = keys | (m_data << 16)
-#endif
+                #endif
                     : [data]"+l"(m_data) : [keys]"l"(keys)
                 );
             }
@@ -254,11 +248,11 @@ namespace gba {
         constexpr int xaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 26) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-#else
+            #else
             return (keys >> 1) - keys; // Optimize for code density
-#endif
+            #endif
         }
 
         /// @brief Get vertical axis value from D-pad.
@@ -278,11 +272,11 @@ namespace gba {
         constexpr int yaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 24) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-#else
+            #else
             return (keys >> 1) - keys; // Optimize for code density
-#endif
+            #endif
         }
 
         /// @brief Get inverted horizontal axis value from D-pad.
@@ -296,11 +290,11 @@ namespace gba {
         constexpr int i_xaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 26) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-#else
+            #else
             return keys - (keys >> 1); // Optimize for code density
-#endif
+            #endif
         }
 
         /// @brief Get inverted vertical axis value from D-pad.
@@ -314,11 +308,11 @@ namespace gba {
         constexpr int i_yaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 24) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-#else
+            #else
             return keys - (keys >> 1); // Optimize for code density
-#endif
+            #endif
         }
 
         /// @brief Get shoulder button axis value.
@@ -332,11 +326,11 @@ namespace gba {
         constexpr int lraxis() const noexcept {
             int keys = m_data;
             keys = (keys << 22) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-#else
+            #else
             return (keys >> 1) - keys; // Optimize for code density
-#endif
+            #endif
         }
 
         /// @brief Get inverted shoulder button axis value.
@@ -350,11 +344,11 @@ namespace gba {
         constexpr int i_lraxis() const noexcept {
             int keys = m_data;
             keys = (keys << 22) >> 30; // Sign extend
-#if defined(__thumb__)
+            #if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-#else
+            #else
             return keys - (keys >> 1); // Optimize for code density
-#endif
+            #endif
         }
 
     private:

@@ -1,0 +1,334 @@
+/// @file shapes
+/// @brief Consteval API for generating sprite pixel data with geometric shapes.
+///
+/// This module provides compile-time shape generation for creating simple sprite
+/// graphics. Shapes are rendered into 4bpp (16-color) pixel data, organized by
+/// palette indices using a group-based composition model.
+///
+/// ## Design Philosophy
+/// - **Group-based composition**: Shapes are grouped by palette index for clarity
+/// - **Pure geometry**: Shapes define only structure, not color
+/// - **Bounding-box alignment**: Ovals and rects use top-left + dimensions
+/// - **Center+radius circles**: Circles use float center + radius for alignment control
+/// - **Consteval compilation**: All pixel data generated at compile-time
+/// - **Manual color binding**: User loads colors into palette memory at runtime
+/// - **Named functions**: Simple, readable API with sprite_WxH() functions
+///
+/// ## Quick Start
+///
+/// @code{.cpp}
+/// #include <gba/shapes>
+/// using namespace gba::shapes;
+///
+/// // Define 16x16 sprite geometry
+/// constexpr auto sprite = sprite_16x16(
+///     circle(8.0, 8.0, 4.0),        // palette_idx = 1 (8px circle)
+///     rect(2, 2, 12, 12)            // palette_idx = 2
+/// );
+///
+/// // Load colors into palette memory
+/// gba::pal_obj_bank[0][1] = { .red = 31 };   // red
+/// gba::pal_obj_bank[0][2] = { .green = 31 };  // green
+///
+/// // Copy pixel data to VRAM
+/// std::memcpy(gba::memory_map(gba::mem_vram_obj), sprite.data(), sprite.size());
+///
+/// // Set OAM attributes (shape, size, depth, tile_index pre-filled)
+/// gba::obj_mem[0] = sprite.obj(gba::tile_index(gba::memory_map(gba::mem_vram_obj)));
+/// @endcode
+///
+/// ## Available Sprite Sizes
+///
+/// | Size | Function | Bytes |
+/// |------|----------|-------|
+/// | 8x8 | `sprite_8x8()` | 32 |
+/// | 16x16 | `sprite_16x16()` | 128 |
+/// | 16x32 | `sprite_16x32()` | 256 |
+/// | 32x16 | `sprite_32x16()` | 256 |
+/// | 32x32 | `sprite_32x32()` | 512 |
+/// | 32x64 | `sprite_32x64()` | 1024 |
+/// | 64x32 | `sprite_64x32()` | 1024 |
+/// | 64x64 | `sprite_64x64()` | 2048 |
+///
+/// ## Shape Types
+///
+/// Ovals and rects use bounding-box coordinates (top-left x, y + dimensions).
+/// Circles use center + radius with float args for pixel alignment control.
+///
+/// | Shape | Signature | Example |
+/// |-------|-----------|---------|
+/// | Circle | `circle(cx, cy, r)` | `circle(8.0, 8.0, 4.0)` |
+/// | Oval | `oval(x, y, w, h)` | `oval(2, 4, 12, 8)` |
+/// | Rectangle | `rect(x, y, w, h)` | `rect(2, 4, 12, 6)` |
+/// | Triangle | `triangle(x1, y1, x2, y2, x3, y3)` | `triangle(8, 2, 14, 14, 2, 14)` |
+/// | Line | `line(x1, y1, x2, y2, thickness)` | `line(0, 0, 16, 16, 1)` |
+/// | Circle Outline | `circle_outline(cx, cy, r, thickness)` | `circle_outline(8.0, 8.0, 5.0, 1)` |
+/// | Oval Outline | `oval_outline(x, y, w, h, thickness)` | `oval_outline(2, 2, 12, 12, 2)` |
+/// | Rectangle Outline | `rect_outline(x, y, w, h, thickness)` | `rect_outline(2, 2, 12, 12, 2)` |
+/// | Text | `text(x, y, "string")` | `text(2, 2, "HP:99")` |
+///
+/// ### Circle pixel alignment
+///
+/// The float center and radius determine how the circle aligns to the pixel grid:
+///
+/// @code{.cpp}
+/// circle(8.0, 8.0, 4.0)   // 8px even diameter, center between pixels
+/// circle(8.0, 8.0, 3.5)   // 7px odd diameter, center on pixel 8
+/// oval(4, 4, 8, 8)         // Same 8px circle via bounding box
+/// @endcode
+///
+/// ## Erasing with palette_idx(0)
+///
+/// Palette index 0 is transparent/background. Use it to erase:
+///
+/// @code{.cpp}
+/// constexpr auto sprite = sprite_16x16(
+///     circle(8.0, 8.0, 6.0),        // Filled circle (palette_idx = 1)
+///     palette_idx(0),               // Switch to transparent
+///     circle(8.0, 8.0, 3.0)         // Erase inner circle (palette_idx = 0)
+/// );
+/// @endcode
+///
+/// ## Group-Based Organization
+///
+/// Shapes are organized into groups, where each group is assigned a palette index:
+///
+/// @code{.cpp}
+/// constexpr auto sprite = sprite_16x16(
+///     group(circle(8.0, 8.0, 3.0), line(0, 0, 16, 16)),  // Both in palette 1
+///     group(rect(0, 0, 16, 16)),                          // Palette 2
+///     group(),                                            // Palette 3 (reserved)
+///     palette_idx(5),                                     // Override to palette 5
+///     group(triangle(2, 2, 14, 14, 8, 2))                 // Palette 5
+/// );
+/// @endcode
+///
+/// **Key Points:**
+/// - Palette indices auto-increment starting from 1
+/// - Empty groups `group()` reserve a palette index but draw nothing
+/// - `palette_idx(N)` command skips to specific palette index
+/// - `palette_idx(0)` makes shapes transparent (erases)
+/// - Index 0 is always transparent (reserved)
+/// - Palette colors are loaded separately at runtime
+///
+/// ## Output Format
+///
+/// The sprite functions return a `sprite_data` structure:
+///
+/// @code{.cpp}
+/// struct sprite_data<W, H> {
+///     static constexpr int tile_count;                    // 4bpp tiles in this sprite
+///
+///     static constexpr gba::object obj(tile_idx);         // Regular object attributes
+///     static constexpr gba::object_affine obj_aff(tile_idx);// Affine object attributes
+///
+///     const u8* data() const;             // Pointer to pixel data
+///     static constexpr std::size_t size();// Byte count of pixel data
+/// };
+/// @endcode
+///
+/// @see gba::video for palette and VRAM access
+/// @see gba/bits/shapes_impl.hpp for implementation details (internal)
+#pragma once
+
+#include "bits/shapes_impl.hpp"
+
+namespace gba::shapes {
+
+    /// @brief Create a filled oval inscribed in a bounding box.
+    /// @param x Top-left X coordinate
+    /// @param y Top-left Y coordinate
+    /// @param w Bounding box width in pixels
+    /// @param h Bounding box height in pixels
+    constexpr auto oval(int x, int y, int w, int h) {
+        return oval_cmd{x, y, w, h};
+    }
+
+    /// @brief Create a filled circle from center and radius.
+    ///
+    /// Uses floating-point arguments to determine pixel alignment:
+    /// - Even diameter (e.g. r=4.0): circle straddles pixel boundaries
+    /// - Odd diameter (e.g. r=3.5): circle centers on a pixel
+    ///
+    /// @param cx Center X coordinate
+    /// @param cy Center Y coordinate
+    /// @param r Radius
+    ///
+    /// For bounding-box circles, use `oval(x, y, d, d)` instead.
+    constexpr auto circle(double cx, double cy, double r) {
+        int x = bits::floor_to_int(cx - r);
+        int y = bits::floor_to_int(cy - r);
+        int x2 = bits::floor_to_int(cx + r);
+        int y2 = bits::floor_to_int(cy + r);
+        return oval_cmd{x, y, x2 - x, y2 - y};
+    }
+
+    /// @brief Create a rectangle shape.
+    /// @param x Top-left X coordinate
+    /// @param y Top-left Y coordinate
+    /// @param width Rectangle width in pixels
+    /// @param height Rectangle height in pixels
+    constexpr auto rect(int x, int y, int width, int height) {
+        return rect_cmd{x, y, width, height};
+    }
+
+    /// @brief Create a triangle shape.
+    /// @param x1 First vertex X
+    /// @param y1 First vertex Y
+    /// @param x2 Second vertex X
+    /// @param y2 Second vertex Y
+    /// @param x3 Third vertex X
+    /// @param y3 Third vertex Y
+    constexpr auto triangle(int x1, int y1, int x2, int y2, int x3, int y3) {
+        return triangle_cmd{x1, y1, x2, y2, x3, y3};
+    }
+
+    /// @brief Create a line shape.
+    /// @param x1 Start X coordinate
+    /// @param y1 Start Y coordinate
+    /// @param x2 End X coordinate
+    /// @param y2 End Y coordinate
+    /// @param thickness Line thickness in pixels (default 1)
+    constexpr auto line(int x1, int y1, int x2, int y2, int thickness = 1) {
+        return line_cmd{x1, y1, x2, y2, thickness};
+    }
+
+    /// @brief Create an oval outline inscribed in a bounding box.
+    /// @param x Top-left X coordinate
+    /// @param y Top-left Y coordinate
+    /// @param w Bounding box width in pixels
+    /// @param h Bounding box height in pixels
+    /// @param thickness Line thickness in pixels
+    constexpr auto oval_outline(int x, int y, int w, int h, int thickness = 1) {
+        return oval_outline_cmd{x, y, w, h, thickness};
+    }
+
+    /// @brief Create a circle outline from center and radius.
+    ///
+    /// Uses floating-point arguments to determine pixel alignment.
+    ///
+    /// @param cx Center X coordinate
+    /// @param cy Center Y coordinate
+    /// @param r Radius
+    /// @param thickness Line thickness in pixels
+    ///
+    /// For bounding-box circle outlines, use `oval_outline(x, y, d, d, t)` instead.
+    constexpr auto circle_outline(double cx, double cy, double r, int thickness = 1) {
+        int x = bits::floor_to_int(cx - r);
+        int y = bits::floor_to_int(cy - r);
+        int x2 = bits::floor_to_int(cx + r);
+        int y2 = bits::floor_to_int(cy + r);
+        return oval_outline_cmd{x, y, x2 - x, y2 - y, thickness};
+    }
+
+    /// @brief Create a rectangle outline (hollow rectangle).
+    /// @param x Top-left X coordinate
+    /// @param y Top-left Y coordinate
+    /// @param width Rectangle width
+    /// @param height Rectangle height
+    /// @param thickness Line thickness in pixels
+    constexpr auto rect_outline(int x, int y, int width, int height, int thickness = 1) {
+        return rect_outline_cmd{x, y, width, height, thickness};
+    }
+
+    /// @brief Create text at specified position using 3x5 font.
+    /// @param x Top-left X coordinate
+    /// @param y Top-left Y coordinate
+    /// @param str Text string (ASCII 32-127)
+    /// @note Each character is 3 pixels wide, 5 pixels tall
+    constexpr auto text(int x, int y, const char* str) {
+        return text_cmd{x, y, str};
+    }
+
+    /// @brief Set the palette index for the next group.
+    /// @param idx Palette index (0-15, where 0 is transparent)
+    /// @note Use palette_idx(0) to erase shapes (make transparent)
+    constexpr auto palette_idx(int idx) {
+        return palette_idx_cmd{idx};
+    }
+
+    /// @brief Create an empty group (reserves palette index, no shapes).
+    constexpr auto group() {
+        return group_cmd<group_end_marker>(group_end_marker{});
+    }
+
+    /// @brief Create a group with shapes under one palette index.
+    /// @param shapes Shapes to group together (drawn in order)
+    template<typename... Shapes>
+    constexpr auto group(Shapes&&... shapes) {
+        return group_cmd<Shapes...>(std::forward<Shapes>(shapes)...);
+    }
+
+    /// @brief Compile an 8x8 sprite.
+    template<typename... Items>
+    constexpr auto sprite_8x8(Items&&... items) {
+        return compile_sprite<8, 8>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 16x16 sprite.
+    template<typename... Items>
+    constexpr auto sprite_16x16(Items&&... items) {
+        return compile_sprite<16, 16>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 32x32 sprite.
+    template<typename... Items>
+    constexpr auto sprite_32x32(Items&&... items) {
+        return compile_sprite<32, 32>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 64x64 sprite.
+    template<typename... Items>
+    constexpr auto sprite_64x64(Items&&... items) {
+        return compile_sprite<64, 64>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 16x8 sprite.
+    template<typename... Items>
+    constexpr auto sprite_16x8(Items&&... items) {
+        return compile_sprite<16, 8>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 32x8 sprite.
+    template<typename... Items>
+    constexpr auto sprite_32x8(Items&&... items) {
+        return compile_sprite<32, 8>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 32x16 sprite.
+    template<typename... Items>
+    constexpr auto sprite_32x16(Items&&... items) {
+        return compile_sprite<32, 16>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 64x32 sprite.
+    template<typename... Items>
+    constexpr auto sprite_64x32(Items&&... items) {
+        return compile_sprite<64, 32>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile an 8x16 sprite.
+    template<typename... Items>
+    constexpr auto sprite_8x16(Items&&... items) {
+        return compile_sprite<8, 16>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile an 8x32 sprite.
+    template<typename... Items>
+    constexpr auto sprite_8x32(Items&&... items) {
+        return compile_sprite<8, 32>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 16x32 sprite.
+    template<typename... Items>
+    constexpr auto sprite_16x32(Items&&... items) {
+        return compile_sprite<16, 32>(std::forward<Items>(items)...);
+    }
+
+    /// @brief Compile a 32x64 sprite.
+    template<typename... Items>
+    constexpr auto sprite_32x64(Items&&... items) {
+        return compile_sprite<32, 64>(std::forward<Items>(items)...);
+    }
+
+} // namespace gba::shapes

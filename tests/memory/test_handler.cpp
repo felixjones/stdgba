@@ -1,11 +1,9 @@
-/**
- * @file tests/memory/test_handler.cpp
- * @brief Unit tests for handler type.
- */
+/// @file tests/memory/test_handler.cpp
+/// @brief Unit tests for handler type.
 
 #include <gba/bits/handler.hpp>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 namespace {
     int global_call_count = 0;

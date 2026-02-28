@@ -1,10 +1,8 @@
-/**
- * @file tests/bench/test_bench_string.cpp
- * @brief Benchmarks for ROM Thumb string functions vs newlib.
- *
- * Uses volatile function pointers to prevent inlining and ensure we
- * measure the actual assembly implementation.
- */
+/// @file tests/bench/test_bench_string.cpp
+/// @brief Benchmarks for ROM Thumb string functions vs newlib.
+///
+/// Uses volatile function pointers to prevent inlining and ensure we
+/// measure the actual assembly implementation.
 
 #include <cstring>
 #include <cstdint>

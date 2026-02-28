@@ -1,23 +1,21 @@
-/**
- * @file tests/memory/test_memcpy.cpp
- * @brief Unit tests for optimized memcpy implementation.
- *
- * Tests every code path in memcpy.s:
- *   - Byte early-out (n <= 3)
- *   - Alignment check dispatch (word / halfword / byte)
- *   - Word alignment fixup (all 4 offsets: 0, 1, 2, 3)
- *   - Bulk 32-byte ldm/stm loop (exact, +1, +2, +3 remainder)
- *   - Word loop (various counts)
- *   - Joaobapt byte/half tail (tail = 0, 1, 2, 3)
- *   - Halfword path (with/without byte fixup, with/without trailing byte)
- *   - Byte fallback (unresolvable misalignment, various sizes)
- *   - __aeabi_memcpy4 / __aeabi_memcpy8 direct entry
- *   - C memcpy return value
- */
+/// @file tests/memory/test_memcpy.cpp
+/// @brief Unit tests for optimized memcpy implementation.
+///
+/// Tests every code path in memcpy.s:
+/// - Byte early-out (n <= 3)
+/// - Alignment check dispatch (word / halfword / byte)
+/// - Word alignment fixup (all 4 offsets: 0, 1, 2, 3)
+/// - Bulk 32-byte ldm/stm loop (exact, +1, +2, +3 remainder)
+/// - Word loop (various counts)
+/// - Joaobapt byte/half tail (tail = 0, 1, 2, 3)
+/// - Halfword path (with/without byte fixup, with/without trailing byte)
+/// - Byte fallback (unresolvable misalignment, various sizes)
+/// - __aeabi_memcpy4 / __aeabi_memcpy8 direct entry
+/// - C memcpy return value
 
 #include <cstring>
 
-#include "../mgba_test.hpp"
+#include <mgba_test.hpp>
 
 // Prevent compiler from replacing memcpy calls with builtins
 static void* (*volatile memcpy_fn)(void*, const void*, std::size_t) = &std::memcpy;
@@ -79,10 +77,8 @@ void do_copy8(void* d, const void* s, std::size_t n) {
 int main() {
     fill_src();
 
-    // =======================================================================
     // Byte early-out path (n <= 3)
     // Exercises: cmp r2, #3; ble .Lcopy_bytes
-    // =======================================================================
 
     // n=0: no bytes copied
     {
@@ -113,10 +109,8 @@ int main() {
         verify(0, 0, 3);
     }
 
-    // =======================================================================
     // Word-promotable path, already word-aligned (fixup offset = 0)
     // Exercises: alignment check -> rsbs/movs (no fixup) -> word/bulk
-    // =======================================================================
 
     // n=4: single word via word loop (the key GCC implicit copy size)
     {
@@ -188,10 +182,8 @@ int main() {
         verify(0, 0, 28);
     }
 
-    // =======================================================================
     // Bulk path (n >= 32), all joaobapt tail variants
     // Exercises: push/ldmia/stmia/pop loop + word tail + byte/half tail
-    // =======================================================================
 
     // 32 bytes: 1 bulk iteration, tail=0 (exact, bxeq lr after pop)
     {
@@ -256,10 +248,8 @@ int main() {
         verify(0, 0, 256);
     }
 
-    // =======================================================================
     // Word alignment fixup: all 4 offsets
     // Exercises: rsbs r3, r0, #4; movs r3, r3, lsl #31 with each bit combo
-    // =======================================================================
 
     // offset=1 (need fixup: 1 byte mi + 2 bytes cs = 3 bytes)
     {
@@ -317,10 +307,8 @@ int main() {
         verify(3, 3, 100);
     }
 
-    // =======================================================================
     // Halfword path (XOR bit 1 set, bit 0 clear)
     // Exercises: .Lcopy_halves_entry -> halfword loop -> trailing byte
-    // =======================================================================
 
     // dst word-aligned, src+2: no byte fixup at entry, even n (no trailing)
     {
@@ -387,10 +375,8 @@ int main() {
         verify(0, 2, 128);
     }
 
-    // =======================================================================
     // Byte fallback (XOR bit 0 set = unresolvable misalignment)
     // Exercises: alignment check -> .Lcopy_bytes for n > 3
-    // =======================================================================
 
     // dst+1, src+0: XOR bit 0 set, n=4 (just above byte early-out)
     {
@@ -434,10 +420,8 @@ int main() {
         verify(3, 0, 16);
     }
 
-    // =======================================================================
     // __aeabi_memcpy4 direct entry
     // Exercises: word-aligned fast path, no alignment preamble
-    // =======================================================================
 
     // 0 bytes (edge: cmp #32 blt, cmp #4 blt, tail movs with r2=0)
     {
@@ -516,9 +500,7 @@ int main() {
         verify(0, 0, 128);
     }
 
-    // =======================================================================
     // __aeabi_memcpy8 direct entry
-    // =======================================================================
 
     // 8 bytes
     {
@@ -541,9 +523,7 @@ int main() {
         verify(0, 0, 37);
     }
 
-    // =======================================================================
     // C memcpy return value
-    // =======================================================================
 
     {
         clear_dst();
@@ -559,9 +539,7 @@ int main() {
         verify(4, 0, 64);
     }
 
-    // =======================================================================
     // Data pattern stress: all-zero and alternating source
-    // =======================================================================
 
     // All-zero source
     {
@@ -587,9 +565,7 @@ int main() {
         fill_src();
     }
 
-    // =======================================================================
     // Adjacent non-overlapping buffers
-    // =======================================================================
 
     {
         fill_src();
@@ -601,10 +577,8 @@ int main() {
         }
     }
 
-    // =======================================================================
     // Sweep: every size 0..64, word-aligned
     // Catches off-by-one across all path transitions (3->4, 31->32)
-    // =======================================================================
 
     for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
@@ -617,9 +591,7 @@ int main() {
         }
     }
 
-    // =======================================================================
     // Sweep: every size 0..64, offset +1 (word fixup path)
-    // =======================================================================
 
     for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
@@ -633,9 +605,7 @@ int main() {
         }
     }
 
-    // =======================================================================
     // Sweep: every size 0..64, odd misalignment (byte path for n > 3)
-    // =======================================================================
 
     for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
