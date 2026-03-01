@@ -39,10 +39,6 @@
 /// // Or with DMA
 /// gba::reg_dma[3] = gba::dma::copy(ov.rom, ov.wram, ov.bytes / 4);
 /// @endcode
-///
-/// @par tonclib equivalent
-/// There is no direct tonclib equivalent. Overlay loading requires manual
-/// copying from ROM to RAM, typically using CpuSet or CpuFastSet.
 #pragma once
 
 #include <cstdint>
@@ -64,30 +60,30 @@ namespace gba::overlay {
 
     namespace bits {
         extern "C" {
-            extern const char __load_start_ewram0[], __load_stop_ewram0[];
-            extern const char __load_start_ewram1[], __load_stop_ewram1[];
-            extern const char __load_start_ewram2[], __load_stop_ewram2[];
-            extern const char __load_start_ewram3[], __load_stop_ewram3[];
-            extern const char __load_start_ewram4[], __load_stop_ewram4[];
-            extern const char __load_start_ewram5[], __load_stop_ewram5[];
-            extern const char __load_start_ewram6[], __load_stop_ewram6[];
-            extern const char __load_start_ewram7[], __load_stop_ewram7[];
-            extern const char __load_start_ewram8[], __load_stop_ewram8[];
-            extern const char __load_start_ewram9[], __load_stop_ewram9[];
+        extern const char __load_start_ewram0[], __load_stop_ewram0[];
+        extern const char __load_start_ewram1[], __load_stop_ewram1[];
+        extern const char __load_start_ewram2[], __load_stop_ewram2[];
+        extern const char __load_start_ewram3[], __load_stop_ewram3[];
+        extern const char __load_start_ewram4[], __load_stop_ewram4[];
+        extern const char __load_start_ewram5[], __load_stop_ewram5[];
+        extern const char __load_start_ewram6[], __load_stop_ewram6[];
+        extern const char __load_start_ewram7[], __load_stop_ewram7[];
+        extern const char __load_start_ewram8[], __load_stop_ewram8[];
+        extern const char __load_start_ewram9[], __load_stop_ewram9[];
 
-            extern const char __load_start_iwram0[], __load_stop_iwram0[];
-            extern const char __load_start_iwram1[], __load_stop_iwram1[];
-            extern const char __load_start_iwram2[], __load_stop_iwram2[];
-            extern const char __load_start_iwram3[], __load_stop_iwram3[];
-            extern const char __load_start_iwram4[], __load_stop_iwram4[];
-            extern const char __load_start_iwram5[], __load_stop_iwram5[];
-            extern const char __load_start_iwram6[], __load_stop_iwram6[];
-            extern const char __load_start_iwram7[], __load_stop_iwram7[];
-            extern const char __load_start_iwram8[], __load_stop_iwram8[];
-            extern const char __load_start_iwram9[], __load_stop_iwram9[];
+        extern const char __load_start_iwram0[], __load_stop_iwram0[];
+        extern const char __load_start_iwram1[], __load_stop_iwram1[];
+        extern const char __load_start_iwram2[], __load_stop_iwram2[];
+        extern const char __load_start_iwram3[], __load_stop_iwram3[];
+        extern const char __load_start_iwram4[], __load_stop_iwram4[];
+        extern const char __load_start_iwram5[], __load_stop_iwram5[];
+        extern const char __load_start_iwram6[], __load_stop_iwram6[];
+        extern const char __load_start_iwram7[], __load_stop_iwram7[];
+        extern const char __load_start_iwram8[], __load_stop_iwram8[];
+        extern const char __load_start_iwram9[], __load_stop_iwram9[];
 
-            extern char __ewram_overlay_start[];
-            extern char __iwram_overlay_start[];
+        extern char __ewram_overlay_start[];
+        extern char __iwram_overlay_start[];
         }
     } // namespace bits
 
@@ -102,7 +98,8 @@ namespace gba::overlay {
     /// auto ov = gba::overlay::ewram<0>;
     /// std::memcpy(ov.wram, ov.rom, ov.bytes);
     /// @endcode
-    template<int N> requires (N >= 0 && N <= 9)
+    template<int N>
+        requires(N >= 0 && N <= 9)
     inline const section ewram{};
 
     /// IWRAM overlay section variable template.
@@ -118,16 +115,15 @@ namespace gba::overlay {
     /// auto ov = gba::overlay::iwram<0>;
     /// std::memcpy(ov.wram, ov.rom, ov.bytes);
     /// @endcode
-    template<int N> requires (N >= 0 && N <= 9)
+    template<int N>
+        requires(N >= 0 && N <= 9)
     inline const section iwram{};
 
-    #define GBA_DETAIL_EWRAM_(n) \
-    template<> \
-    inline const section ewram<n> = { \
-        bits::__load_start_ewram##n, \
-        bits::__ewram_overlay_start, \
-        static_cast<unsigned int>(bits::__load_stop_ewram##n - bits::__load_start_ewram##n) \
-    };
+#define GBA_DETAIL_EWRAM_(n)                                                                   \
+    template<>                                                                                 \
+    inline const section ewram<n> = {bits::__load_start_ewram##n, bits::__ewram_overlay_start, \
+                                     static_cast<unsigned int>(bits::__load_stop_ewram##n -    \
+                                                               bits::__load_start_ewram##n)};
 
     GBA_DETAIL_EWRAM_(0)
     GBA_DETAIL_EWRAM_(1)
@@ -140,15 +136,13 @@ namespace gba::overlay {
     GBA_DETAIL_EWRAM_(8)
     GBA_DETAIL_EWRAM_(9)
 
-    #undef GBA_DETAIL_EWRAM_
+#undef GBA_DETAIL_EWRAM_
 
-    #define GBA_DETAIL_IWRAM_(n) \
-    template<> \
-    inline const section iwram<n> = { \
-        bits::__load_start_iwram##n, \
-        bits::__iwram_overlay_start, \
-        static_cast<unsigned int>(bits::__load_stop_iwram##n - bits::__load_start_iwram##n) \
-    };
+#define GBA_DETAIL_IWRAM_(n)                                                                   \
+    template<>                                                                                 \
+    inline const section iwram<n> = {bits::__load_start_iwram##n, bits::__iwram_overlay_start, \
+                                     static_cast<unsigned int>(bits::__load_stop_iwram##n -    \
+                                                               bits::__load_start_iwram##n)};
 
     GBA_DETAIL_IWRAM_(0)
     GBA_DETAIL_IWRAM_(1)
@@ -161,6 +155,6 @@ namespace gba::overlay {
     GBA_DETAIL_IWRAM_(8)
     GBA_DETAIL_IWRAM_(9)
 
-    #undef GBA_DETAIL_IWRAM_
+#undef GBA_DETAIL_IWRAM_
 
 } // namespace gba::overlay

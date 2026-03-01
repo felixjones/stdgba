@@ -2,15 +2,15 @@
 
 The GBA has 6 video modes (0-5), split into two categories:
 
-- **Tile modes (0-2)** -- the display is built from 8x8 pixel tiles arranged on background layers
-- **Bitmap modes (3-5)** -- the display is a framebuffer you write pixels to directly
+- **Tile modes (0-2)** - the display is built from 8x8 pixel tiles arranged on background layers
+- **Bitmap modes (3-5)** - the display is a framebuffer you write pixels to directly
 
 ## Setting the video mode
 
 ```cpp
 #include <gba/peripherals>
 
-// Mode 3: 240x160 bitmap, 15-bit color, 1 layer
+// Mode 3: 240x160 bitmap, 15-bit colour, 1 layer
 gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
 
 // Mode 0: 4 tile backgrounds, no rotation
@@ -23,7 +23,7 @@ gba::reg_dispcnt = {
 
 ## Mode summary
 
-| Mode | Type | BG layers | Resolution | Colors |
+| Mode | Type | BG layers | Resolution | Colours |
 |------|------|-----------|------------|--------|
 | 0 | Tile | BG0-BG3 (all regular) | Up to 512x512 | 4bpp or 8bpp |
 | 1 | Tile | BG0-BG1 regular, BG2 affine | Up to 1024x1024 | 4bpp/8bpp + 8bpp |
@@ -34,14 +34,13 @@ gba::reg_dispcnt = {
 
 ## Mode 3: the simplest mode
 
-Mode 3 is a raw 240x160 framebuffer at `0x06000000`. Each pixel is a 15-bit color:
+Mode 3 is a raw 240x160 framebuffer at `0x06000000`. Each pixel is a 15-bit colour:
 
 ```cpp
-gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
-
-// Write a red pixel at (120, 80)
-gba::mem_vram[120 + 80 * 240] = 0x001F;
+{{#include ../../demos/demo_mode3_pixel.cpp:4:}}
 ```
+
+![Mode 3 pixels](../img/mode3_pixel.png)
 
 This is the easiest mode to learn with, but it uses the most VRAM (75 KB of the available 96 KB), leaving little room for sprites or other data.
 

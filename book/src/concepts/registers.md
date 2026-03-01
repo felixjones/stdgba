@@ -28,8 +28,25 @@ gba::reg_dispcnt |= { .enable_obj = true };
 gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
 
 // Compiles to the same code as:
-*(volatile unsigned short*)0x4000000 = 0x0403;
+*gba::memory_map(gba::reg_dispcnt) = 0x0403;
 ```
+
+## The `memory_map()` helper
+
+When you need a raw pointer (for DMA, memcpy, pointer arithmetic, or interop), use `gba::memory_map(...)` instead of hard-coded addresses.
+
+```cpp
+#include <gba/peripherals>
+#include <gba/video>
+
+// Register pointer
+auto* dispcnt = gba::memory_map(gba::reg_dispcnt);
+
+// VRAM pointer (BG tile/map region)
+auto* vram_bg = gba::memory_map(gba::mem_vram_bg);
+```
+
+This keeps code tied to named hardware mappings while still compiling to direct memory access.
 
 ### Read-only and write-only registers
 
@@ -76,7 +93,7 @@ You write self-documenting code:
 // stdgba: every field is named
 gba::reg_dispcnt = {
     .video_mode = 0,
-    .obj_mapping_1d = true,
+    .linear_obj_tilemap = true,
     .enable_bg0 = true,
     .enable_bg1 = true,
     .enable_obj = true,

@@ -1,6 +1,8 @@
 # Sprites (Objects)
 
-The GBA calls sprites "objects" (OBJ). Up to 128 sprites can be displayed simultaneously, each with independent position, size, palette, flipping, and priority. The hardware composites sprites automatically -- no CPU time required during rendering.
+The GBA calls sprites "objects" (OBJ). Up to 128 sprites can be displayed simultaneously, each with independent position, size, palette, flipping, and priority. The hardware composites sprites automatically.
+
+For field-by-field API details, see [`gba::object`](../reference/object.md) and [`gba::object_affine`](../reference/object-affine.md).
 
 ## OAM (Object Attribute Memory)
 
@@ -31,21 +33,21 @@ Sprites can be various sizes by combining shape and size fields:
 
 ## Sprite tile data
 
-Sprite tiles live in the lower portion of VRAM (starting at `0x06010000` in tile modes). Like background tiles, they can be 4bpp (16 colors) or 8bpp (256 colors) and use the object palette (`mem_pal_obj`).
+Sprite tiles live in the lower portion of VRAM (starting at `0x06010000` in tile modes). Like background tiles, they can be 4bpp (16 colours) or 8bpp (256 colours) and use the object palette (`mem_pal_obj`).
 
 ## 1D vs 2D mapping
 
-The `.obj_mapping_1d` field in `reg_dispcnt` controls how multi-tile sprites index their tile data:
+The `.linear_obj_tilemap` field in `reg_dispcnt` controls how multi-tile sprites index their tile data:
 
-- **1D mapping:** tiles are laid out sequentially in memory. A 16x16 sprite (4 tiles) uses tiles N, N+1, N+2, N+3.
-- **2D mapping:** tiles are laid out in a 32-tile-wide grid. A 16x16 sprite uses tiles at grid positions.
+- **1D mapping (`linear_obj_tilemap = true`):** tiles are laid out sequentially in memory. A 16x16 sprite (4 tiles) uses tiles N, N+1, N+2, N+3.
+- **2D mapping (`linear_obj_tilemap = false`):** tiles are laid out in a 32-tile-wide grid. A 16x16 sprite uses tiles at grid positions.
 
-Most games use 1D mapping -- it is simpler and wastes less VRAM:
+Most games use 1D mapping - it is simpler and wastes less VRAM:
 
 ```cpp
 gba::reg_dispcnt = {
     .video_mode = 0,
-    .obj_mapping_1d = true,
+    .linear_obj_tilemap = true,
     .enable_bg0 = true,
     .enable_obj = true,
 };
@@ -53,10 +55,17 @@ gba::reg_dispcnt = {
 
 ## Hiding a sprite
 
-Set the object mode to "hidden" to remove a sprite from the display without deleting its data:
+Set the object disable flag to remove a sprite from the display without deleting its data:
 
 ```cpp
-gba::obj_mem[0] = { .obj_mode = 2 }; // 2 = hidden
+gba::obj_mem[0] = { .disable = true };
+```
+
+Iterators and ranges can also be used to hide multiple sprites at once:
+
+```cpp
+// Hides all sprites
+std::ranges::fill(gba::obj_mem, gba::object{ .disable = true });
 ```
 
 ## tonclib comparison

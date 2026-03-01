@@ -42,9 +42,7 @@ namespace gba {
         /// @brief Combine two key masks.
         /// @param rhs The other key mask.
         /// @return Combined key mask.
-        constexpr key operator|(const key rhs) const noexcept {
-            return key{m_data | rhs.m_data};
-        }
+        constexpr key operator|(const key rhs) const noexcept { return key{m_data | rhs.m_data}; }
 
         /// @brief Combine with another key mask in-place.
         /// @param rhs The other key mask.
@@ -53,6 +51,7 @@ namespace gba {
             m_data |= rhs.m_data;
             return *this;
         }
+
     private:
         int m_data;
     };
@@ -111,25 +110,25 @@ namespace gba {
             if consteval {
                 const auto data = __builtin_bit_cast(short, keys);
                 m_data ^= data; // Calculate difference with previous keys
-                m_data <<= 16; // Shift into hi-half (mask)
+                m_data <<= 16;  // Shift into hi-half (mask)
                 m_data |= data; // Lo-half is current keys
             } else {
-                asm volatile (
-                    "eor %[data], %[keys]\n" // m_data ^= keys
-                #if __thumb__
-                    "lsl %[data], #16\n"     // m_data <<= 16
-                    "orr %[data], %[keys]"   // m_data |= keys
-                #else
-                    "orr %[data], %[keys], %[data], lsl #16"   // m_data = keys | (m_data << 16)
-                #endif
-                    : [data]"+l"(m_data) : [keys]"l"(keys)
-                );
+                asm volatile("eor %[data], %[keys]\n" // m_data ^= keys
+#if __thumb__
+                             "lsl %[data], #16\n"   // m_data <<= 16
+                             "orr %[data], %[keys]" // m_data |= keys
+#else
+                             "orr %[data], %[keys], %[data], lsl #16" // m_data = keys | (m_data << 16)
+#endif
+                             : [data] "+l"(m_data)
+                             : [keys] "l"(keys));
             }
             return *this;
         }
 
         /// @brief Check if keys were just pressed this frame.
-        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or,
+        /// std::logical_not).
         /// @param keys The key(s) to check.
         /// @return True if the condition is met.
         ///
@@ -143,7 +142,8 @@ namespace gba {
         /// @code{.c}
         /// if (key_hit(KEY_A)) { }
         /// @endcode
-        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
+        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys>
+            requires(std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool pressed(Keys... keys) const noexcept {
             const auto actual = m_data >> 16;
@@ -165,7 +165,8 @@ namespace gba {
         }
 
         /// @brief Check if keys were just released this frame.
-        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or,
+        /// std::logical_not).
         /// @param keys The key(s) to check.
         /// @return True if the condition is met.
         ///
@@ -178,7 +179,8 @@ namespace gba {
         /// @code{.c}
         /// if (key_released(KEY_A)) { }
         /// @endcode
-        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
+        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys>
+            requires(std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool released(Keys... keys) const noexcept {
             const auto actual = m_data >> 16;
@@ -200,7 +202,8 @@ namespace gba {
         }
 
         /// @brief Check if keys are currently held down.
-        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or, std::logical_not).
+        /// @tparam LogicalOp Logical operation for combining keys (std::logical_and, std::logical_or,
+        /// std::logical_not).
         /// @param keys The key(s) to check.
         /// @return True if the condition is met.
         ///
@@ -214,7 +217,8 @@ namespace gba {
         /// @code{.c}
         /// if (key_is_down(KEY_A)) { }
         /// @endcode
-        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys> requires (std::same_as<key, Keys> && ...)
+        template<template<typename> typename LogicalOp = std::logical_and, typename... Keys>
+            requires(std::same_as<key, Keys> && ...)
         [[nodiscard]]
         constexpr bool held(Keys... keys) const noexcept {
             const auto expected = (... | __builtin_bit_cast(int, keys));
@@ -248,15 +252,15 @@ namespace gba {
         constexpr int xaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 26) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-            #else
+#else
             return (keys >> 1) - keys; // Optimize for code density
-            #endif
+#endif
         }
 
         /// @brief Get vertical axis value from D-pad.
-        /// @return -1 (up), 0 (none), or 1 (down).
+        /// @return -1 (down), 0 (none), or 1 (up).
         ///
         /// Example:
         /// @code{.cpp}
@@ -272,11 +276,11 @@ namespace gba {
         constexpr int yaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 24) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-            #else
+#else
             return (keys >> 1) - keys; // Optimize for code density
-            #endif
+#endif
         }
 
         /// @brief Get inverted horizontal axis value from D-pad.
@@ -290,15 +294,15 @@ namespace gba {
         constexpr int i_xaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 26) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-            #else
+#else
             return keys - (keys >> 1); // Optimize for code density
-            #endif
+#endif
         }
 
         /// @brief Get inverted vertical axis value from D-pad.
-        /// @return -1 (down), 0 (none), or 1 (up).
+        /// @return -1 (up), 0 (none), or 1 (down).
         ///
         /// Example:
         /// @code{.cpp}
@@ -308,11 +312,11 @@ namespace gba {
         constexpr int i_yaxis() const noexcept {
             int keys = m_data;
             keys = (keys << 24) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-            #else
+#else
             return keys - (keys >> 1); // Optimize for code density
-            #endif
+#endif
         }
 
         /// @brief Get shoulder button axis value.
@@ -326,11 +330,11 @@ namespace gba {
         constexpr int lraxis() const noexcept {
             int keys = m_data;
             keys = (keys << 22) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (0 - keys) >> 1; // Optimize for register pressure
-            #else
+#else
             return (keys >> 1) - keys; // Optimize for code density
-            #endif
+#endif
         }
 
         /// @brief Get inverted shoulder button axis value.
@@ -344,15 +348,15 @@ namespace gba {
         constexpr int i_lraxis() const noexcept {
             int keys = m_data;
             keys = (keys << 22) >> 30; // Sign extend
-            #if defined(__thumb__)
+#if defined(__thumb__)
             return (keys + 1) >> 1; // Optimize for register pressure
-            #else
+#else
             return keys - (keys >> 1); // Optimize for code density
-            #endif
+#endif
         }
 
     private:
         int m_data{0x3ff};
     };
 
-}
+} // namespace gba

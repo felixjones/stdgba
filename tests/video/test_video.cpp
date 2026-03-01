@@ -43,23 +43,23 @@ int main() {
         ASSERT_EQ(raw, 31 << 10); // bits 10-14
     }
 
-    // color: white (all channels max, no green_lo)
+    // color: white (all channels max, no grn_lo)
     {
         constexpr gba::color white = {.red = 31, .green = 31, .blue = 31};
         auto raw = __builtin_bit_cast(unsigned short, white);
         ASSERT_EQ(raw, 0x7FFF);
     }
 
-    // color: green_lo bit at position 15
+    // color: grn_lo bit at position 15
     {
-        constexpr gba::color g_lo = {.green_lo = 1};
+        constexpr gba::color g_lo = {.grn_lo = 1};
         auto raw = __builtin_bit_cast(unsigned short, g_lo);
         ASSERT_EQ(raw, 0x8000u);
     }
 
-    // color: full green (5-bit high + low bit)
+    // color: full green (5-bit + grn_lo)
     {
-        constexpr gba::color bright_green = {.green = 31, .green_lo = 1};
+        constexpr gba::color bright_green = {.green = 31, .grn_lo = 1};
         auto raw = __builtin_bit_cast(unsigned short, bright_green);
         ASSERT_EQ(raw, static_cast<unsigned short>((31 << 5) | 0x8000));
     }
@@ -73,13 +73,14 @@ int main() {
         ASSERT_EQ(red.blue, 0u);
     }
 
-    // _clr literal: pure green
+    // _clr literal: pure green (0xFF >> 2 & 1 = 1, so grn_lo is set)
     {
         using namespace gba;
         constexpr auto green = "#00FF00"_clr;
         ASSERT_EQ(green.red, 0u);
         ASSERT_EQ(green.green, 31u);
         ASSERT_EQ(green.blue, 0u);
+        ASSERT_EQ(green.grn_lo, 1u);
     }
 
     // _clr literal: pure blue
@@ -89,15 +90,17 @@ int main() {
         ASSERT_EQ(blue.red, 0u);
         ASSERT_EQ(blue.green, 0u);
         ASSERT_EQ(blue.blue, 31u);
+        ASSERT_EQ(blue.grn_lo, 0u);
     }
 
-    // _clr literal: white
+    // _clr literal: white (0xFF >> 2 & 1 = 1, so grn_lo is set)
     {
         using namespace gba;
         constexpr auto white = "#FFFFFF"_clr;
         ASSERT_EQ(white.red, 31u);
         ASSERT_EQ(white.green, 31u);
         ASSERT_EQ(white.blue, 31u);
+        ASSERT_EQ(white.grn_lo, 1u);
     }
 
     // _clr literal: black
@@ -107,15 +110,17 @@ int main() {
         ASSERT_EQ(black.red, 0u);
         ASSERT_EQ(black.green, 0u);
         ASSERT_EQ(black.blue, 0u);
+        ASSERT_EQ(black.grn_lo, 0u);
     }
 
-    // _clr literal: mid-gray (0x80 >> 3 = 16)
+    // _clr literal: mid-gray (0x80 >> 3 = 16, 0x80 >> 2 & 1 = 0)
     {
         using namespace gba;
         constexpr auto gray = "#808080"_clr;
         ASSERT_EQ(gray.red, 16u);
         ASSERT_EQ(gray.green, 16u);
         ASSERT_EQ(gray.blue, 16u);
+        ASSERT_EQ(gray.grn_lo, 0u);
     }
 
     // _clr literal: lowercase hex

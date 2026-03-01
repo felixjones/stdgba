@@ -6,6 +6,8 @@
 
 ## `waitcnt`
 
+`waitcnt` is the GBA wait-control register (`WAITCNT`), also referred to as `waitctl` in some documentation.
+
 ```cpp
 struct waitcnt {
     unsigned short sram : 2{3};

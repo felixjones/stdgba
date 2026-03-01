@@ -2,6 +2,8 @@
 
 stdgba provides a consteval API for generating sprite pixel data from geometric shapes. All pixel data is computed at compile time and stored directly in ROM.
 
+For file-based asset pipelines, see [Advanced: Embedding Images](../advanced/embed.md).
+
 ## Quick start
 
 ```cpp
@@ -100,3 +102,13 @@ obj_attrs.x = 120;
 obj_attrs.y = 80;
 gba::obj_mem[0] = obj_attrs;
 ```
+
+## Example output
+
+Several consteval shapes rendered as sprites:
+
+```cpp
+{{#include ../../demos/demo_shapes.cpp:6:}}
+```
+
+![Shapes demo](../img/shapes.png)

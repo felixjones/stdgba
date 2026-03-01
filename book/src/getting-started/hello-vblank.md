@@ -62,6 +62,16 @@ int main() {
 
 The key difference is that stdgba uses designated initializers (`{ .vblank = true }`) instead of bitfield macros (`II_VBLANK`). Typos in field names are compile errors; typos in macro names might silently compile to wrong values.
 
+## Putting something on screen
+
+The VBlank loop itself produces a blank screen. To prove the program is running, here is a minimal extension that draws a white rectangle in Mode 3:
+
+```cpp
+{{#include ../../demos/demo_hello_vblank.cpp:7:}}
+```
+
+![Hello VBlank screenshot](../img/hello_vblank.png)
+
 ## Next steps
 
-This loop does nothing visible yet. In the next chapters, we will put pixels on the screen.
+In the next chapters, we will explore video modes, colors, and tile-based rendering.

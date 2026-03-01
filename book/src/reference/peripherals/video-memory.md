@@ -1,6 +1,6 @@
 # Video Memory
 
-Declared in `<gba/video>`.
+Palette memory symbols are declared in `<gba/color>`. VRAM and OAM symbols are declared in `<gba/video>`.
 
 | Address | stdgba | Type | tonclib |
 |---------|--------|------|---------|
@@ -14,13 +14,13 @@ Declared in `<gba/video>`.
 | `0x6000000` | `mem_vram` | `short[0xC000]` | `vid_mem` |
 | `0x6000000` | `mem_vram_bg` | `short[0x8000]` | `vid_mem` |
 | `0x6010000` | `mem_vram_obj` | `short[0x4000]` | `tile_mem_obj` |
-| `0x6000000` | `mem_tile_4bpp` | `tile4bpp[512][4]` | `tile_mem` |
-| `0x6000000` | `mem_tile_8bpp` | `tile8bpp[256][4]` | `tile8_mem` |
-| `0x6000000` | `mem_se` | `screen_entry[1024][32]` | `se_mem` |
+| `0x6000000` | `mem_tile_4bpp` | `tile4bpp[4][512]` | `tile_mem` |
+| `0x6000000` | `mem_tile_8bpp` | `tile8bpp[4][256]` | `tile8_mem` |
+| `0x6000000` | `mem_se` | `screen_entry[32][1024]` | `se_mem` |
 | `0x7000000` | `mem_oam` | `short[128][3]` | `oam_mem` |
-| `0x7000000` | `obj_mem` | `object[128]` | `obj_mem` |
-| `0x7000000` | `obj_aff_mem` | `object_affine[128]` | `obj_aff_mem` |
-| `0x7000006` | `mem_obj_aff` | `fixed<short>[128]` | -- |
+| `0x7000000` | `obj_mem` | [`object[128]`](../object.md) | `obj_mem` |
+| `0x7000000` | `obj_aff_mem` | [`object_affine[128]`](../object-affine.md) | `obj_aff_mem` |
+| `0x7000006` | `mem_obj_aff` | `fixed<short>[128]` | - |
 | `0x7000006` | `mem_obj_affa` | `fixed<short>[32]` | `obj_aff_mem[n].pa` |
 | `0x700000E` | `mem_obj_affb` | `fixed<short>[32]` | `obj_aff_mem[n].pb` |
 | `0x7000016` | `mem_obj_affc` | `fixed<short>[32]` | `obj_aff_mem[n].pc` |

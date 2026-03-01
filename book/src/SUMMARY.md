@@ -4,7 +4,6 @@
 
 # Getting Started
 
-- [Setting Up](./getting-started/setting-up.md)
 - [Hello VBlank](./getting-started/hello-vblank.md)
 
 # Core Concepts
@@ -36,6 +35,7 @@
 - [Memory Utilities](./advanced/memory.md)
 - [BIOS Functions](./advanced/bios.md)
 - [Compression](./advanced/compression.md)
+- [Embedding Images](./advanced/embed.md)
 - [String Formatting](./advanced/formatting.md)
 - [Logging](./advanced/logging.md)
 

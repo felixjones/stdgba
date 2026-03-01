@@ -6,10 +6,11 @@ stdgba provides a logging system with pluggable backends for emulator debug outp
 
 ```cpp
 #include <gba/logger>
-using namespace gba::format::literals;
+
+using namespace gba::literals;
 
 int main() {
-    // Auto-detect emulator and initialize
+    // Auto-detect emulator and initialise
     if (gba::log::init()) {
         gba::log::info("Game started!");
     }
@@ -50,8 +51,10 @@ gba::log::write(lvl, "Message");
 
 Log messages support the same format string syntax as `<gba/format>`:
 
+For full format syntax (`{x}`, `{x:X}`, named args, and generator behaviour), see [String Formatting](./formatting.md).
+
 ```cpp
-using namespace gba::format::literals;
+using namespace gba::literals;
 
 gba::log::info("HP: {hp}"_fmt, "hp"_arg = 42);
 gba::log::warn("Sector {s} failed"_fmt, "s"_arg = 3);

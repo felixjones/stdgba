@@ -80,25 +80,25 @@ namespace gba {
     /// @endcode
     struct alignas(short) object {
         // Attribute 0
-        unsigned short y : 8;      ///< Y coordinate (0-255)
-        bool : 1;
-        bool disable : 1;          ///< Disable object (hide)
-        gba::mode mode : 2;        ///< Rendering mode
-        bool mosaic : 1;           ///< Enable mosaic effect
-        gba::depth depth : 1;      ///< Color depth (4bpp/8bpp)
-        gba::shape shape : 2;      ///< Object shape
+        unsigned short y : 8; ///< Y coordinate (0-255)
+        bool             : 1;
+        bool disable     : 1; ///< Disable object (hide)
+        gba::mode mode   : 2; ///< Rendering mode
+        bool mosaic      : 1; ///< Enable mosaic effect
+        gba::depth depth : 1; ///< Color depth (4bpp/8bpp)
+        gba::shape shape : 2; ///< Object shape
 
         // Attribute 1
-        unsigned short x : 9;      ///< X coordinate (0-511)
-        short : 3;
-        bool flip_x : 1;           ///< Horizontal flip
-        bool flip_y : 1;           ///< Vertical flip
-        unsigned short size : 2;   ///< Size (combined with shape)
+        unsigned short x    : 9; ///< X coordinate (0-511)
+        short               : 3;
+        bool flip_x         : 1; ///< Horizontal flip
+        bool flip_y         : 1; ///< Vertical flip
+        unsigned short size : 2; ///< Size (combined with shape)
 
         // Attribute 2
-        unsigned short tile_index : 10;   ///< Base tile index
-        unsigned short background : 2;    ///< Priority relative to BG
-        unsigned short palette_index : 4; ///< Palette bank (4bpp only)
+        unsigned short tile_index    : 10; ///< Base tile index
+        unsigned short background    : 2;  ///< Priority relative to BG
+        unsigned short palette_index : 4;  ///< Palette bank (4bpp only)
     };
 
     static_assert(sizeof(object) == 6);
@@ -121,23 +121,23 @@ namespace gba {
     /// @endcode
     struct alignas(short) object_affine {
         // Attribute 0
-        unsigned short y : 8;           ///< Y coordinate (0-255)
-        bool affine : 1 = true;         ///< Affine flag (always true)
-        bool double_size : 1;           ///< Double rendering area for rotation
-        gba::mode mode : 2;             ///< Rendering mode
-        bool mosaic : 1;                ///< Enable mosaic effect
-        gba::depth depth : 1;           ///< Color depth (4bpp/8bpp)
-        gba::shape shape : 2;           ///< Object shape
+        unsigned short y : 8;        ///< Y coordinate (0-255)
+        bool affine      : 1 = true; ///< Affine flag (always true)
+        bool double_size : 1;        ///< Double rendering area for rotation
+        gba::mode mode   : 2;        ///< Rendering mode
+        bool mosaic      : 1;        ///< Enable mosaic effect
+        gba::depth depth : 1;        ///< Color depth (4bpp/8bpp)
+        gba::shape shape : 2;        ///< Object shape
 
         // Attribute 1
-        unsigned short x : 9;           ///< X coordinate (0-511)
-        unsigned short affine_index : 5;///< Affine parameter set index (0-31)
-        unsigned short size : 2;        ///< Size (combined with shape)
+        unsigned short x            : 9; ///< X coordinate (0-511)
+        unsigned short affine_index : 5; ///< Affine parameter set index (0-31)
+        unsigned short size         : 2; ///< Size (combined with shape)
 
         // Attribute 2
-        unsigned short tile_index : 10;   ///< Base tile index
-        unsigned short background : 2;    ///< Priority relative to BG
-        unsigned short palette_index : 4; ///< Palette bank (4bpp only)
+        unsigned short tile_index    : 10; ///< Base tile index
+        unsigned short background    : 2;  ///< Priority relative to BG
+        unsigned short palette_index : 4;  ///< Palette bank (4bpp only)
     };
 
     static_assert(sizeof(object_affine) == 6);
@@ -227,7 +227,7 @@ namespace gba {
             return reinterpret_cast<std::uintptr_t>(ptr) - reinterpret_cast<std::uintptr_t>(base);
         }
 
-    }
+    } // namespace bits
 
     inline constexpr auto char_map(const void* ptr) noexcept {
         return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_bg)) / 0x4000U);
@@ -296,7 +296,7 @@ namespace gba {
     /// @code{.c}
     /// tile_mem[0][0] = my_tile_data;
     /// @endcode
-    inline constexpr auto mem_tile_4bpp = registral<tile4bpp[512][4]>{0x6000000};
+    inline constexpr auto mem_tile_4bpp = registral<tile4bpp[4][512]>{0x6000000};
 
     /// @brief Tile memory as 8bpp tiles (4 charblocks of 256 tiles each).
     ///
@@ -309,7 +309,7 @@ namespace gba {
     /// @code{.c}
     /// tile8_mem[0][0] = my_tile_data;
     /// @endcode
-    inline constexpr auto mem_tile_8bpp = registral<tile8bpp[256][4]>{0x6000000};
+    inline constexpr auto mem_tile_8bpp = registral<tile8bpp[4][256]>{0x6000000};
 
     /// @brief Screen entry (tilemap entry).
     ///
@@ -325,9 +325,9 @@ namespace gba {
     /// se_mem[0][0] = SE_ID(1) | SE_HFLIP;
     /// @endcode
     struct alignas(short) screen_entry {
-        unsigned short tile_index : 10;    ///< Tile index (0-1023)
-        bool flip_horizontal : 1;          ///< Horizontal flip
-        bool flip_vertical : 1;            ///< Vertical flip
+        unsigned short tile_index    : 10; ///< Tile index (0-1023)
+        bool flip_horizontal         : 1;  ///< Horizontal flip
+        bool flip_vertical           : 1;  ///< Vertical flip
         unsigned short palette_index : 4;  ///< Palette bank (4bpp only)
     };
 
@@ -342,6 +342,6 @@ namespace gba {
     /// @code{.c}
     /// se_mem[31][0] = 0;
     /// @endcode
-    inline constexpr auto mem_se = registral<screen_entry[1024][32]>{0x6000000};
+    inline constexpr auto mem_se = registral<screen_entry[32][1024]>{0x6000000};
 
-}
+} // namespace gba
