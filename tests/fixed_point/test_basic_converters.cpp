@@ -1,6 +1,6 @@
 #include <gba/fixed_point>
 
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     using namespace gba;
@@ -12,7 +12,7 @@ int main() {
         fix8 a = 3.5;
         fix8 b = 2.0;
         auto result = a + b;
-        EXPECT_EQ(result, fix8(5.5));
+        gba::test.expect.eq(result, fix8(5.5));
     }
 
     // LHS converter
@@ -20,7 +20,7 @@ int main() {
         fix8 a = 3.5;
         fix4 b = 1.5;
         auto result = as_lhs(a) + b;
-        EXPECT_EQ(result, fix8(5.0));
+        gba::test.expect.eq(result, fix8(5.0));
     }
 
     // RHS converter
@@ -28,7 +28,7 @@ int main() {
         fix8 a = 3.5;
         fix4 b = 1.5;
         auto result = as_rhs(a) + b;
-        EXPECT_EQ(result, fix4(5.0));
+        gba::test.expect.eq(result, fix4(5.0));
     }
 
     // Narrowing
@@ -36,7 +36,7 @@ int main() {
         fix8 a = 3.5;
         fix4 b = 1.5;
         auto result = as_narrowing(a) + b;
-        EXPECT_EQ(result, fix4(5.0));
+        gba::test.expect.eq(result, fix4(5.0));
     }
 
     // Widening
@@ -44,6 +44,7 @@ int main() {
         fix4 a = 1.5;
         fix8 b = 3.5;
         auto result = as_widening(a) + b;
-        EXPECT_EQ(result, fix8(5.0));
+        gba::test.expect.eq(result, fix8(5.0));
     }
+    return gba::test.finish();
 }

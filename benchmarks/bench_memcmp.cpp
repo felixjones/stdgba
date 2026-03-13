@@ -1,4 +1,4 @@
-/// @file tests/bench/test_bench_memcmp.cpp
+/// @file benchmarks/bench_memcmp.cpp
 /// @brief Benchmark comparing stdgba memcmp/bcmp vs simple reference.
 
 #include <cstdio>
@@ -7,58 +7,54 @@
 #include "bench.hpp"
 
 extern "C" {
-    int __stdgba_memcmp(const void*, const void*, std::size_t);
-    int __stdgba_bcmp(const void*, const void*, std::size_t);
-    int bench_newlib_memcmp(const void*, const void*, std::size_t);
+int __stdgba_memcmp(const void*, const void*, std::size_t);
+int __stdgba_bcmp(const void*, const void*, std::size_t);
+int bench_newlib_memcmp(const void*, const void*, std::size_t);
 }
 
 namespace {
 
-alignas(8) unsigned char iwram_a[4096];
-alignas(8) unsigned char iwram_b[4096];
-alignas(8) [[gnu::section(".ewram")]] unsigned char ewram_a[40960];
-alignas(8) [[gnu::section(".ewram")]] unsigned char ewram_b[40960];
+    alignas(8) unsigned char iwram_a[4096];
+    alignas(8) unsigned char iwram_b[4096];
+    alignas(8) [[gnu::section(".ewram")]] unsigned char ewram_a[40960];
+    alignas(8) [[gnu::section(".ewram")]] unsigned char ewram_b[40960];
 
-using cmp_fn = int (*)(const void*, const void*, std::size_t);
+    using cmp_fn = int (*)(const void*, const void*, std::size_t);
 
-static cmp_fn volatile sg_memcmp = &__stdgba_memcmp;
-static cmp_fn volatile sg_bcmp = &__stdgba_bcmp;
-static cmp_fn volatile nl_memcmp = &bench_newlib_memcmp;
+    static cmp_fn volatile sg_memcmp = &__stdgba_memcmp;
+    static cmp_fn volatile sg_bcmp = &__stdgba_bcmp;
+    static cmp_fn volatile nl_memcmp = &bench_newlib_memcmp;
 
-// Wrappers that discard int return for bench::measure (expects void)
-static void do_sg_memcmp(const void* a, const void* b, std::size_t n) {
-    volatile int r = sg_memcmp(a, b, n);
-    (void)r;
-}
-static void do_sg_bcmp(const void* a, const void* b, std::size_t n) {
-    volatile int r = sg_bcmp(a, b, n);
-    (void)r;
-}
-static void do_nl_memcmp(const void* a, const void* b, std::size_t n) {
-    volatile int r = nl_memcmp(a, b, n);
-    (void)r;
-}
-
-void fill_equal(unsigned char* a, unsigned char* b, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
-        a[i] = static_cast<unsigned char>(i);
-        b[i] = static_cast<unsigned char>(i);
+    // Wrappers that discard int return for bench::measure (expects void)
+    static void do_sg_memcmp(const void* a, const void* b, std::size_t n) {
+        volatile int r = sg_memcmp(a, b, n);
+        (void)r;
     }
-}
+    static void do_sg_bcmp(const void* a, const void* b, std::size_t n) {
+        volatile int r = sg_bcmp(a, b, n);
+        (void)r;
+    }
+    static void do_nl_memcmp(const void* a, const void* b, std::size_t n) {
+        volatile int r = nl_memcmp(a, b, n);
+        (void)r;
+    }
+
+    void fill_equal(unsigned char* a, unsigned char* b, std::size_t n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            a[i] = static_cast<unsigned char>(i);
+            b[i] = static_cast<unsigned char>(i);
+        }
+    }
 
 } // namespace
 
 int main() {
-    test::with_logger([] {
-        mgba_printf(MGBA_LOG_INFO, "=== memcmp/bcmp benchmark ===");
-        mgba_printf(MGBA_LOG_INFO, "  %-8s  %6s %6s %6s  %5s",
-            "Size", "memcmp", "bcmp", "ref", "save%%");
+    bench::with_logger([] {
+        bench::log_printf(gba::log::level::info, "=== memcmp/bcmp benchmark ===");
+        bench::log_printf(gba::log::level::info, "  %-8s  %6s %6s %6s  %5s", "Size", "memcmp", "bcmp", "ref", "save%%");
     });
 
-    static constexpr unsigned int sizes[] = {
-        4, 8, 12, 16, 20, 24, 28, 32,
-        48, 64, 96, 128, 256, 512, 1024, 2048, 4096
-    };
+    static constexpr unsigned int sizes[] = {4, 8, 12, 16, 20, 24, 28, 32, 48, 64, 96, 128, 256, 512, 1024, 2048, 4096};
 
     // IWRAM equal data
     bench::print_header("--- IWRAM (equal) ---");
@@ -71,11 +67,10 @@ int main() {
         const auto bc = bench::measure_avg(iters, &do_sg_bcmp, iwram_a, iwram_b, size);
         const auto nl = bench::measure_avg(iters, &do_nl_memcmp, iwram_a, iwram_b, size);
 
-        test::with_logger([&] {
-            mgba_printf(MGBA_LOG_INFO, "  %6u  %6u %6u %6u  %3d%%",
-                size, sg, bc, nl,
-                (nl > sg) ? static_cast<int>((nl - sg) * 100 / nl)
-                          : -static_cast<int>((sg - nl) * 100 / sg));
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %6u  %6u %6u %6u  %3d%%", size, sg, bc, nl,
+                              (nl > sg) ? static_cast<int>((nl - sg) * 100 / nl)
+                                        : -static_cast<int>((sg - nl) * 100 / sg));
         });
     }
 
@@ -88,11 +83,10 @@ int main() {
         const auto sg = bench::measure_avg(4, &do_sg_memcmp, ewram_a, ewram_b, size);
         const auto nl = bench::measure_avg(4, &do_nl_memcmp, ewram_a, ewram_b, size);
 
-        test::with_logger([&] {
-            mgba_printf(MGBA_LOG_INFO, "  %6u  %6u %6u  %3d%%",
-                size, sg, nl,
-                (nl > sg) ? static_cast<int>((nl - sg) * 100 / nl)
-                          : -static_cast<int>((sg - nl) * 100 / sg));
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %6u  %6u %6u  %3d%%", size, sg, nl,
+                              (nl > sg) ? static_cast<int>((nl - sg) * 100 / nl)
+                                        : -static_cast<int>((sg - nl) * 100 / sg));
         });
     }
 
@@ -128,11 +122,10 @@ int main() {
         bench::print_row(desc, sg, nl);
     }
 
-    test::with_logger([] {
-        mgba_printf(MGBA_LOG_INFO, "");
-        mgba_printf(MGBA_LOG_INFO, "=== benchmark complete ===");
+    bench::with_logger([] {
+        bench::log_printf(gba::log::level::info, "");
+        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    test::exit(test::failures());
-    __builtin_unreachable();
+    return 0;
 }

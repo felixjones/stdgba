@@ -13,18 +13,19 @@
 /// - __aeabi_memcpy4 / __aeabi_memcpy8 direct entry
 /// - C memcpy return value
 
-#include <cstring>
+#include <gba/benchmark>
+#include <gba/testing>
 
-#include <mgba_test.hpp>
+#include <cstring>
 
 // Prevent compiler from replacing memcpy calls with builtins
 static void* (*volatile memcpy_fn)(void*, const void*, std::size_t) = &std::memcpy;
 
 // Direct access to the AEABI entries for targeted testing
 extern "C" {
-    void __aeabi_memcpy(void*, const void*, std::size_t);
-    void __aeabi_memcpy4(void*, const void*, std::size_t);
-    void __aeabi_memcpy8(void*, const void*, std::size_t);
+void __aeabi_memcpy(void*, const void*, std::size_t);
+void __aeabi_memcpy4(void*, const void*, std::size_t);
+void __aeabi_memcpy8(void*, const void*, std::size_t);
 }
 
 // Function pointers to prevent inlining / constant folding
@@ -34,43 +35,43 @@ static void (*volatile aeabi_memcpy8_fn)(void*, const void*, std::size_t) = &__a
 
 namespace {
 
-alignas(8) unsigned char src[512];
-alignas(8) unsigned char dst[512];
+    alignas(8) unsigned char src[512];
+    alignas(8) unsigned char dst[512];
 
-void fill_src() {
-    for (std::size_t i = 0; i < sizeof(src); ++i) {
-        src[i] = static_cast<unsigned char>(i);
+    void fill_src() {
+        for (std::size_t i = 0; i < sizeof(src); ++i) {
+            src[i] = static_cast<unsigned char>(i);
+        }
     }
-}
 
-void clear_dst() {
-    for (auto& b : dst) b = 0xFF;
-}
-
-// Verify that dst[od..od+n) == src[os..os+n) and sentinel bytes are untouched
-void verify(std::size_t od, std::size_t os, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
-        ASSERT_EQ(dst[od + i], src[os + i]);
+    void clear_dst() {
+        for (auto& b : dst) b = 0xFF;
     }
-    if (od > 0) {
-        ASSERT_EQ(dst[od - 1], static_cast<unsigned char>(0xFF));
+
+    // Verify that dst[od..od+n) == src[os..os+n) and sentinel bytes are untouched
+    void verify(std::size_t od, std::size_t os, std::size_t n) {
+        for (std::size_t i = 0; i < n; ++i) {
+            gba::test.eq(dst[od + i], src[os + i]);
+        }
+        if (od > 0) {
+            gba::test.eq(dst[od - 1], static_cast<unsigned char>(0xFF));
+        }
+        if (od + n < sizeof(dst)) {
+            gba::test.eq(dst[od + n], static_cast<unsigned char>(0xFF));
+        }
     }
-    if (od + n < sizeof(dst)) {
-        ASSERT_EQ(dst[od + n], static_cast<unsigned char>(0xFF));
+
+    void do_copy(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memcpy_fn(d, s, n); });
     }
-}
 
-void do_copy(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memcpy_fn(d, s, n); });
-}
+    void do_copy4(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memcpy4_fn(d, s, n); });
+    }
 
-void do_copy4(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memcpy4_fn(d, s, n); });
-}
-
-void do_copy8(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memcpy8_fn(d, s, n); });
-}
+    void do_copy8(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memcpy8_fn(d, s, n); });
+    }
 
 } // namespace
 
@@ -84,15 +85,15 @@ int main() {
     {
         clear_dst();
         do_copy(dst, src, 0);
-        ASSERT_EQ(dst[0], static_cast<unsigned char>(0xFF));
+        gba::test.eq(dst[0], static_cast<unsigned char>(0xFF));
     }
 
     // n=1
     {
         clear_dst();
         do_copy(dst, src, 1);
-        ASSERT_EQ(dst[0], static_cast<unsigned char>(0));
-        ASSERT_EQ(dst[1], static_cast<unsigned char>(0xFF));
+        gba::test.eq(dst[0], static_cast<unsigned char>(0));
+        gba::test.eq(dst[1], static_cast<unsigned char>(0xFF));
     }
 
     // n=2
@@ -427,7 +428,7 @@ int main() {
     {
         clear_dst();
         do_copy4(dst, src, 0);
-        ASSERT_EQ(dst[0], static_cast<unsigned char>(0xFF));
+        gba::test.eq(dst[0], static_cast<unsigned char>(0xFF));
     }
 
     // 4 bytes
@@ -528,14 +529,14 @@ int main() {
     {
         clear_dst();
         auto result = memcpy_fn(dst, src, 10);
-        ASSERT_TRUE(result == dst);
+        gba::test.is_true(result == dst);
         verify(0, 0, 10);
     }
 
     {
         clear_dst();
         auto result = memcpy_fn(dst + 4, src, 64);
-        ASSERT_TRUE(result == dst + 4);
+        gba::test.is_true(result == dst + 4);
         verify(4, 0, 64);
     }
 
@@ -547,7 +548,7 @@ int main() {
         clear_dst();
         do_copy(dst, src, 64);
         for (std::size_t i = 0; i < 64; ++i) {
-            ASSERT_EQ(dst[i], static_cast<unsigned char>(0));
+            gba::test.eq(dst[i], static_cast<unsigned char>(0));
         }
         fill_src();
     }
@@ -560,7 +561,7 @@ int main() {
         clear_dst();
         do_copy(dst, src, 32);
         for (std::size_t i = 0; i < 32; ++i) {
-            ASSERT_EQ(dst[i], static_cast<unsigned char>(0xAA + i));
+            gba::test.eq(dst[i], static_cast<unsigned char>(0xAA + i));
         }
         fill_src();
     }
@@ -573,52 +574,51 @@ int main() {
         do_copy(dst, src, 64);
         do_copy(dst + 64, dst, 64);
         for (std::size_t i = 0; i < 64; ++i) {
-            ASSERT_EQ(dst[64 + i], dst[i]);
+            gba::test.eq(dst[64 + i], dst[i]);
         }
     }
 
     // Sweep: every size 0..64, word-aligned
     // Catches off-by-one across all path transitions (3->4, 31->32)
 
-    for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
+    for (std::size_t n = 0; n <= 64; n = gba::benchmark::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
         do_copy(dst, src, n);
         for (std::size_t i = 0; i < n; ++i) {
-            ASSERT_EQ(dst[i], src[i]);
+            gba::test.eq(dst[i], src[i]);
         }
         if (n < sizeof(dst)) {
-            ASSERT_EQ(dst[n], static_cast<unsigned char>(0xFF));
+            gba::test.eq(dst[n], static_cast<unsigned char>(0xFF));
         }
     }
 
     // Sweep: every size 0..64, offset +1 (word fixup path)
 
-    for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
+    for (std::size_t n = 0; n <= 64; n = gba::benchmark::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
         do_copy(dst + 1, src + 1, n);
         for (std::size_t i = 0; i < n; ++i) {
-            ASSERT_EQ(dst[1 + i], src[1 + i]);
+            gba::test.eq(dst[1 + i], src[1 + i]);
         }
-        ASSERT_EQ(dst[0], static_cast<unsigned char>(0xFF));
+        gba::test.eq(dst[0], static_cast<unsigned char>(0xFF));
         if (1 + n < sizeof(dst)) {
-            ASSERT_EQ(dst[1 + n], static_cast<unsigned char>(0xFF));
+            gba::test.eq(dst[1 + n], static_cast<unsigned char>(0xFF));
         }
     }
 
     // Sweep: every size 0..64, odd misalignment (byte path for n > 3)
 
-    for (std::size_t n = 0; n <= 64; n = test::do_not_optimize([&] { return n + 1; })) {
+    for (std::size_t n = 0; n <= 64; n = gba::benchmark::do_not_optimize([&] { return n + 1; })) {
         clear_dst();
         do_copy(dst + 1, src, n);
         for (std::size_t i = 0; i < n; ++i) {
-            ASSERT_EQ(dst[1 + i], src[i]);
+            gba::test.eq(dst[1 + i], src[i]);
         }
-        ASSERT_EQ(dst[0], static_cast<unsigned char>(0xFF));
+        gba::test.eq(dst[0], static_cast<unsigned char>(0xFF));
         if (1 + n < sizeof(dst)) {
-            ASSERT_EQ(dst[1 + n], static_cast<unsigned char>(0xFF));
+            gba::test.eq(dst[1 + n], static_cast<unsigned char>(0xFF));
         }
     }
 
-    test::exit(test::failures());
-    __builtin_unreachable();
+    return gba::test.finish();
 }

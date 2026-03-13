@@ -4,12 +4,11 @@
 
 #include <gba/format>
 #include <gba/logger>
-
 #include <gba/testing>
 
 #include <cstddef>
 
-using namespace gba::format::literals;
+using namespace gba::literals;
 
 // Custom backend that records what it received
 struct spy_backend : gba::log::backend {
@@ -35,15 +34,12 @@ int main() {
     }
 
     // Test: After init, backend is non-null
-    {
-        gba::test.is_true(gba::log::get_backend() != nullptr);
-    }
+    { gba::test.is_true(gba::log::get_backend() != nullptr); }
 
     // Test: Default min level is debug (most permissive)
     {
         gba::log::set_level(gba::log::level::debug);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::debug));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::debug));
     }
 
     // Test: All 5 convenience functions return nonzero on mGBA
@@ -100,24 +96,19 @@ int main() {
     // Test: set_level / get_level roundtrip for all levels
     {
         gba::log::set_level(gba::log::level::fatal);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::fatal));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::fatal));
 
         gba::log::set_level(gba::log::level::error);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::error));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::error));
 
         gba::log::set_level(gba::log::level::warn);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::warn));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::warn));
 
         gba::log::set_level(gba::log::level::info);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::info));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::info));
 
         gba::log::set_level(gba::log::level::debug);
-        gba::test.eq(static_cast<int>(gba::log::get_level()),
-                  static_cast<int>(gba::log::level::debug));
+        gba::test.eq(static_cast<int>(gba::log::get_level()), static_cast<int>(gba::log::level::debug));
     }
 
     // Test: Formatted output with _fmt returns nonzero
@@ -129,8 +120,7 @@ int main() {
 
     // Test: Formatted write() with runtime level
     {
-        auto r = gba::log::write(gba::log::level::warn,
-            "Val: {x}"_fmt, "x"_arg = 999);
+        auto r = gba::log::write(gba::log::level::warn, "Val: {x}"_fmt, "x"_arg = 999);
         gba::test.nz(r);
     }
 
@@ -165,14 +155,12 @@ int main() {
 
         gba::log::info("hello");
         gba::test.eq(spy.call_count, 1);
-        gba::test.eq(static_cast<int>(spy.last_level),
-                  static_cast<int>(gba::log::level::info));
+        gba::test.eq(static_cast<int>(spy.last_level), static_cast<int>(gba::log::level::info));
         gba::test.eq(spy.last_len, 5u);
 
         gba::log::error("ab");
         gba::test.eq(spy.call_count, 2);
-        gba::test.eq(static_cast<int>(spy.last_level),
-                  static_cast<int>(gba::log::level::error));
+        gba::test.eq(static_cast<int>(spy.last_level), static_cast<int>(gba::log::level::error));
         gba::test.eq(spy.last_len, 2u);
 
         gba::log::set_backend(original);

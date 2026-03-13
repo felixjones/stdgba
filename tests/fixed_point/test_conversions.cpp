@@ -1,6 +1,5 @@
 #include <gba/fixed_point>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     using namespace gba;
@@ -14,7 +13,7 @@ int main() {
 
         // Widening conversion - safe, no precision loss
         fix8 high = low; // OK - implicit conversion
-        EXPECT_EQ(high, fix8(1.25));
+        gba::test.expect.eq(high, fix8(1.25));
     }
 
     {
@@ -22,11 +21,11 @@ int main() {
 
         // Safe conversion: more fractional bits AND larger/equal storage
         fixed<int, 3> word = tiny; // OK - same frac bits, larger storage
-        EXPECT_EQ(word, fixed<int, 3>(2.5));
+        gba::test.expect.eq(word, fixed<int, 3>(2.5));
 
         // Safe conversion: more fractional bits
         fixed<int, 6> wider = tiny; // OK - more fractional bits
-        EXPECT_EQ(wider, fixed<int, 6>(2.5));
+        gba::test.expect.eq(wider, fixed<int, 6>(2.5));
     }
 
     // Test: Incompatible conversions require converters
@@ -38,7 +37,7 @@ int main() {
 
         // OK: Use converter in operation
         auto low = as_narrowing(high) + fix4(0);
-        EXPECT_EQ(low, fix4(3.75));
+        gba::test.expect.eq(low, fix4(3.75));
     }
 
     {
@@ -47,7 +46,7 @@ int main() {
         // Must use converter in operation
         auto b = as_narrowing(a) + fix4(0);
         // 0.625 is exactly representable with 4 frac bits (10/16)
-        EXPECT_EQ(b, fix4(3.625));
+        gba::test.expect.eq(b, fix4(3.625));
     }
 
     {
@@ -56,7 +55,7 @@ int main() {
 
         auto truncated = as_narrowing(precise) + fix4(0);
         // With 4 frac bits (1/16 precision), 3.53125 truncates to 3.5 (3 + 8/16)
-        EXPECT_EQ(truncated, fix4(3.5));
+        gba::test.expect.eq(truncated, fix4(3.5));
     }
 
     // Test: Converters work in operations
@@ -65,12 +64,12 @@ int main() {
 
         // Narrowing
         auto narrow = as_narrowing(source) + fix4(0);
-        EXPECT_EQ(narrow, fix4(5.25));
+        gba::test.expect.eq(narrow, fix4(5.25));
 
         // Widening (though implicit would work here)
         fix4 low_val = 2.75;
         auto wide = as_widening(low_val) + fix8(0);
-        EXPECT_EQ(wide, fix8(2.75));
+        gba::test.expect.eq(wide, fix8(2.75));
     }
 
     // Test: Storage type conversions via operations
@@ -79,7 +78,7 @@ int main() {
 
         // Word storage for performance
         auto word = as_word_storage(small) + fix4(0);
-        EXPECT_EQ(word, fix4(3.5));
+        gba::test.expect.eq(word, fix4(3.5));
     }
 
     {
@@ -87,6 +86,7 @@ int main() {
 
         // To signed (promotes to short for safety)
         auto s_val = as_signed(u_val) + fixed<short, 3>(0);
-        EXPECT_EQ(s_val, fixed<short, 3>(2.5));
+        gba::test.expect.eq(s_val, fixed<short, 3>(2.5));
     }
+    return gba::test.finish();
 }

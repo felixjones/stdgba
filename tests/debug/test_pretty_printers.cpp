@@ -15,17 +15,9 @@
 #include <gba/logger>
 #include <gba/memory>
 #include <gba/peripherals>
-
-#include <gba/bits/music/ast.hpp>
-#include <gba/bits/music/bpm.hpp>
-#include <gba/bits/music/note.hpp>
-#include <gba/bits/music/token.hpp>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 using namespace gba::literals;
-using namespace gba::format::literals;
-using namespace gba::music;
 
 // Prevent optimizer from removing variables
 template<typename T>
@@ -96,24 +88,6 @@ int main() {
     use(bound_str);
     use(gen);
 
-    // === music.py ===
-
-    // gba::music::note
-    gba::music::note note_c4 = gba::music::note::C4;
-    gba::music::note note_a4 = gba::music::note::A4;
-    gba::music::note note_rest = gba::music::note::rest;
-
-    use(note_c4);
-    use(note_a4);
-    use(note_rest);
-
-    // gba::music::bpm_value
-    constexpr auto bpm_120 = 120_bpm;
-    constexpr auto bpm_140 = 140_bpm;
-
-    use(bpm_120);
-    use(bpm_140);
-
     // === log.py ===
 
     // gba::log::level
@@ -126,26 +100,6 @@ int main() {
     use(level_warn);
     use(level_debug);
     use(level_error);
-
-    // === music.py (additional types) ===
-
-    // gba::music::token_type
-    gba::music::token_type tok_note = gba::music::token_type::note;
-    gba::music::token_type tok_rest = gba::music::token_type::rest;
-    gba::music::token_type tok_lbracket = gba::music::token_type::lbracket;
-
-    use(tok_note);
-    use(tok_rest);
-    use(tok_lbracket);
-
-    // gba::music::ast_type
-    gba::music::ast_type ast_atom = gba::music::ast_type::atom;
-    gba::music::ast_type ast_seq = gba::music::ast_type::sequence;
-    gba::music::ast_type ast_euclidean = gba::music::ast_type::euclidean;
-
-    use(ast_atom);
-    use(ast_seq);
-    use(ast_euclidean);
 
     // === registral.py ===
     // Note: These are compile-time register wrappers, they just hold addresses
@@ -175,7 +129,7 @@ int main() {
     use(key_shoulders);
 
     // gba::keypad (state tracker)
-    gba::keypad keypad_empty;  // No keys pressed (default 0x3ff)
+    gba::keypad keypad_empty; // No keys pressed (default 0x3ff)
 
     use(keypad_empty);
 
@@ -198,9 +152,9 @@ int main() {
     // gba::bitpool (memory allocator)
     // Create a small test buffer for the pool
     alignas(4) char test_buffer[1024];
-    gba::bitpool test_pool{test_buffer, 32};  // 32 chunks of 32 bytes
-    void* alloc1 = test_pool.allocate(64);    // Allocate 2 chunks
-    void* alloc2 = test_pool.allocate(32);    // Allocate 1 chunk
+    gba::bitpool test_pool{test_buffer, 32}; // 32 chunks of 32 bytes
+    void* alloc1 = test_pool.allocate(64);   // Allocate 2 chunks
+    void* alloc2 = test_pool.allocate(32);   // Allocate 1 chunk
 
     use(test_pool);
     use(alloc1);
@@ -209,7 +163,5 @@ int main() {
     // BREAKPOINT HERE - inspect all variables above
     asm volatile("nop");
 
-    ASSERT_TRUE(true);
-
-    return 0;
+    return gba::test.finish();
 }

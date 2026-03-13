@@ -3,7 +3,7 @@
 
 #include <gba/fixed_point>
 
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     using namespace gba;
@@ -17,7 +17,7 @@ int main() {
         fix8_16 b = 3.0;
         fix8_16 c = a * b;
 
-        ASSERT_EQ(c, fix8_16(7.5));
+        gba::test.eq(c, fix8_16(7.5));
     }
 
     // Test 16-bit multiplication edge cases
@@ -28,7 +28,7 @@ int main() {
         fix8_16 b = 0.5;
         fix8_16 c = a * b;
 
-        ASSERT_EQ(c, fix8_16(0.25));
+        gba::test.eq(c, fix8_16(0.25));
     }
 
     // Test 16-bit with negative values
@@ -39,7 +39,7 @@ int main() {
         fix8_16 b = 3.0;
         fix8_16 c = a * b;
 
-        ASSERT_EQ(c, fix8_16(-6.0));
+        gba::test.eq(c, fix8_16(-6.0));
     }
 
     // Test 16-bit division
@@ -50,7 +50,7 @@ int main() {
         fix8_16 b = 2.0;
         fix8_16 c = a / b;
 
-        ASSERT_EQ(c, fix8_16(3.0));
+        gba::test.eq(c, fix8_16(3.0));
     }
 
     // Test 32-bit with fewer fractional bits (uses IntermediateRep without overflow)
@@ -61,7 +61,7 @@ int main() {
         fix8_32 b = 3.0;
         fix8_32 c = a * b;
 
-        ASSERT_EQ(c, fix8_32(7.5));
+        gba::test.eq(c, fix8_32(7.5));
     }
 
     // Compare 16-bit and 32-bit results for same values
@@ -78,7 +78,7 @@ int main() {
         fix8_32 c32 = a32 * b32;
 
         // Results should be equivalent
-        ASSERT_EQ(bit_cast(c16), static_cast<short>(bit_cast(c32)));
+        gba::test.eq(bit_cast(c16), static_cast<short>(bit_cast(c32)));
     }
 
     // Test unsigned 16-bit
@@ -89,7 +89,7 @@ int main() {
         ufix8_16 b = 3.0;
         ufix8_16 c = a * b;
 
-        ASSERT_EQ(c, ufix8_16(7.5));
+        gba::test.eq(c, ufix8_16(7.5));
     }
 
     // Test precise<> type alias for overflow-safe 16.16 multiplication
@@ -101,7 +101,7 @@ int main() {
         precise16 b = 50.0;
         precise16 c = a * b;
 
-        ASSERT_EQ(c, precise16(5000.0));
+        gba::test.eq(c, precise16(5000.0));
     }
 
     // Test precise<> with values that would overflow regular fixed<int, 16>
@@ -112,8 +112,9 @@ int main() {
         precise16 b = 3.0;
         precise16 c = a * b;
 
-        ASSERT_EQ(c, precise16(7.5));
+        gba::test.eq(c, precise16(7.5));
     }
 
-    test::finalize();
+    
+    return gba::test.finish();
 }

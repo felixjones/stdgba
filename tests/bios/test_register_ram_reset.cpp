@@ -1,7 +1,6 @@
 #include <gba/bios>
+#include <gba/testing>
 #include <gba/video>
-
-#include <mgba_test.hpp>
 
 int main() {
     // Palette memory
@@ -9,19 +8,20 @@ int main() {
         entry = -1;
     }
     gba::RegisterRamReset({.palette = true});
-    EXPECT_ZERO(gba::mem_pal);
+    gba::test.expect.zero(gba::mem_pal);
 
     // Video memory
     for (auto entry : gba::mem_vram) {
         entry = -1;
     }
     gba::RegisterRamReset({.vram = true});
-    EXPECT_ZERO(gba::mem_vram);
+    gba::test.expect.zero(gba::mem_vram);
 
     // Object attribute memory
     for (auto entry : gba::mem_oam) {
         entry = {-1, -1, -1};
     }
     gba::RegisterRamReset({.oam = true});
-    EXPECT_ZERO(gba::mem_oam);
+    gba::test.expect.zero(gba::mem_oam);
+    return gba::test.finish();
 }

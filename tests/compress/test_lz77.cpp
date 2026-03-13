@@ -2,11 +2,10 @@
 /// @brief Tests for compile-time LZ77 compression and BIOS decompression.
 #include <gba/bios>
 #include <gba/compress>
+#include <gba/testing>
 
 #include <algorithm>
 #include <array>
-
-#include <mgba_test.hpp>
 
 // Test data with repeated patterns (compresses well with LZ77)
 static constexpr auto test_data = std::array<unsigned char, 64>{
@@ -21,11 +20,11 @@ static constexpr auto compressed = gba::lz77_compress([] { return test_data; });
 
 int main() {
     // Verify compression reduced size (test data has repeated patterns)
-    EXPECT_TRUE(sizeof(compressed) <= sizeof(test_data));
+    gba::test.expect.is_true(sizeof(compressed) <= sizeof(test_data));
 
     // Verify header is correct
-    EXPECT_EQ(compressed.comp_algo, gba::comp_algo_lz77);
-    EXPECT_TRUE(compressed.dst_len >= test_data.size());
+    gba::test.expect.eq(compressed.comp_algo, gba::comp_algo_lz77);
+    gba::test.expect.is_true(compressed.dst_len >= test_data.size());
 
     // Decompress at runtime using BIOS
     alignas(4) std::array<unsigned char, 64> decompressed{};
@@ -33,6 +32,7 @@ int main() {
 
     // Verify decompressed data matches original
     for (std::size_t i = 0; i < test_data.size(); ++i) {
-        EXPECT_EQ(decompressed[i], test_data[i]);
+        gba::test.expect.eq(decompressed[i], test_data[i]);
     }
+    return gba::test.finish();
 }

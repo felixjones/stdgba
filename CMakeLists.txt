@@ -4,6 +4,7 @@ project(stdgba LANGUAGES C CXX ASM VERSION 2026.2.0)
 
 add_library(stdgba INTERFACE
         include/gba/angle
+        include/gba/benchmark
         include/gba/bios
         include/gba/color
         include/gba/compress
@@ -22,6 +23,8 @@ add_library(stdgba INTERFACE
         include/gba/peripherals
         include/gba/save
         include/gba/shapes
+        include/gba/sprite
+        include/gba/testing
         include/gba/timer
         include/gba/video
 )
@@ -50,6 +53,7 @@ target_sources(stdgba INTERFACE
         source/strchr.s
         source/strcmp.s
         source/strlen.s
+        source/testing.cpp
 )
 
 set_source_files_properties(source/flash.s PROPERTIES COMPILE_FLAGS "-fPIC")
@@ -57,6 +61,10 @@ set_source_files_properties(source/flash.s PROPERTIES COMPILE_FLAGS "-fPIC")
 if(STDGBA_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+if(STDGBA_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 if(STDGBA_BUILD_DEMOS)

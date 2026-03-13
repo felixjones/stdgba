@@ -1,7 +1,6 @@
 #include <gba/bios>
 #include <gba/compress>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     {
@@ -10,7 +9,7 @@ int main() {
 
         typename decltype(compressed)::unpacked_array dest;
         gba::BitUnPack(compressed.data(), dest.data(), compressed);
-        ASSERT_EQ(dest, expected);
+        gba::test.eq(dest, expected);
     }
 
     {
@@ -19,7 +18,7 @@ int main() {
 
         typename decltype(compressed)::unpacked_array dest;
         gba::RLUnCompWram(compressed, dest.data());
-        ASSERT_EQ(dest, expected);
+        gba::test.eq(dest, expected);
     }
 
     {
@@ -28,7 +27,7 @@ int main() {
 
         typename decltype(compressed)::unpacked_array dest;
         gba::LZ77UnCompWram(compressed, dest.data());
-        ASSERT_EQ(dest, expected);
+        gba::test.eq(dest, expected);
     }
 
     {
@@ -37,6 +36,7 @@ int main() {
 
         typename decltype(compressed)::unpacked_array dest;
         gba::HuffUnComp(compressed, dest.data());
-        ASSERT_EQ(dest, expected);
+        gba::test.eq(dest, expected);
     }
+    return gba::test.finish();
 }

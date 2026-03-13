@@ -20,7 +20,7 @@ Format is auto-detected from the file header.
 | Function | Output | Use case |
 |----------|--------|----------|
 | `bitmap15` | Flat `gba::color` array | Mode 3 framebuffer |
-| `indexed4` | 4bpp tiles + 16-color palette + tilemap | Backgrounds and sprites |
+| `indexed4` | 4bpp sprite payload + 16-color palette + tilemap | Backgrounds and sprites |
 | `indexed8` | 8bpp tiles + 256-color palette + tilemap | High-color backgrounds |
 | `indexed4_sheet<FrameW, FrameH>` | `sheet4_result` (frame-packed OBJ tiles + palette + flipbook helpers) | Animated 4bpp sprites |
 
@@ -123,7 +123,7 @@ With `dedup::none`, tiles are stored in the exact order they appear in the image
 
 ## Sprite OAM attributes
 
-When the image dimensions match a valid GBA sprite size, the result provides `obj()` and `obj_aff()` methods that return pre-filled OAM attributes with the correct shape, size, and color depth:
+When the image dimensions match a valid GBA sprite size, `indexed4` returns a `sprite` payload (`result.sprite`) that provides `obj()` and `obj_aff()` helpers with the correct shape, size, and color depth:
 
 ```cpp
 constexpr auto sprite = gba::embed::indexed4<gba::embed::dedup::none>([] {
@@ -133,10 +133,10 @@ constexpr auto sprite = gba::embed::indexed4<gba::embed::dedup::none>([] {
 });
 
 // Regular object - shape, size, and depth are set automatically
-gba::obj_mem[0] = sprite.obj(0);
+gba::obj_mem[0] = sprite.sprite.obj(0);
 
 // Affine object
-gba::obj_aff_mem[0] = sprite.obj_aff(0);
+gba::obj_aff_mem[0] = sprite.sprite.obj_aff(0);
 ```
 
 The valid GBA sprite sizes are:
@@ -147,7 +147,7 @@ The valid GBA sprite sizes are:
 | Wide | 16x8, 32x8, 32x16, 64x32 |
 | Tall | 8x16, 8x32, 16x32, 32x64 |
 
-If the image dimensions do not match any of these, `obj()` and `obj_aff()` will produce a compile-time error.
+If the image dimensions do not match any of these, `result.sprite.obj()` and `result.sprite.obj_aff()` will produce a compile-time error.
 
 `indexed8` results use `depth_8bpp` and `indexed4` results use `depth_4bpp` automatically.
 

@@ -13,22 +13,23 @@
 /// - C memset return value
 /// - Various fill byte values (0x00, 0xFF, 0xAB, 0x01)
 
+#include <gba/benchmark>
+#include <gba/testing>
+
 #include <cstdint>
 #include <cstring>
-
-#include <mgba_test.hpp>
 
 // Prevent compiler from replacing memset calls with builtins
 static void* (*volatile memset_fn)(void*, int, std::size_t) = &std::memset;
 
 // Direct access to the AEABI entries for targeted testing
 extern "C" {
-    void __aeabi_memset(void*, std::size_t, int);
-    void __aeabi_memset4(void*, std::size_t, int);
-    void __aeabi_memset8(void*, std::size_t, int);
-    void __aeabi_memclr(void*, std::size_t);
-    void __aeabi_memclr4(void*, std::size_t);
-    void __aeabi_memclr8(void*, std::size_t);
+void __aeabi_memset(void*, std::size_t, int);
+void __aeabi_memset4(void*, std::size_t, int);
+void __aeabi_memset8(void*, std::size_t, int);
+void __aeabi_memclr(void*, std::size_t);
+void __aeabi_memclr4(void*, std::size_t);
+void __aeabi_memclr8(void*, std::size_t);
 }
 
 // Function pointers to prevent inlining / constant folding
@@ -41,50 +42,50 @@ static void (*volatile aeabi_memclr8_fn)(void*, std::size_t) = &__aeabi_memclr8;
 
 namespace {
 
-alignas(8) unsigned char buf[512];
+    alignas(8) unsigned char buf[512];
 
-constexpr unsigned char SENTINEL = 0xCD;
+    constexpr unsigned char SENTINEL = 0xCD;
 
-void clear_buf() {
-    for (auto& b : buf) b = SENTINEL;
-}
-
-// Verify that buf[off..off+n) == fill and sentinels are untouched
-void verify(std::size_t off, std::size_t n, unsigned char fill) {
-    for (std::size_t i = 0; i < n; ++i) {
-        ASSERT_EQ(buf[off + i], fill);
+    void clear_buf() {
+        for (auto& b : buf) b = SENTINEL;
     }
-    if (off > 0) {
-        ASSERT_EQ(buf[off - 1], SENTINEL);
+
+    // Verify that buf[off..off+n) == fill and sentinels are untouched
+    void verify(std::size_t off, std::size_t n, unsigned char fill) {
+        for (std::size_t i = 0; i < n; ++i) {
+            gba::test.eq(buf[off + i], fill);
+        }
+        if (off > 0) {
+            gba::test.eq(buf[off - 1], SENTINEL);
+        }
+        if (off + n < sizeof(buf)) {
+            gba::test.eq(buf[off + n], SENTINEL);
+        }
     }
-    if (off + n < sizeof(buf)) {
-        ASSERT_EQ(buf[off + n], SENTINEL);
+
+    void do_set(void* d, std::size_t n, int c) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memset_fn(d, n, c); });
     }
-}
 
-void do_set(void* d, std::size_t n, int c) {
-    test::do_not_optimize([&] { aeabi_memset_fn(d, n, c); });
-}
+    void do_set4(void* d, std::size_t n, int c) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memset4_fn(d, n, c); });
+    }
 
-void do_set4(void* d, std::size_t n, int c) {
-    test::do_not_optimize([&] { aeabi_memset4_fn(d, n, c); });
-}
+    void do_set8(void* d, std::size_t n, int c) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memset8_fn(d, n, c); });
+    }
 
-void do_set8(void* d, std::size_t n, int c) {
-    test::do_not_optimize([&] { aeabi_memset8_fn(d, n, c); });
-}
+    void do_clr(void* d, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memclr_fn(d, n); });
+    }
 
-void do_clr(void* d, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memclr_fn(d, n); });
-}
+    void do_clr4(void* d, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memclr4_fn(d, n); });
+    }
 
-void do_clr4(void* d, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memclr4_fn(d, n); });
-}
-
-void do_clr8(void* d, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memclr8_fn(d, n); });
-}
+    void do_clr8(void* d, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memclr8_fn(d, n); });
+    }
 
 } // namespace
 
@@ -96,15 +97,15 @@ int main() {
     {
         clear_buf();
         do_set(buf, 0, 0xAB);
-        ASSERT_EQ(buf[0], SENTINEL);
+        gba::test.eq(buf[0], SENTINEL);
     }
 
     // n=1: single byte
     {
         clear_buf();
         do_set(buf, 1, 0xAB);
-        ASSERT_EQ(buf[0], static_cast<unsigned char>(0xAB));
-        ASSERT_EQ(buf[1], SENTINEL);
+        gba::test.eq(buf[0], static_cast<unsigned char>(0xAB));
+        gba::test.eq(buf[1], SENTINEL);
     }
 
     // n=2: two bytes
@@ -468,7 +469,7 @@ int main() {
     {
         clear_buf();
         void* ret = memset_fn(buf, 0xAB, 16);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(ret), reinterpret_cast<std::uintptr_t>(buf));
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(ret), reinterpret_cast<std::uintptr_t>(buf));
         verify(0, 16, 0xAB);
     }
 
@@ -476,8 +477,8 @@ int main() {
     {
         clear_buf();
         void* ret = memset_fn(buf, 0xAB, 0);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(ret), reinterpret_cast<std::uintptr_t>(buf));
-        ASSERT_EQ(buf[0], SENTINEL);
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(ret), reinterpret_cast<std::uintptr_t>(buf));
+        gba::test.eq(buf[0], SENTINEL);
     }
 
     // Sweep: exhaustive sizes 0..68 for each alignment offset 0..3
@@ -488,13 +489,13 @@ int main() {
             clear_buf();
             do_set(buf + off, n, 0xBE);
             for (std::size_t i = 0; i < n; ++i) {
-                ASSERT_EQ(buf[off + i], static_cast<unsigned char>(0xBE));
+                gba::test.eq(buf[off + i], static_cast<unsigned char>(0xBE));
             }
             if (off > 0) {
-                ASSERT_EQ(buf[off - 1], SENTINEL);
+                gba::test.eq(buf[off - 1], SENTINEL);
             }
             if (off + n < sizeof(buf)) {
-                ASSERT_EQ(buf[off + n], SENTINEL);
+                gba::test.eq(buf[off + n], SENTINEL);
             }
         }
     }
@@ -504,13 +505,12 @@ int main() {
         clear_buf();
         do_set4(buf, n, 0xBE);
         for (std::size_t i = 0; i < n; ++i) {
-            ASSERT_EQ(buf[i], static_cast<unsigned char>(0xBE));
+            gba::test.eq(buf[i], static_cast<unsigned char>(0xBE));
         }
         if (n < sizeof(buf)) {
-            ASSERT_EQ(buf[n], SENTINEL);
+            gba::test.eq(buf[n], SENTINEL);
         }
     }
 
-    test::finalize();
-    __builtin_unreachable();
+    return gba::test.finish();
 }

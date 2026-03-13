@@ -1,44 +1,44 @@
+#include <gba/benchmark>
 #include <gba/bios>
 #include <gba/fixed_point>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     {
         const auto [num, denom] = gba::Div(9, 2);
-        ASSERT_EQ(num, 4);
-        ASSERT_EQ(denom, 1);
+        gba::test.eq(num, 4);
+        gba::test.eq(denom, 1);
     }
 
     {
         const auto [num, denom] = gba::DivArm(3, 17);
-        ASSERT_EQ(num, 5);
-        ASSERT_EQ(denom, 2);
+        gba::test.eq(num, 5);
+        gba::test.eq(denom, 2);
     }
 
-    ASSERT_EQ(gba::Sqrt(16), 4);
+    gba::test.eq(gba::Sqrt(16), 4);
 
     {
         static constexpr auto expected = gba::fixed<unsigned short>{1.77};
-        ASSERT_EQ(gba::Sqrt(gba::fixed<unsigned short>{3.14}), expected);
+        gba::test.eq(gba::Sqrt(gba::fixed<unsigned short>{3.14}), expected);
     }
 
     // ArcTan tests
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan(0)), 0);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan(1)), 0x2000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan(-1)), 0xE000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan(32767)), 0xE000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan(-32768)), 0xE000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan(0)), 0);
+    gba::test.eq(gba::bit_cast(gba::ArcTan(1)), 0x2000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan(-1)), 0xE000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan(32767)), 0xE000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan(-32768)), 0xE000);
 
     // ArcTan2 tests
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(1, 0)), 0);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(0, 1)), 0x4000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(-1, 0)), 0x8000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(0, -1)), 0xC000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(1, 1)), 0x2000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(-1, -1)), 0xA000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(-1, 1)), 0x6000);
-    ASSERT_EQ(gba::bit_cast(gba::ArcTan2(1, -1)), 0xE000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(1, 0)), 0);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(0, 1)), 0x4000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(-1, 0)), 0x8000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(0, -1)), 0xC000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(1, 1)), 0x2000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(-1, -1)), 0xA000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(-1, 1)), 0x6000);
+    gba::test.eq(gba::bit_cast(gba::ArcTan2(1, -1)), 0xE000);
 
     // BgAffineSet test
     {
@@ -53,11 +53,11 @@ int main() {
         }();
 
         gba::background_matrix result;
-        test::do_not_optimize([&] { gba::BgAffineSet(&bgAffineSet, &result, 1); });
+        gba::benchmark::do_not_optimize([&] { gba::BgAffineSet(&bgAffineSet, &result, 1); });
 
-        ASSERT_EQ(result.p, expected.p);
-        ASSERT_EQ(result.x, expected.x);
-        ASSERT_EQ(result.y, expected.y);
+        gba::test.eq(result.p, expected.p);
+        gba::test.eq(result.x, expected.x);
+        gba::test.eq(result.y, expected.y);
     }
 
     // ObjAffineSet test
@@ -72,8 +72,9 @@ int main() {
         }();
 
         std::array<gba::fixed<short>, 4> result;
-        test::do_not_optimize([&] { gba::ObjAffineSet(&objAffineSet, result.data(), 1); });
+        gba::benchmark::do_not_optimize([&] { gba::ObjAffineSet(&objAffineSet, result.data(), 1); });
 
-        ASSERT_EQ(result, expected);
+        gba::test.eq(result, expected);
     }
+    return gba::test.finish();
 }

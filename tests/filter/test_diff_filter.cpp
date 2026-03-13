@@ -2,10 +2,9 @@
 /// @brief Tests for compile-time differential filtering and BIOS unfilter.
 #include <gba/bios>
 #include <gba/filter>
+#include <gba/testing>
 
 #include <array>
-
-#include <mgba_test.hpp>
 
 // Test data with gradual changes (filters well with differential)
 static constexpr auto test_data = std::array<unsigned char, 64>{
@@ -19,9 +18,9 @@ static constexpr auto filtered = gba::diff_filter<1>([] { return test_data; });
 
 int main() {
     // Verify header is correct
-    EXPECT_EQ(filtered.comp_algo, gba::comp_algo_diff);
-    EXPECT_EQ(filtered.src_len, 1u); // 8-bit differential
-    EXPECT_EQ(filtered.dst_len, test_data.size());
+    gba::test.expect.eq(filtered.comp_algo, gba::comp_algo_diff);
+    gba::test.expect.eq(filtered.src_len, 1u); // 8-bit differential
+    gba::test.expect.eq(filtered.dst_len, test_data.size());
 
     // Unfilter at runtime using BIOS
     alignas(4) std::array<unsigned char, 64> unfiltered{};
@@ -29,6 +28,7 @@ int main() {
 
     // Verify unfiltered data matches original
     for (std::size_t i = 0; i < test_data.size(); ++i) {
-        EXPECT_EQ(unfiltered[i], test_data[i]);
+        gba::test.expect.eq(unfiltered[i], test_data[i]);
     }
+    return gba::test.finish();
 }

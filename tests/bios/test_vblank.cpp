@@ -1,8 +1,7 @@
 #include <gba/bios>
 #include <gba/interrupt>
 #include <gba/peripherals>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     gba::irq_handler = {};
@@ -13,4 +12,5 @@ int main() {
     gba::reg_ime = true;
 
     gba::VBlankIntrWait();
+    return gba::test.finish();
 }

@@ -1,8 +1,7 @@
 #include <gba/bios>
 #include <gba/interrupt>
+#include <gba/testing>
 #include <gba/timer>
-
-#include <mgba_test.hpp>
 
 static bool timerHit;
 
@@ -23,11 +22,12 @@ int main() {
     gba::reg_tmcnt[0] = one_second_timer[0];
     gba::Halt();
 
-    ASSERT_TRUE(timerHit);
+    gba::test.is_true(timerHit);
 
     timerHit = false;
     gba::reg_tmcnt[0] = one_second_timer[0];
     gba::IntrWait(true, {.timer0 = true});
 
-    ASSERT_TRUE(timerHit);
+    gba::test.is_true(timerHit);
+    return gba::test.finish();
 }

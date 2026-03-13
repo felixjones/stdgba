@@ -1,6 +1,5 @@
 #include <gba/fixed_point>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 int main() {
     using namespace gba;
@@ -13,14 +12,14 @@ int main() {
         // Integer literal
         constexpr auto a = 5_fx;
         constexpr fix8 b = a;
-        EXPECT_EQ(b, fix8(5));
+        gba::test.expect.eq(b, fix8(5));
     }
 
     {
         // Floating-point literal
         constexpr auto a = 3.5_fx;
         constexpr fix8 b = a;
-        EXPECT_EQ(b, fix8(3.5));
+        gba::test.expect.eq(b, fix8(3.5));
     }
 
     // Test: Arithmetic with _fx literals
@@ -28,14 +27,14 @@ int main() {
         // _fx + _fx
         constexpr auto result = 1_fx + 2.3_fx;
         constexpr fix8 a = result;
-        EXPECT_EQ(a, fix8(3.3));
+        gba::test.expect.eq(a, fix8(3.3));
     }
 
     {
         // Complex expression
         constexpr auto result = 1_fx + 2.3_fx - 0.5_fx * 2_fx;
         constexpr fix16 a = result;
-        EXPECT_EQ(a, fix16(2.3)); // 1 + 2.3 - 1.0 = 2.3
+        gba::test.expect.eq(a, fix16(2.3)); // 1 + 2.3 - 1.0 = 2.3
     }
 
     // Test: Mixing _fx with numeric types
@@ -43,21 +42,21 @@ int main() {
         // _fx + int
         constexpr auto result = 1_fx + 2;
         constexpr fix8 a = result;
-        EXPECT_EQ(a, fix8(3));
+        gba::test.expect.eq(a, fix8(3));
     }
 
     {
         // float + _fx
         constexpr auto result = 2.5f + 1.5_fx;
         constexpr fix8 a = result;
-        EXPECT_EQ(a, fix8(4.0));
+        gba::test.expect.eq(a, fix8(4.0));
     }
 
     {
         // _fx + long long
         constexpr auto result = 3_fx + 4LL;
         constexpr fix8 a = result;
-        EXPECT_EQ(a, fix8(7));
+        gba::test.expect.eq(a, fix8(7));
     }
 
     // Test: Direct assignment to different fixed types
@@ -68,39 +67,40 @@ int main() {
         constexpr fix8 a = lit;
         constexpr fix16 b = lit;
 
-        EXPECT_EQ(a, fix8(3.625));
-        EXPECT_EQ(b, fix16(3.625));
+        gba::test.expect.eq(a, fix8(3.625));
+        gba::test.expect.eq(b, fix16(3.625));
     }
 
     // Test: One-liner complex expressions
     {
         // Everything in one expression
         constexpr fix8 result = 1_fx + 2.3f + 4LL - 0.5_fx;
-        EXPECT_EQ(result, fix8(6.8)); // 1 + 2.3 + 4 - 0.5 = 6.8
+        gba::test.expect.eq(result, fix8(6.8)); // 1 + 2.3 + 4 - 0.5 = 6.8
     }
 
     {
         // Division
         constexpr fix16 result = 10_fx / 4_fx;
-        EXPECT_EQ(result, fix16(2.5));
+        gba::test.expect.eq(result, fix16(2.5));
     }
 
     // Test: Unary operators
     {
         constexpr auto pos = +3.5_fx;
         constexpr fix8 a = pos;
-        EXPECT_EQ(a, fix8(3.5));
+        gba::test.expect.eq(a, fix8(3.5));
     }
 
     {
         constexpr auto neg = -3.5_fx;
         constexpr fix8 a = neg;
-        EXPECT_EQ(a, fix8(-3.5));
+        gba::test.expect.eq(a, fix8(-3.5));
     }
 
     {
         constexpr auto result = -(1_fx + 2_fx);
         constexpr fix8 a = result;
-        EXPECT_EQ(a, fix8(-3));
+        gba::test.expect.eq(a, fix8(-3));
     }
+    return gba::test.finish();
 }

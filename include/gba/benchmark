@@ -1,0 +1,311 @@
+/// @file benchmark
+/// @brief Cycle-accurate benchmarking utilities using dedicated GBA timers.
+///
+/// This API configures two cascading hardware timers as a 32-bit cycle counter.
+/// By default it uses TM2+TM3, which keeps TM0+TM1 free for game logic/audio.
+///
+/// Example:
+/// @code{.cpp}
+/// #include <gba/benchmark>
+///
+/// void work(unsigned int n) {
+///     volatile unsigned int x = 0;
+///     for (unsigned int i = 0; i < n; ++i) x += i;
+/// }
+///
+/// int main() {
+///     auto cycles = gba::benchmark::measure(work, 1024u);
+///     auto avg = gba::benchmark::measure_avg(8, work, 1024u);
+/// }
+/// @endcode
+#pragma once
+
+#include <gba/peripherals>
+
+#include <cstddef>
+#include <type_traits>
+#include <utility>
+
+namespace gba::benchmark {
+
+    /// @brief Compiler barrier that prevents dead-code elimination.
+    ///
+    /// Executes the callable within memory barriers so the compiler cannot
+    /// optimise away the call or reorder it across measurement boundaries.
+    ///
+    /// @code{.cpp}
+    /// gba::benchmark::do_not_optimize([&] { __aeabi_memcpy(d, s, n); });
+    /// @endcode
+    template<typename Fn>
+    inline decltype(auto) do_not_optimize(Fn&& fn) noexcept {
+        asm volatile("" ::: "memory");
+        if constexpr (std::is_void_v<std::invoke_result_t<Fn>>) {
+            std::forward<Fn>(fn)();
+            asm volatile("" ::: "memory");
+            return;
+        } else {
+            auto res = std::forward<Fn>(fn)();
+            asm volatile("" ::: "memory");
+            return res;
+        }
+    }
+
+    /// @brief Timer indices used to form a 32-bit cascading counter.
+    ///
+    /// `low` is configured as a free-running timer at `cycles_1`.
+    /// `high` is configured to cascade on overflow from `low`.
+    struct timer_pair {
+        unsigned char low;
+        unsigned char high;
+    };
+
+    /// @brief Named valid timer-pair selections.
+    enum class timer_pair_id : unsigned char {
+        tm0_tm1 = 0,
+        tm1_tm2 = 1,
+        tm2_tm3 = 2,
+    };
+
+    /// @brief Return true when the pair is one of (0,1), (1,2), or (2,3).
+    [[nodiscard]]
+    constexpr bool is_valid_timer_pair(timer_pair pair) noexcept {
+        return (pair.high == static_cast<unsigned char>(pair.low + 1)) && (pair.high <= 3u);
+    }
+
+    /// @brief Convert a named timer-pair id to concrete timer indices.
+    [[nodiscard]]
+    constexpr timer_pair make_timer_pair(timer_pair_id id) noexcept {
+        const auto low = static_cast<unsigned char>(id);
+        return timer_pair{low, static_cast<unsigned char>(low + 1u)};
+    }
+
+    /// @brief Default dedicated timer pair for benchmarking (TM2+TM3).
+    inline constexpr timer_pair default_pair = make_timer_pair(timer_pair_id::tm2_tm3);
+
+    /// @brief 32-bit cycle counter backed by two hardware timers.
+    class cycle_counter {
+    public:
+        explicit constexpr cycle_counter(timer_pair pair = default_pair) noexcept : m_pair(pair) {}
+
+        /// @brief Start counting CPU cycles.
+        inline void start() const noexcept {
+            if (!is_valid_timer_pair(m_pair)) return;
+            reg_tmcnt_h[m_pair.low] = {};
+            reg_tmcnt_h[m_pair.high] = {};
+            reg_tmcnt_l[m_pair.low] = 0;
+            reg_tmcnt_l[m_pair.high] = 0;
+            reg_tmcnt_h[m_pair.high] = {.cascade = true, .enabled = true};
+            reg_tmcnt_h[m_pair.low] = {.cycles = cycles_1, .enabled = true};
+        }
+
+        /// @brief Read and stop the counter.
+        [[nodiscard]]
+        inline unsigned int stop() const noexcept {
+            if (!is_valid_timer_pair(m_pair)) return 0;
+            const unsigned short lo = reg_tmcnt_l_stat[m_pair.low];
+            const unsigned short hi = reg_tmcnt_l_stat[m_pair.high];
+            reg_tmcnt_h[m_pair.low] = {};
+            reg_tmcnt_h[m_pair.high] = {};
+            return static_cast<unsigned int>(lo) | (static_cast<unsigned int>(hi) << 16);
+        }
+
+    private:
+        timer_pair m_pair;
+    };
+
+    /// @brief Measure cycles consumed by a callable invocation.
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Elapsed cycles.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure(Fn&& fn, Args&&... args) {
+        cycle_counter counter{};
+        counter.start();
+        std::forward<Fn>(fn)(std::forward<Args>(args)...);
+        return counter.stop();
+    }
+
+    /// @brief Measure cycles with a specific timer pair.
+    /// @param pair Timer pair to use.
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Elapsed cycles.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure_on(timer_pair pair, Fn&& fn, Args&&... args) {
+        cycle_counter counter{pair};
+        counter.start();
+        std::forward<Fn>(fn)(std::forward<Args>(args)...);
+        return counter.stop();
+    }
+
+    /// @brief Measure cycles with a named valid timer pair.
+    /// @param id Named timer-pair selection.
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Elapsed cycles.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure_on(timer_pair_id id, Fn&& fn, Args&&... args) {
+        return measure_on(make_timer_pair(id), std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+    /// @brief Measure average cycles over multiple iterations.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg(int iterations, Fn&& fn, Args&&... args) {
+        if (iterations <= 0) return 0;
+        unsigned int total = 0;
+        for (int i = 0; i < iterations; ++i) {
+            total += measure(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        }
+        return total / static_cast<unsigned int>(iterations);
+    }
+
+    /// @brief Measure average cycles over multiple iterations on a custom timer pair.
+    /// @param pair Timer pair to use.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg_on(timer_pair pair, int iterations, Fn&& fn, Args&&... args) {
+        if (iterations <= 0) return 0;
+        unsigned int total = 0;
+        for (int i = 0; i < iterations; ++i) {
+            total += measure_on(pair, std::forward<Fn>(fn), std::forward<Args>(args)...);
+        }
+        return total / static_cast<unsigned int>(iterations);
+    }
+
+    /// @brief Measure average cycles over multiple iterations on a named valid timer pair.
+    /// @param id Named timer-pair selection.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg_on(timer_pair_id id, int iterations, Fn&& fn, Args&&... args) {
+        return measure_avg_on(make_timer_pair(id), iterations, std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+    /// @brief Estimate measurement overhead for a timer pair.
+    /// @param pair Timer pair used for calibration.
+    /// @param iterations Number of calibration runs (must be > 0).
+    /// @return Average overhead cycles.
+    inline unsigned int calibrate_overhead_on(timer_pair pair, int iterations = 16) {
+        if (iterations <= 0) return 0;
+        unsigned int total = 0;
+        for (int i = 0; i < iterations; ++i) {
+            total += measure_on(pair, [] {
+                asm volatile("" ::: "memory");
+            });
+        }
+        return total / static_cast<unsigned int>(iterations);
+    }
+
+    /// @brief Estimate measurement overhead for a named valid timer pair.
+    /// @param id Named timer-pair selection.
+    /// @param iterations Number of calibration runs (must be > 0).
+    /// @return Average overhead cycles.
+    inline unsigned int calibrate_overhead_on(timer_pair_id id, int iterations = 16) {
+        return calibrate_overhead_on(make_timer_pair(id), iterations);
+    }
+
+    /// @brief Estimate measurement overhead using the default timer pair.
+    /// @param iterations Number of calibration runs (must be > 0).
+    /// @return Average overhead cycles.
+    inline unsigned int calibrate_overhead(int iterations = 16) {
+        return calibrate_overhead_on(default_pair, iterations);
+    }
+
+    /// @brief Get cached overhead for default-pair net measurements.
+    /// @return Estimated overhead cycles.
+    inline unsigned int default_overhead() {
+        static const unsigned int value = calibrate_overhead();
+        return value;
+    }
+
+    /// @brief Measure net cycles (gross minus calibrated overhead).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Net elapsed cycles clamped to zero.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure_net(Fn&& fn, Args&&... args) {
+        const unsigned int gross = measure(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        const unsigned int overhead = default_overhead();
+        return (gross > overhead) ? (gross - overhead) : 0u;
+    }
+
+    /// @brief Measure net cycles on a specific timer pair.
+    /// @param pair Timer pair to use.
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Net elapsed cycles clamped to zero.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure_net_on(timer_pair pair, Fn&& fn, Args&&... args) {
+        const unsigned int gross = measure_on(pair, std::forward<Fn>(fn), std::forward<Args>(args)...);
+        const unsigned int overhead = calibrate_overhead_on(pair);
+        return (gross > overhead) ? (gross - overhead) : 0u;
+    }
+
+    /// @brief Measure net cycles on a named valid timer pair.
+    /// @param id Named timer-pair selection.
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Net elapsed cycles clamped to zero.
+    template<typename Fn, typename... Args>
+    [[gnu::noinline]]
+    unsigned int measure_net_on(timer_pair_id id, Fn&& fn, Args&&... args) {
+        return measure_net_on(make_timer_pair(id), std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+    /// @brief Measure average net cycles over multiple iterations.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average net cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg_net(int iterations, Fn&& fn, Args&&... args) {
+        if (iterations <= 0) return 0;
+        unsigned int total = 0;
+        for (int i = 0; i < iterations; ++i) {
+            total += measure_net(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        }
+        return total / static_cast<unsigned int>(iterations);
+    }
+
+    /// @brief Measure average net cycles over multiple iterations on a custom timer pair.
+    /// @param pair Timer pair to use.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average net cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg_net_on(timer_pair pair, int iterations, Fn&& fn, Args&&... args) {
+        if (iterations <= 0) return 0;
+        unsigned int total = 0;
+        for (int i = 0; i < iterations; ++i) {
+            total += measure_net_on(pair, std::forward<Fn>(fn), std::forward<Args>(args)...);
+        }
+        return total / static_cast<unsigned int>(iterations);
+    }
+
+    /// @brief Measure average net cycles over multiple iterations on a named valid timer pair.
+    /// @param id Named timer-pair selection.
+    /// @param iterations Number of runs (must be > 0).
+    /// @param fn Callable to measure.
+    /// @param args Arguments forwarded to fn.
+    /// @return Average net cycles.
+    template<typename Fn, typename... Args>
+    unsigned int measure_avg_net_on(timer_pair_id id, int iterations, Fn&& fn, Args&&... args) {
+        return measure_avg_net_on(make_timer_pair(id), iterations, std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+} // namespace gba::benchmark

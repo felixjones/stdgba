@@ -6,8 +6,7 @@
 /// by default (or 64KB depending on the save type string).
 
 #include <gba/save>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 #include <array>
 #include <cstring>
@@ -23,34 +22,22 @@ int main() {
         const auto info = flash::detect();
 
         // mgba should emulate a known Flash chip
-        ASSERT_TRUE(info.chip_size != flash::size::detect);
+        gba::test.is_true(info.chip_size != flash::size::detect);
 
         // Global state should match the returned info
-        ASSERT_EQ(
-            static_cast<int>(ops::g_state.info.chip_size),
-            static_cast<int>(info.chip_size)
-        );
-        ASSERT_EQ(
-            static_cast<int>(ops::g_state.info.mfr),
-            static_cast<int>(info.mfr)
-        );
-        ASSERT_EQ(ops::g_state.info.device, info.device);
+        gba::test.eq(static_cast<int>(ops::g_state.info.chip_size), static_cast<int>(info.chip_size));
+        gba::test.eq(static_cast<int>(ops::g_state.info.mfr), static_cast<int>(info.mfr));
+        gba::test.eq(ops::g_state.info.device, info.device);
 
         // Bank should be initialized to 0
-        ASSERT_EQ(ops::g_state.current_bank, 0);
+        gba::test.eq(ops::g_state.current_bank, 0);
     }
 
     // detect() with size hint should override auto-detection
     {
         const auto info = flash::detect(flash::size::flash_128k);
-        ASSERT_EQ(
-            static_cast<int>(info.chip_size),
-            static_cast<int>(flash::size::flash_128k)
-        );
-        ASSERT_EQ(
-            static_cast<int>(ops::g_state.info.chip_size),
-            static_cast<int>(flash::size::flash_128k)
-        );
+        gba::test.eq(static_cast<int>(info.chip_size), static_cast<int>(flash::size::flash_128k));
+        gba::test.eq(static_cast<int>(ops::g_state.info.chip_size), static_cast<int>(flash::size::flash_128k));
     }
 
     // Re-detect without hint to restore actual chip info
@@ -64,7 +51,7 @@ int main() {
         ops::read_bytes(buf.data(), ops::flash_ptr(0), buf.size());
         // We can't assert specific values (Flash may contain anything),
         // but the call should succeed without hanging
-        ASSERT_TRUE(true);
+        gba::test.is_true(true);
     }
 
     // erase_sector() + write_byte() + read_bytes() -- standard write cycle
@@ -75,7 +62,7 @@ int main() {
         // Erase sector 0
         {
             const int result = ops::erase_sector(0);
-            ASSERT_EQ(result, 0);
+            gba::test.eq(result, 0);
         }
 
         // After erase, sector should read as a uniform value.
@@ -84,7 +71,7 @@ int main() {
         std::uint8_t erased_byte = 0;
         {
             ops::read_bytes(&erased_byte, ops::flash_ptr(0), 1);
-            ASSERT_TRUE(erased_byte == 0xFF || erased_byte == 0x00);
+            gba::test.is_true(erased_byte == 0xFF || erased_byte == 0x00);
         }
 
         // Verify the full range is uniformly erased
@@ -93,7 +80,7 @@ int main() {
             ops::read_bytes(buf.data(), ops::flash_ptr(0), buf.size());
 
             for (std::size_t i = 0; i < buf.size(); ++i) {
-                ASSERT_EQ(buf[i], erased_byte);
+                gba::test.eq(buf[i], erased_byte);
             }
         }
 
@@ -101,10 +88,8 @@ int main() {
         {
             for (std::size_t i = 0; i < 64; ++i) {
                 const auto byte = static_cast<std::uint8_t>(i ^ 0xA5);
-                const int result = ops::write_byte(
-                    static_cast<std::uint32_t>(i), byte
-                );
-                ASSERT_EQ(result, 0);
+                const int result = ops::write_byte(static_cast<std::uint32_t>(i), byte);
+                gba::test.eq(result, 0);
             }
         }
 
@@ -115,7 +100,7 @@ int main() {
 
             for (std::size_t i = 0; i < buf.size(); ++i) {
                 const auto expected = static_cast<std::uint8_t>(i ^ 0xA5);
-                ASSERT_EQ(buf[i], expected);
+                gba::test.eq(buf[i], expected);
             }
         }
 
@@ -124,33 +109,33 @@ int main() {
             constexpr std::uint32_t offset = 256;
             for (std::size_t i = 0; i < 16; ++i) {
                 const auto byte = static_cast<std::uint8_t>(0xBB - i);
-                ASSERT_EQ(ops::write_byte(offset + i, byte), 0);
+                gba::test.eq(ops::write_byte(offset + i, byte), 0);
             }
 
             std::array<std::uint8_t, 16> buf{};
             ops::read_bytes(buf.data(), ops::flash_ptr(offset), buf.size());
 
             for (std::size_t i = 0; i < buf.size(); ++i) {
-                ASSERT_EQ(buf[i], static_cast<std::uint8_t>(0xBB - i));
+                gba::test.eq(buf[i], static_cast<std::uint8_t>(0xBB - i));
             }
         }
 
         // Erase sector 1 (should not affect sector 0 data)
         {
-            ASSERT_EQ(ops::erase_sector(flash::sector_size), 0);
+            gba::test.eq(ops::erase_sector(flash::sector_size), 0);
 
             // Sector 1 should be erased
             std::array<std::uint8_t, 16> buf1{};
             ops::read_bytes(buf1.data(), ops::flash_ptr(flash::sector_size), buf1.size());
             for (std::size_t i = 0; i < buf1.size(); ++i) {
-                ASSERT_EQ(buf1[i], erased_byte);
+                gba::test.eq(buf1[i], erased_byte);
             }
 
             // Sector 0 data should still be intact
             std::array<std::uint8_t, 16> buf0{};
             ops::read_bytes(buf0.data(), ops::flash_ptr(0), buf0.size());
             for (std::size_t i = 0; i < buf0.size(); ++i) {
-                ASSERT_EQ(buf0[i], static_cast<std::uint8_t>(i ^ 0xA5));
+                gba::test.eq(buf0[i], static_cast<std::uint8_t>(i ^ 0xA5));
             }
         }
     }
@@ -169,7 +154,7 @@ int main() {
         // Write page 0
         {
             const int result = ops::write_atmel_page(0, page.data());
-            ASSERT_EQ(result, 0);
+            gba::test.eq(result, 0);
         }
 
         // Read back and verify
@@ -178,7 +163,7 @@ int main() {
             ops::read_bytes(buf.data(), ops::flash_ptr(0), buf.size());
 
             for (std::size_t i = 0; i < buf.size(); ++i) {
-                ASSERT_EQ(buf[i], page[i]);
+                gba::test.eq(buf[i], page[i]);
             }
         }
     }
@@ -216,7 +201,7 @@ int main() {
         {
             std::uint8_t val = 0;
             ops::read_bytes(&val, ops::flash_ptr(0), 1);
-            ASSERT_EQ(val, 0x55);
+            gba::test.eq(val, 0x55);
         }
 
         // Switch back to bank 0
@@ -227,7 +212,7 @@ int main() {
         {
             std::uint8_t val = 0;
             ops::read_bytes(&val, ops::flash_ptr(0), 1);
-            ASSERT_EQ(val, 0xAA);
+            gba::test.eq(val, 0xAA);
         }
     }
 
@@ -242,22 +227,22 @@ int main() {
 
             std::uint8_t check = 0;
             ops::read_bytes(&check, ops::flash_ptr(0), 1);
-            ASSERT_EQ(check, 0x42);
+            gba::test.eq(check, 0x42);
         }
 
         // Erase the entire chip
-        ASSERT_EQ(ops::erase_chip(), 0);
+        gba::test.eq(ops::erase_chip(), 0);
 
         // Determine the erased value
         std::uint8_t erased = 0;
         ops::read_bytes(&erased, ops::flash_ptr(0), 1);
-        ASSERT_TRUE(erased == 0xFF || erased == 0x00);
+        gba::test.is_true(erased == 0xFF || erased == 0x00);
 
         // A byte deeper into the bank should also be erased
         {
             std::uint8_t val = 0x42;
             ops::read_bytes(&val, ops::flash_ptr(0x1000), 1);
-            ASSERT_EQ(val, erased);
+            gba::test.eq(val, erased);
         }
     }
 
@@ -266,13 +251,13 @@ int main() {
     {
         // These are constexpr-friendly, but test them at runtime too
         const auto* ptr = ops::flash_ptr(0);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(ptr), 0x0E000000u);
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(ptr), 0x0E000000u);
 
         const auto* ptr2 = ops::flash_ptr(0x1234);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(ptr2), 0x0E001234u);
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(ptr2), 0x0E001234u);
 
         auto* cmd = ops::flash_cmd_ptr(0x5555);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(cmd), 0x0E005555u);
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(cmd), 0x0E005555u);
     }
 
     // Constants -- compile-time verification
@@ -285,6 +270,7 @@ int main() {
         static_assert(flash::pages_per_bank == 512);
         static_assert(flash::sectors_per_bank * flash::sector_size == flash::bank_size);
         static_assert(flash::pages_per_bank * flash::page_size_atmel == flash::bank_size);
-        ASSERT_TRUE(true); // static_asserts passed
+        gba::test.is_true(true); // static_asserts passed
     }
+    return gba::test.finish();
 }

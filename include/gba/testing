@@ -1,0 +1,463 @@
+/// @file testing
+/// @brief Lightweight test API for emulator and on-device diagnostics.
+///
+/// Provides a singleton-style test object (`gba::test`) with callable case
+/// syntax and source-location aware checks.
+///
+/// @code{.cpp}
+/// #include <gba/testing>
+///
+/// int main() {
+///     gba::test("basic", [] {
+///         gba::test.expect.eq(2 + 2, 4, "2+2 == 4");
+///         gba::test.expect.is_true(true, "sanity");
+///     });
+/// }
+/// @endcode
+///
+/// @section exit_swi mgba-headless Exit SWI
+///
+/// When running under mgba-headless the testing API terminates by issuing a
+/// software interrupt whose number is read via `-S`.  The default is SWI 0x1A
+/// (`SoundDriverInit`) which is a harmless no-op on real hardware.  Override
+/// at compile time with `-DSTDGBA_EXIT_SWI=0x##`:
+///
+/// @code{.cmake}
+/// target_compile_definitions(my_test PRIVATE STDGBA_EXIT_SWI=0xFF)
+/// @endcode
+#pragma once
+
+/// @brief SWI number used to signal program exit to mgba-headless.
+///
+/// Default: 0x1A (SoundDriverInit - harmless no-op on hardware).
+/// Override with `-DSTDGBA_EXIT_SWI=0x##` to match your mgba-headless `-S` flag.
+#ifndef STDGBA_EXIT_SWI
+#define STDGBA_EXIT_SWI 0x1A
+#endif
+
+#include <cstdint>
+#include <source_location>
+#include <type_traits>
+#include <utility>
+
+namespace gba::testing {
+
+    namespace detail {
+
+        /// @brief Detect types with member begin()/end() (e.g. registral arrays, std containers).
+        template<typename T>
+        concept Range = requires(const T& t) {
+            t.begin();
+            t.end();
+        };
+
+        /// @brief Detect C-style bounded arrays (e.g. `int[4]`).
+        template<typename T>
+        concept BoundedArray = std::is_bounded_array_v<std::remove_cvref_t<T>>;
+
+        /// @brief Detect any iterable type: member-range or C array.
+        template<typename T>
+        concept Iterable = Range<T> || BoundedArray<T>;
+
+        /// @brief Detect types that can be compared directly with `==`.
+        template<typename L, typename R>
+        concept DirectlyComparable = requires(const L& l, const R& r) {
+            { l == r } -> std::convertible_to<bool>;
+        };
+
+        /// @brief Obtain a begin iterator for ranges and C arrays.
+        template<typename T>
+        constexpr auto iter_begin(const T& t) noexcept {
+            if constexpr (Range<T>) {
+                return t.begin();
+            } else {
+                return &t[0];
+            }
+        }
+
+        /// @brief Obtain an end iterator for ranges and C arrays.
+        template<typename T>
+        constexpr auto iter_end(const T& t) noexcept {
+            if constexpr (Range<T>) {
+                return t.end();
+            } else {
+                return &t[0] + std::extent_v<std::remove_cvref_t<T>>;
+            }
+        }
+
+        /// @brief Element-wise equality for two iterable types.
+        template<Iterable L, Iterable R>
+        bool range_equal(const L& lhs, const R& rhs) noexcept {
+            auto li = iter_begin(lhs);
+            auto le = iter_end(lhs);
+            auto ri = iter_begin(rhs);
+            auto re = iter_end(rhs);
+            for (; li != le && ri != re; ++li, ++ri) {
+                if (*li != *ri) return false;
+            }
+            return li == le && ri == re;
+        }
+
+        /// @brief Recursively check that all elements compare equal to zero.
+        template<typename T>
+        bool all_zero(const T& value) noexcept {
+            if constexpr (Iterable<T>) {
+                for (const auto& elem : value) {
+                    if (!all_zero(elem)) return false;
+                }
+                return true;
+            } else {
+                return value == 0;
+            }
+        }
+
+    } // namespace detail
+
+    /// @brief Assertion severity for test checks.
+    enum class severity : std::uint8_t {
+        expect, ///< Record failure and continue.
+        assert_ ///< Record failure and abort immediately.
+    };
+
+    /// @brief Runtime configuration for the testing API.
+    struct config {
+        bool auto_finish = true; ///< Auto-finish from destructor when running in mGBA.
+        bool log_passes = false; ///< Emit per-check pass logs when supported.
+    };
+
+    /// @brief Aggregated pass/fail counters.
+    struct summary {
+        unsigned int passes;
+        unsigned int failures;
+    };
+
+    /// @brief Singleton-style test API.
+    class api {
+    public:
+        /// @brief Severity-bound assertion channel.
+        class channel {
+        public:
+            channel(api& owner, severity sev) noexcept : m_owner(owner), m_severity(sev) {}
+
+            /// @brief Check that a boolean condition is true.
+            bool is_true(bool condition, const char* message = "",
+                         std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(condition, message, m_severity, loc);
+            }
+
+            /// @brief Check that a boolean condition is false.
+            bool is_false(bool condition, const char* message = "",
+                          std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(!condition, message, m_severity, loc);
+            }
+
+            /// @brief Check equality.
+            ///
+            /// C-style arrays are always compared element-wise. Other types
+            /// use `operator==` when available, falling back to element-wise
+            /// comparison when both operands are iterable.
+            template<typename Left, typename Right>
+            bool eq(const Left& lhs, const Right& rhs, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
+                    return m_owner.is_true_impl(detail::range_equal(lhs, rhs), message, m_severity, loc);
+                } else if constexpr (detail::DirectlyComparable<Left, Right>) {
+                    return m_owner.is_true_impl(lhs == rhs, message, m_severity, loc);
+                } else if constexpr (detail::Iterable<Left> && detail::Iterable<Right>) {
+                    return m_owner.is_true_impl(detail::range_equal(lhs, rhs), message, m_severity, loc);
+                } else {
+                    static_assert(detail::DirectlyComparable<Left, Right>,
+                                  "eq: types are not comparable and not both iterable");
+                }
+            }
+
+            /// @brief Check inequality.
+            ///
+            /// C-style arrays are always compared element-wise. Other types
+            /// use `operator!=` when available, falling back to element-wise
+            /// comparison when both operands are iterable.
+            template<typename Left, typename Right>
+            bool neq(const Left& lhs, const Right& rhs, const char* message = "",
+                     std::source_location loc = std::source_location::current()) noexcept {
+                if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
+                    return m_owner.is_true_impl(!detail::range_equal(lhs, rhs), message, m_severity, loc);
+                } else if constexpr (detail::DirectlyComparable<Left, Right>) {
+                    return m_owner.is_true_impl(lhs != rhs, message, m_severity, loc);
+                } else if constexpr (detail::Iterable<Left> && detail::Iterable<Right>) {
+                    return m_owner.is_true_impl(!detail::range_equal(lhs, rhs), message, m_severity, loc);
+                } else {
+                    static_assert(detail::DirectlyComparable<Left, Right>,
+                                  "neq: types are not comparable and not both iterable");
+                }
+            }
+
+            /// @brief Check value equals zero.
+            ///
+            /// For range types and C arrays, checks all elements recursively.
+            template<typename T>
+            bool zero(const T& value, const char* message = "",
+                      std::source_location loc = std::source_location::current()) noexcept {
+                if constexpr (detail::Iterable<T>) {
+                    return m_owner.is_true_impl(detail::all_zero(value), message, m_severity, loc);
+                } else {
+                    return m_owner.is_true_impl(value == 0, message, m_severity, loc);
+                }
+            }
+
+            /// @brief Check value is non-zero.
+            template<typename T>
+            bool nz(const T& value, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(value != 0, message, m_severity, loc);
+            }
+
+            /// @brief Check value is greater than zero.
+            template<typename T>
+            bool gtz(const T& value, const char* message = "",
+                     std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(value > 0, message, m_severity, loc);
+            }
+
+            /// @brief Check value is less than zero.
+            ///
+            /// For unsigned values, this behaves like `nz`.
+            template<typename T>
+            bool ltz(const T& value, const char* message = "",
+                     std::source_location loc = std::source_location::current()) noexcept {
+                if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
+                    return m_owner.is_true_impl(value < 0, message, m_severity, loc);
+                }
+                return m_owner.is_true_impl(value != 0, message, m_severity, loc);
+            }
+
+            /// @brief Check greater-than.
+            template<typename Left, typename Right>
+            bool gr(const Left& lhs, const Right& rhs, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(lhs > rhs, message, m_severity, loc);
+            }
+
+            /// @brief Check less-than.
+            template<typename Left, typename Right>
+            bool lt(const Left& lhs, const Right& rhs, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(lhs < rhs, message, m_severity, loc);
+            }
+
+            /// @brief Check greater-than-or-equal.
+            template<typename Left, typename Right>
+            bool ge(const Left& lhs, const Right& rhs, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(lhs >= rhs, message, m_severity, loc);
+            }
+
+            /// @brief Check less-than-or-equal.
+            template<typename Left, typename Right>
+            bool le(const Left& lhs, const Right& rhs, const char* message = "",
+                    std::source_location loc = std::source_location::current()) noexcept {
+                return m_owner.is_true_impl(lhs <= rhs, message, m_severity, loc);
+            }
+
+        private:
+            api& m_owner;
+            severity m_severity;
+        };
+
+        explicit api(config cfg = {}) noexcept;
+        ~api() noexcept;
+
+        channel expect;
+
+        /// @brief Run a named test case.
+        /// @param name Case name for logs.
+        /// @param fn Callable body.
+        /// @param loc Source location at call-site.
+        template<typename Fn>
+        void operator()(const char* name, Fn&& fn, std::source_location loc = std::source_location::current()) {
+            begin_case(name, loc);
+            std::forward<Fn>(fn)();
+            end_case();
+        }
+
+        /// @brief Check that a boolean condition is true.
+        /// @return true on pass, otherwise aborts.
+        bool is_true(bool condition, const char* message = "",
+                     std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(condition, message, severity::assert_, loc);
+        }
+
+        /// @brief Check that a boolean condition is false.
+        /// @return true on pass, otherwise aborts.
+        bool is_false(bool condition, const char* message = "",
+                      std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(!condition, message, severity::assert_, loc);
+        }
+
+        /// @brief Check equality.
+        ///
+        /// C-style arrays are always compared element-wise. Other types
+        /// use `operator==` when available, falling back to element-wise
+        /// comparison when both operands are iterable.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool eq(const Left& lhs, const Right& rhs, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
+                return is_true_impl(detail::range_equal(lhs, rhs), message, severity::assert_, loc);
+            } else if constexpr (detail::DirectlyComparable<Left, Right>) {
+                return is_true_impl(lhs == rhs, message, severity::assert_, loc);
+            } else if constexpr (detail::Iterable<Left> && detail::Iterable<Right>) {
+                return is_true_impl(detail::range_equal(lhs, rhs), message, severity::assert_, loc);
+            } else {
+                static_assert(detail::DirectlyComparable<Left, Right>,
+                              "eq: types are not comparable and not both iterable");
+            }
+        }
+
+        /// @brief Check inequality.
+        ///
+        /// C-style arrays are always compared element-wise. Other types
+        /// use `operator!=` when available, falling back to element-wise
+        /// comparison when both operands are iterable.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool neq(const Left& lhs, const Right& rhs, const char* message = "",
+                 std::source_location loc = std::source_location::current()) noexcept {
+            if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
+                return is_true_impl(!detail::range_equal(lhs, rhs), message, severity::assert_, loc);
+            } else if constexpr (detail::DirectlyComparable<Left, Right>) {
+                return is_true_impl(lhs != rhs, message, severity::assert_, loc);
+            } else if constexpr (detail::Iterable<Left> && detail::Iterable<Right>) {
+                return is_true_impl(!detail::range_equal(lhs, rhs), message, severity::assert_, loc);
+            } else {
+                static_assert(detail::DirectlyComparable<Left, Right>,
+                              "neq: types are not comparable and not both iterable");
+            }
+        }
+
+        /// @brief Check value equals zero.
+        ///
+        /// For range types and C arrays, checks all elements recursively.
+        /// @return true on pass, otherwise aborts.
+        template<typename T>
+        bool zero(const T& value, const char* message = "",
+                  std::source_location loc = std::source_location::current()) noexcept {
+            if constexpr (detail::Iterable<T>) {
+                return is_true_impl(detail::all_zero(value), message, severity::assert_, loc);
+            } else {
+                return is_true_impl(value == 0, message, severity::assert_, loc);
+            }
+        }
+
+        /// @brief Check value is non-zero.
+        /// @return true on pass, otherwise aborts.
+        template<typename T>
+        bool nz(const T& value, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(value != 0, message, severity::assert_, loc);
+        }
+
+        /// @brief Check value is greater than zero.
+        /// @return true on pass, otherwise aborts.
+        template<typename T>
+        bool gtz(const T& value, const char* message = "",
+                 std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(value > 0, message, severity::assert_, loc);
+        }
+
+        /// @brief Check value is less than zero.
+        ///
+        /// For unsigned values, this behaves like `nz`.
+        /// @return true on pass, otherwise aborts.
+        template<typename T>
+        bool ltz(const T& value, const char* message = "",
+                 std::source_location loc = std::source_location::current()) noexcept {
+            if constexpr (std::is_signed_v<std::remove_cvref_t<T>>) {
+                return is_true_impl(value < 0, message, severity::assert_, loc);
+            }
+            return is_true_impl(value != 0, message, severity::assert_, loc);
+        }
+
+        /// @brief Check greater-than.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool gr(const Left& lhs, const Right& rhs, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(lhs > rhs, message, severity::assert_, loc);
+        }
+
+        /// @brief Check less-than.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool lt(const Left& lhs, const Right& rhs, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(lhs < rhs, message, severity::assert_, loc);
+        }
+
+        /// @brief Check greater-than-or-equal.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool ge(const Left& lhs, const Right& rhs, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(lhs >= rhs, message, severity::assert_, loc);
+        }
+
+        /// @brief Check less-than-or-equal.
+        /// @return true on pass, otherwise aborts.
+        template<typename Left, typename Right>
+        bool le(const Left& lhs, const Right& rhs, const char* message = "",
+                std::source_location loc = std::source_location::current()) noexcept {
+            return is_true_impl(lhs <= rhs, message, severity::assert_, loc);
+        }
+
+        /// @brief Finalize test execution explicitly.
+        ///
+        /// Normally this is implicit: the global `gba::test` object finalizes in
+        /// its destructor when `config::auto_finish` is enabled (default).
+        ///
+        /// In mGBA/headless environments, this exits through SWI and does not
+        /// return. Otherwise it returns the failure count on success-only runs,
+        /// or transfers control to the assert path on failure.
+        [[nodiscard]]
+        int finish() noexcept;
+
+        /// @brief Reset counters and captured failure state.
+        void reset() noexcept;
+
+        /// @brief Current pass/fail counters.
+        [[nodiscard]] summary stats() const noexcept;
+
+        /// @brief Whether no failures have been recorded.
+        [[nodiscard]] bool ok() const noexcept;
+
+    private:
+        void begin_case(const char* name, std::source_location loc) noexcept;
+        void end_case() noexcept;
+        [[nodiscard]] bool running_in_mgba() noexcept;
+        void log_line(const char* text) noexcept;
+        void report_failure(const char* message, std::source_location loc) noexcept;
+        [[noreturn]] void abort_now(const char* message, std::source_location loc) noexcept;
+        bool is_true_impl(bool condition, const char* message, severity sev, std::source_location loc) noexcept;
+
+        config m_cfg{};
+        bool m_used = false;
+        bool m_finished = false;
+        bool m_backend_checked = false;
+        bool m_is_mgba = false;
+
+        unsigned int m_passes = 0;
+        unsigned int m_failures = 0;
+
+        const char* m_case_name = nullptr;
+        const char* m_first_file = nullptr;
+        const char* m_first_function = nullptr;
+        const char* m_first_message = nullptr;
+        std::uint_least32_t m_first_line = 0;
+    };
+
+} // namespace gba::testing
+
+namespace gba {
+    /// @brief Global singleton-like testing API object.
+    inline testing::api test{};
+} // namespace gba

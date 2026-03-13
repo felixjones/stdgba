@@ -1,8 +1,7 @@
+#include <gba/testing>
 #include <gba/timer>
 
 #include <algorithm>
-
-#include <mgba_test.hpp>
 
 int main() {
     using namespace gba;
@@ -20,23 +19,22 @@ int main() {
 
         // First timer is enabled and not cascading
         timer_control ctrl = reg_tmcnt_h[0];
-        EXPECT_TRUE(ctrl.enabled);
-        EXPECT_FALSE(ctrl.cascade);
+        gba::test.expect.is_true(ctrl.enabled);
+        gba::test.expect.is_false(ctrl.cascade);
 
         // If cascading, subsequent timers have cascade flag
         if constexpr (timer.size() >= 2) {
             timer_control ctrl1 = reg_tmcnt_h[1];
-            EXPECT_TRUE(ctrl1.cascade);
-            EXPECT_TRUE(ctrl1.enabled);
+            gba::test.expect.is_true(ctrl1.cascade);
+            gba::test.expect.is_true(ctrl1.enabled);
         }
 
         // Last timer has overflow IRQ
         timer_control last = reg_tmcnt_h[timer.size() - 1];
-        EXPECT_TRUE(last.overflow_irq);
+        gba::test.expect.is_true(last.overflow_irq);
 
         // Disable timers
-        for (std::size_t i = 0; i < timer.size(); ++i)
-            reg_tmcnt_h[i] = {};
+        for (std::size_t i = 0; i < timer.size(); ++i) reg_tmcnt_h[i] = {};
     }
 
     // Test: compile_timer with short duration (single timer, no IRQ)
@@ -48,9 +46,9 @@ int main() {
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
 
         timer_control ctrl = reg_tmcnt_h[0];
-        EXPECT_TRUE(ctrl.enabled);
-        EXPECT_FALSE(ctrl.cascade);
-        EXPECT_FALSE(ctrl.overflow_irq);
+        gba::test.expect.is_true(ctrl.enabled);
+        gba::test.expect.is_false(ctrl.cascade);
+        gba::test.expect.is_false(ctrl.overflow_irq);
 
         reg_tmcnt_h[0] = {};
     }
@@ -64,10 +62,9 @@ int main() {
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin() + 2);
 
         timer_control ctrl = reg_tmcnt_h[2];
-        EXPECT_TRUE(ctrl.enabled);
+        gba::test.expect.is_true(ctrl.enabled);
 
-        for (std::size_t i = 0; i < timer.size(); ++i)
-            reg_tmcnt_h[2 + i] = {};
+        for (std::size_t i = 0; i < timer.size(); ++i) reg_tmcnt_h[2 + i] = {};
     }
 
     // Test: compile_timer_exact with exactly representable duration
@@ -79,10 +76,9 @@ int main() {
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
 
         timer_control ctrl = reg_tmcnt_h[0];
-        EXPECT_TRUE(ctrl.enabled);
+        gba::test.expect.is_true(ctrl.enabled);
 
-        for (std::size_t i = 0; i < timer.size(); ++i)
-            reg_tmcnt_h[i] = {};
+        for (std::size_t i = 0; i < timer.size(); ++i) reg_tmcnt_h[i] = {};
     }
 
     // Test: compile_cycle_timer with each prescaler
@@ -94,9 +90,9 @@ int main() {
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
 
         timer_control ctrl = reg_tmcnt_h[0];
-        EXPECT_TRUE(ctrl.enabled);
-        EXPECT_EQ(ctrl.cycles, cycles_1024);
-        EXPECT_TRUE(ctrl.overflow_irq);
+        gba::test.expect.is_true(ctrl.enabled);
+        gba::test.expect.eq(ctrl.cycles, cycles_1024);
+        gba::test.expect.is_true(ctrl.overflow_irq);
 
         reg_tmcnt_h[0] = {};
     }
@@ -106,7 +102,7 @@ int main() {
         static_assert(timer.size() == 1);
 
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
-        EXPECT_EQ(reg_tmcnt_h[0].value().cycles, cycles_256);
+        gba::test.expect.eq(reg_tmcnt_h[0].value().cycles, cycles_256);
 
         reg_tmcnt_h[0] = {};
     }
@@ -116,7 +112,7 @@ int main() {
         static_assert(timer.size() == 1);
 
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
-        EXPECT_EQ(reg_tmcnt_h[0].value().cycles, cycles_64);
+        gba::test.expect.eq(reg_tmcnt_h[0].value().cycles, cycles_64);
 
         reg_tmcnt_h[0] = {};
     }
@@ -126,7 +122,7 @@ int main() {
         static_assert(timer.size() == 1);
 
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
-        EXPECT_EQ(reg_tmcnt_h[0].value().cycles, cycles_1);
+        gba::test.expect.eq(reg_tmcnt_h[0].value().cycles, cycles_1);
 
         reg_tmcnt_h[0] = {};
     }
@@ -139,11 +135,10 @@ int main() {
 
         std::copy(timer.begin(), timer.end(), reg_tmcnt.begin());
 
-        EXPECT_FALSE(reg_tmcnt_h[0].value().cascade);
-        EXPECT_TRUE(reg_tmcnt_h[1].value().cascade);
+        gba::test.expect.is_false(reg_tmcnt_h[0].value().cascade);
+        gba::test.expect.is_true(reg_tmcnt_h[1].value().cascade);
 
-        for (std::size_t i = 0; i < timer.size(); ++i)
-            reg_tmcnt_h[i] = {};
+        for (std::size_t i = 0; i < timer.size(); ++i) reg_tmcnt_h[i] = {};
     }
 
     // Test: compiled timer actually runs
@@ -164,10 +159,9 @@ int main() {
             spins = spins + 1;
         }
 
-        EXPECT_TRUE(current != initial);
+        gba::test.expect.is_true(current != initial);
 
-        for (std::size_t i = 0; i < timer.size(); ++i)
-            reg_tmcnt_h[i] = {};
+        for (std::size_t i = 0; i < timer.size(); ++i) reg_tmcnt_h[i] = {};
     }
 
     // Test: clock_duration conversions
@@ -175,14 +169,14 @@ int main() {
     {
         clock_duration<> cycles{16777216}; // 1 second worth of cycles
         auto seconds = std::chrono::duration_cast<std::chrono::seconds>(cycles);
-        EXPECT_EQ(seconds.count(), 1);
+        gba::test.expect.eq(seconds.count(), 1);
     }
 
     {
         auto ms = std::chrono::milliseconds{1000};
         auto cycles = std::chrono::duration_cast<clock_duration<>>(ms);
-        EXPECT_EQ(cycles.count(), 16777216u);
+        gba::test.expect.eq(cycles.count(), 16777216u);
     }
 
-    test::exit(test::failures());
+    return gba::test.finish();
 }

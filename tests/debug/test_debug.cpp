@@ -5,10 +5,9 @@
 
 #include <gba/format>
 #include <gba/logger>
+#include <gba/testing>
 
-#include <mgba_test.hpp>
-
-using namespace gba::format::literals;
+using namespace gba::literals;
 
 int main() {
     // Auto-detect and initialize
@@ -51,14 +50,15 @@ int main() {
         // Test level filtering
         gba::log::set_level(gba::log::level::warn);
         auto written = gba::log::debug("This should not appear");
-        ASSERT_EQ(written, 0u);
+        gba::test.eq(written, 0u);
 
         gba::log::set_level(gba::log::level::debug);
         written = gba::log::debug("This should appear");
-        ASSERT_NZ(written);
+        gba::test.nz(written);
 
         gba::log::info("=== Test Complete ===");
     }
 
-    ASSERT_TRUE(true);
+    gba::test.is_true(true);
+    return gba::test.finish();
 }

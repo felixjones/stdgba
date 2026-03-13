@@ -14,25 +14,24 @@
 /// A naive forward copy (d[0]=s[0]; d[1]=s[1]; ...) corrupts data when
 /// dest = src + 1.
 
+#include <gba/testing>
+
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 
-#include <mgba_test.hpp>
-
 // Pull in the aeabi symbols for the fallback path
 extern "C" {
-    extern void __aeabi_memmove(void *, const void *, std::size_t);
-    extern void __aeabi_memmove4(void *, const void *, std::size_t);
+extern void __aeabi_memmove(void*, const void*, std::size_t);
+extern void __aeabi_memmove4(void*, const void*, std::size_t);
 }
 
 // Reproduce the memmove wrapper logic in this TU so __builtin_constant_p
 // can resolve with -O3 inlining. This is the EXACT logic from memmove.cpp.
 // Must be always_inline so __builtin_constant_p sees the literal n from callers.
 [[gnu::always_inline]]
-static inline void* test_memmove(void *dest, const void *src, std::size_t n) {
-    if (__builtin_constant_p(n) && n == 0)
-        return dest;
+static inline void* test_memmove(void* dest, const void* src, std::size_t n) {
+    if (__builtin_constant_p(n) && n == 0) return dest;
 
     if (__builtin_constant_p(n) && n > 0 && n <= 6) {
         auto d = static_cast<unsigned char*>(dest);
@@ -55,8 +54,7 @@ static inline void* test_memmove(void *dest, const void *src, std::size_t n) {
     if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
         (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
         __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0)
-    {
+        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
         __aeabi_memmove4(dest, src, n);
         return dest;
     }
@@ -67,136 +65,135 @@ static inline void* test_memmove(void *dest, const void *src, std::size_t n) {
 
 namespace {
 
-alignas(8) unsigned char buf[64];
+    alignas(8) unsigned char buf[64];
 
-void fill_pattern() {
-    for (std::size_t i = 0; i < sizeof(buf); ++i)
-        buf[i] = static_cast<unsigned char>(i);
-}
-
-// Reference memmove
-void ref_memmove(unsigned char* dst, const unsigned char* src, std::size_t n) {
-    if (dst <= src) {
-        for (std::size_t i = 0; i < n; ++i) dst[i] = src[i];
-    } else {
-        for (std::size_t i = n; i > 0; --i) dst[i - 1] = src[i - 1];
+    void fill_pattern() {
+        for (std::size_t i = 0; i < sizeof(buf); ++i) buf[i] = static_cast<unsigned char>(i);
     }
-}
 
-// Each test_N function calls test_memmove with a LITERAL constant N so
-// __builtin_constant_p(n) resolves to true. The call is NOT through a
-// volatile function pointer -- the compiler MUST see the constant size.
-
-void test_backward_n1() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 1);
-    test_memmove(buf + 1, buf + 0, 1);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    // Reference memmove
+    void ref_memmove(unsigned char* dst, const unsigned char* src, std::size_t n) {
+        if (dst <= src) {
+            for (std::size_t i = 0; i < n; ++i) dst[i] = src[i];
+        } else {
+            for (std::size_t i = n; i > 0; --i) dst[i - 1] = src[i - 1];
+        }
     }
-}
 
-void test_backward_n2() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 2);
-    test_memmove(buf + 1, buf + 0, 2);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
-    }
-}
+    // Each test_N function calls test_memmove with a LITERAL constant N so
+    // __builtin_constant_p(n) resolves to true. The call is NOT through a
+    // volatile function pointer -- the compiler MUST see the constant size.
 
-void test_backward_n3() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 3);
-    test_memmove(buf + 1, buf + 0, 3);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n1() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 1);
+        test_memmove(buf + 1, buf + 0, 1);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-void test_backward_n4() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 4);
-    test_memmove(buf + 1, buf + 0, 4);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n2() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 2);
+        test_memmove(buf + 1, buf + 0, 2);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-void test_backward_n5() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 5);
-    test_memmove(buf + 1, buf + 0, 5);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n3() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 3);
+        test_memmove(buf + 1, buf + 0, 3);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-void test_backward_n6() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 1, ref + 0, 6);
-    test_memmove(buf + 1, buf + 0, 6);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n4() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 4);
+        test_memmove(buf + 1, buf + 0, 4);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-// Forward overlap: dest < src (should also be safe)
-void test_forward_n4() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 0, ref + 1, 4);
-    test_memmove(buf + 0, buf + 1, 4);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n5() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 5);
+        test_memmove(buf + 1, buf + 0, 5);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-void test_forward_n6() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    ref_memmove(ref + 0, ref + 1, 6);
-    test_memmove(buf + 0, buf + 1, 6);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_backward_n6() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 1, ref + 0, 6);
+        test_memmove(buf + 1, buf + 0, 6);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-// Zero size
-void test_n0() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    test_memmove(buf + 1, buf + 0, 0);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    // Forward overlap: dest < src (should also be safe)
+    void test_forward_n4() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 0, ref + 1, 4);
+        test_memmove(buf + 0, buf + 1, 4);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
 
-// dest == src
-void test_same_ptr() {
-    fill_pattern();
-    unsigned char ref[64];
-    std::memcpy(ref, buf, sizeof(buf));
-    test_memmove(buf + 4, buf + 4, 4);
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    void test_forward_n6() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        ref_memmove(ref + 0, ref + 1, 6);
+        test_memmove(buf + 0, buf + 1, 6);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
     }
-}
+
+    // Zero size
+    void test_n0() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        test_memmove(buf + 1, buf + 0, 0);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
+    }
+
+    // dest == src
+    void test_same_ptr() {
+        fill_pattern();
+        unsigned char ref[64];
+        std::memcpy(ref, buf, sizeof(buf));
+        test_memmove(buf + 4, buf + 4, 4);
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
+    }
 
 } // namespace
 
@@ -212,10 +209,5 @@ int main() {
     test_forward_n6();
     test_same_ptr();
 
-    test::with_logger([] {
-        mgba_printf(MGBA_LOG_INFO, "RESULT: OK (%d assertion(s))", test::passes());
-    });
-
-    test::exit(test::failures());
-    __builtin_unreachable();
+    return gba::test.finish();
 }

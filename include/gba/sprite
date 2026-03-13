@@ -1,0 +1,16 @@
+/// @file sprite
+/// @brief Shared sprite payload types used across stdgba sprite-producing APIs.
+#pragma once
+
+#include <gba/bits/sprite4_data.hpp>
+
+namespace gba {
+
+    /// @brief Canonical 4bpp sprite payload type.
+    /// @tparam Width Sprite width in pixels.
+    /// @tparam Height Sprite height in pixels.
+    /// @tparam TileCount Number of 8x8 4bpp tiles in the payload.
+    template<unsigned int Width, unsigned int Height, std::size_t TileCount = (Width / 8u) * (Height / 8u)>
+    using sprite4 = gba::bits::sprite4_data<Width, Height, TileCount>;
+
+} // namespace gba

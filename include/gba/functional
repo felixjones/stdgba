@@ -70,18 +70,15 @@ namespace gba {
             return m_invoke == other.m_invoke && m_ops == other.m_ops;
         }
 
-        constexpr bool operator==(std::nullptr_t) const noexcept {
-            return m_invoke == nullptr;
-        }
+        constexpr bool operator==(std::nullptr_t) const noexcept { return m_invoke == nullptr; }
 
-        constexpr operator bool() const noexcept {
-            return m_invoke != nullptr;
-        }
+        constexpr operator bool() const noexcept { return m_invoke != nullptr; }
+
     private:
         static constexpr std::size_t storage_size = 12u;
         using storage_type = std::array<std::byte, storage_size>;
 
-        using invoke_fn = Retval(*)(void*, Args...);
+        using invoke_fn = Retval (*)(void*, Args...);
 
         struct ops_table {
             void (*destroy)(void*) noexcept;
@@ -91,17 +88,9 @@ namespace gba {
 
         template<typename Callable>
         static constexpr ops_table make_ops_table() noexcept {
-            return {
-                [](void* p) noexcept {
-                    static_cast<Callable*>(p)->~Callable();
-                },
-                [](void* dst, const void* src) {
-                    new (dst) Callable(*static_cast<const Callable*>(src));
-                },
-                [](void* dst, void* src) noexcept {
-                    new (dst) Callable(std::move(*static_cast<Callable*>(src)));
-                }
-            };
+            return {[](void* p) noexcept { static_cast<Callable*>(p)->~Callable(); },
+                    [](void* dst, const void* src) { new (dst) Callable(*static_cast<const Callable*>(src)); },
+                    [](void* dst, void* src) noexcept { new (dst) Callable(std::move(*static_cast<Callable*>(src))); }};
         }
 
         template<typename Callable>
@@ -143,7 +132,8 @@ namespace gba {
 
     template<typename Retval, typename... Args>
     template<typename T>
-        requires(!std::is_same_v<std::decay_t<T>, function<Retval(Args...)>> && !std::is_same_v<std::decay_t<T>, std::nullptr_t>)
+        requires(!std::is_same_v<std::decay_t<T>, function<Retval(Args...)>> &&
+                 !std::is_same_v<std::decay_t<T>, std::nullptr_t>)
     function<Retval(Args...)>::function(T&& t) noexcept {
         using Callable = std::decay_t<T>;
         static_assert(sizeof(Callable) <= storage_size, "Callable too large for small buffer optimization");
@@ -155,14 +145,16 @@ namespace gba {
     }
 
     template<typename Retval, typename... Args>
-    function<Retval(Args...)>::function(const function& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+    function<Retval(Args...)>::function(const function& other) noexcept
+        : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
         if (m_ops) {
             m_ops->copy(storage(), other.storage());
         }
     }
 
     template<typename Retval, typename... Args>
-    function<Retval(Args...)>::function(function&& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+    function<Retval(Args...)>::function(function&& other) noexcept
+        : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
         if (m_ops) {
             m_ops->move(storage(), other.storage());
             other.m_ops->destroy(other.storage());

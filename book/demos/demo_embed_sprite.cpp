@@ -36,22 +36,22 @@ int main() {
 
     // Background palette + tiles
     std::memcpy(gba::memory_map(gba::pal_bg_mem), bg.palette.data(), sizeof(bg.palette));
-    std::memcpy(gba::memory_map(gba::mem_tile_4bpp[0]), bg.tiles.data(), sizeof(bg.tiles));
+    std::memcpy(gba::memory_map(gba::mem_tile_4bpp[0]), bg.sprite.data(), bg.sprite.size());
 
     // Background map: stored in screenblock order, memcpy directly
     std::memcpy(gba::memory_map(gba::mem_se[30]), bg.map.data(), sizeof(bg.map));
 
     // Sprite palette + tiles (no deduplication - sequential for 1D mapping)
     std::memcpy(gba::memory_map(gba::pal_obj_bank[0]), hero.palette.data(), sizeof(hero.palette));
-    std::memcpy(gba::memory_map(gba::mem_vram_obj), hero.tiles.data(), sizeof(hero.tiles));
+    std::memcpy(gba::memory_map(gba::mem_vram_obj), hero.sprite.data(), hero.sprite.size());
 
     int scroll_x = 0, scroll_y = 0;
     int sprite_x = 112, sprite_y = 72;
 
-    gba::object sprite_data = hero.obj();
-    sprite_data.y = static_cast<unsigned short>(sprite_y & 0xFF);
-    sprite_data.x = static_cast<unsigned short>(sprite_x & 0x1FF);
-    gba::obj_mem[0] = sprite_data;
+    gba::object hero_obj = hero.sprite.obj();
+    hero_obj.y = static_cast<unsigned short>(sprite_y & 0xFF);
+    hero_obj.x = static_cast<unsigned short>(sprite_x & 0x1FF);
+    gba::obj_mem[0] = hero_obj;
 
     gba::keypad keys;
     for (;;) {
@@ -63,9 +63,9 @@ int main() {
             sprite_x += keys.xaxis();
             sprite_y += keys.i_yaxis();
 
-            sprite_data.y = static_cast<unsigned short>(sprite_y & 0xFF);
-            sprite_data.x = static_cast<unsigned short>(sprite_x & 0x1FF);
-            gba::obj_mem[0] = sprite_data;
+            hero_obj.y = static_cast<unsigned short>(sprite_y & 0xFF);
+            hero_obj.x = static_cast<unsigned short>(sprite_x & 0x1FF);
+            gba::obj_mem[0] = hero_obj;
         } else {
             // D-pad scrolls the background
             scroll_x += keys.xaxis();

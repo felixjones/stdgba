@@ -21,13 +21,11 @@ struct assert_state {
 extern "C" [[noreturn, gnu::used]]
 void _stdgba_assert_render(const assert_state* state) {
     const auto VRAM = vram();
-    const auto VRAM_SCRATCH = reinterpret_cast<char*>(0x6012C00);
 
     constexpr int LABEL_OFFSET = 6 * (FONT_W + 1);
     char hex_buf[16];
 
-    // Draw dark background only in the text area (preserve rest of screen for debugging)
-    draw_rect(VRAM, 0, 0, WIDTH, 100, BG);
+    draw_rect(VRAM, 0, 0, WIDTH, HEIGHT, BG);
 
     int y = 4;
 
@@ -43,7 +41,7 @@ void _stdgba_assert_render(const assert_state* state) {
     y += FONT_H + 2;
 
     draw_string(VRAM, 4, y, "Line:", GRAY);
-    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, itoa(VRAM_SCRATCH, state->line), WHITE);
+    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, itoa(hex_buf, state->line), WHITE);
     y += FONT_H + 2;
 
     draw_string(VRAM, 4, y, "Func:", GRAY);

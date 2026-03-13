@@ -1,9 +1,8 @@
-/// @file tests/memory/test_handler.cpp
-/// @brief Unit tests for handler type.
+/// @file tests/memory/test_function.cpp
+/// @brief Unit tests for function type.
 
-#include <gba/bits/handler.hpp>
-
-#include <mgba_test.hpp>
+#include <gba/functional>
+#include <gba/testing>
 
 namespace {
     int global_call_count = 0;
@@ -16,19 +15,17 @@ namespace {
 
     struct Functor {
         int value = 0;
-        void operator()(int x) {
-            value += x;
-        }
+        void operator()(int x) { value += x; }
     };
-}
+} // namespace
 
 int main() {
-    using namespace gba::bits;
+    using namespace gba;
 
     // Test default construction
     {
         handler<int> h;
-        ASSERT_TRUE(h == handler<int>{});
+        gba::test.is_true(h == handler<int>{});
     }
 
     // Test function pointer
@@ -39,8 +36,8 @@ int main() {
         handler<int> h{free_function};
         h(42);
 
-        ASSERT_EQ(global_call_count, 1);
-        ASSERT_EQ(global_arg_sum, 42);
+        gba::test.eq(global_call_count, 1);
+        gba::test.eq(global_arg_sum, 42);
     }
 
     // Test lambda
@@ -50,7 +47,7 @@ int main() {
         h(10);
         h(20);
 
-        ASSERT_EQ(captured, 30);
+        gba::test.eq(captured, 30);
     }
 
     // Test copy construction
@@ -63,7 +60,7 @@ int main() {
         h1(1);
         h2(1);
 
-        ASSERT_EQ(global_call_count, 2);
+        gba::test.eq(global_call_count, 2);
     }
 
     // Test move construction
@@ -73,7 +70,7 @@ int main() {
         handler<int> h2{std::move(h1)};
 
         h2(99);
-        ASSERT_EQ(captured, 99);
+        gba::test.eq(captured, 99);
     }
 
     // Test copy assignment
@@ -86,7 +83,7 @@ int main() {
         h2 = h1;
         h2(1);
 
-        ASSERT_EQ(global_call_count, 1);
+        gba::test.eq(global_call_count, 1);
     }
 
     // Test move assignment
@@ -98,26 +95,25 @@ int main() {
         h2 = std::move(h1);
         h2(77);
 
-        ASSERT_EQ(captured, 77);
+        gba::test.eq(captured, 77);
     }
 
     // Test equality
     {
         handler<int> h1;
         handler<int> h2;
-        ASSERT_TRUE(h1 == h2);
+        gba::test.is_true(h1 == h2);
 
         handler<int> h3{free_function};
-        ASSERT_FALSE(h1 == h3);
+        gba::test.is_false(h1 == h3);
     }
 
     // Test small object optimization (fits in storage)
     {
-        // Lambda that captures one pointer - should fit in 12 bytes
         int x = 0;
         handler<int> h{[&x](int v) { x = v; }};
         h(123);
-        ASSERT_EQ(x, 123);
+        gba::test.eq(x, 123);
     }
 
     // Test handler with no arguments
@@ -126,7 +122,7 @@ int main() {
         handler<> h{[&called]() { called++; }};
         h();
         h();
-        ASSERT_EQ(called, 2);
+        gba::test.eq(called, 2);
     }
 
     // Test handler with multiple arguments
@@ -134,8 +130,14 @@ int main() {
         int result = 0;
         handler<int, int, int> h{[&result](int a, int b, int c) { result = a + b + c; }};
         h(1, 2, 3);
-        ASSERT_EQ(result, 6);
+        gba::test.eq(result, 6);
     }
 
-    test::finalize();
+    // Test function with return value
+    {
+        function<int(int, int)> h{[](int a, int b) { return a + b; }};
+        gba::test.eq(h(3, 4), 7);
+    }
+
+    return gba::test.finish();
 }

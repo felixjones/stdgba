@@ -13,18 +13,19 @@
 /// - Overlapping regions: dest < src, dest > src, dest == src
 /// - C memmove return value
 
-#include <cstring>
+#include <gba/benchmark>
+#include <gba/testing>
 
-#include <mgba_test.hpp>
+#include <cstring>
 
 // Prevent compiler from replacing memmove calls with builtins
 static void* (*volatile memmove_fn)(void*, const void*, std::size_t) = &std::memmove;
 
 // Direct access to the AEABI entries
 extern "C" {
-    void __aeabi_memmove(void*, const void*, std::size_t);
-    void __aeabi_memmove4(void*, const void*, std::size_t);
-    void __aeabi_memmove8(void*, const void*, std::size_t);
+void __aeabi_memmove(void*, const void*, std::size_t);
+void __aeabi_memmove4(void*, const void*, std::size_t);
+void __aeabi_memmove8(void*, const void*, std::size_t);
 }
 
 // Function pointers to prevent inlining / constant folding
@@ -34,60 +35,60 @@ static void (*volatile aeabi_memmove8_fn)(void*, const void*, std::size_t) = &__
 
 namespace {
 
-alignas(8) unsigned char buf[512];
+    alignas(8) unsigned char buf[512];
 
-void fill_pattern() {
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        buf[i] = static_cast<unsigned char>(i);
+    void fill_pattern() {
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            buf[i] = static_cast<unsigned char>(i);
+        }
     }
-}
 
-void fill_sentinel() {
-    for (auto& b : buf) b = 0xCD;
-}
-
-// Reference memmove for verification (naive byte-by-byte)
-void ref_memmove(unsigned char* dst, const unsigned char* src, std::size_t n) {
-    if (dst <= src) {
-        for (std::size_t i = 0; i < n; ++i) dst[i] = src[i];
-    } else {
-        for (std::size_t i = n; i > 0; --i) dst[i - 1] = src[i - 1];
+    void fill_sentinel() {
+        for (auto& b : buf) b = 0xCD;
     }
-}
 
-void do_move(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memmove_fn(d, s, n); });
-}
-
-void do_move4(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memmove4_fn(d, s, n); });
-}
-
-void do_move8(void* d, const void* s, std::size_t n) {
-    test::do_not_optimize([&] { aeabi_memmove8_fn(d, s, n); });
-}
-
-// Test overlapping move with a reference buffer
-// dir: 0 = non-overlapping forward, 1 = dest > src (backward), -1 = dest < src (forward)
-void test_overlap(std::size_t src_off, std::size_t dst_off, std::size_t n,
-                  void (*fn)(void*, const void*, std::size_t)) {
-    // Prepare reference
-    alignas(8) unsigned char ref[512];
-    fill_pattern();
-    for (std::size_t i = 0; i < sizeof(ref); ++i) ref[i] = buf[i];
-
-    // Do reference move
-    ref_memmove(ref + dst_off, ref + src_off, n);
-
-    // Do real move
-    fill_pattern();
-    test::do_not_optimize([&] { fn(buf + dst_off, buf + src_off, n); });
-
-    // Verify
-    for (std::size_t i = 0; i < sizeof(buf); ++i) {
-        ASSERT_EQ(buf[i], ref[i]);
+    // Reference memmove for verification (naive byte-by-byte)
+    void ref_memmove(unsigned char* dst, const unsigned char* src, std::size_t n) {
+        if (dst <= src) {
+            for (std::size_t i = 0; i < n; ++i) dst[i] = src[i];
+        } else {
+            for (std::size_t i = n; i > 0; --i) dst[i - 1] = src[i - 1];
+        }
     }
-}
+
+    void do_move(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memmove_fn(d, s, n); });
+    }
+
+    void do_move4(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memmove4_fn(d, s, n); });
+    }
+
+    void do_move8(void* d, const void* s, std::size_t n) {
+        gba::benchmark::do_not_optimize([&] { aeabi_memmove8_fn(d, s, n); });
+    }
+
+    // Test overlapping move with a reference buffer
+    // dir: 0 = non-overlapping forward, 1 = dest > src (backward), -1 = dest < src (forward)
+    void test_overlap(std::size_t src_off, std::size_t dst_off, std::size_t n,
+                      void (*fn)(void*, const void*, std::size_t)) {
+        // Prepare reference
+        alignas(8) unsigned char ref[512];
+        fill_pattern();
+        for (std::size_t i = 0; i < sizeof(ref); ++i) ref[i] = buf[i];
+
+        // Do reference move
+        ref_memmove(ref + dst_off, ref + src_off, n);
+
+        // Do real move
+        fill_pattern();
+        gba::benchmark::do_not_optimize([&] { fn(buf + dst_off, buf + src_off, n); });
+
+        // Verify
+        for (std::size_t i = 0; i < sizeof(buf); ++i) {
+            gba::test.eq(buf[i], ref[i]);
+        }
+    }
 
 } // namespace
 
@@ -98,7 +99,7 @@ int main() {
     {
         fill_sentinel();
         do_move(buf, buf + 64, 0);
-        ASSERT_EQ(buf[0], static_cast<unsigned char>(0xCD));
+        gba::test.eq(buf[0], static_cast<unsigned char>(0xCD));
     }
 
     // Small: 1-3 bytes
@@ -124,8 +125,7 @@ int main() {
     // This is the core memmove test -- regions overlap and need backward copy
 
     // Overlap by 1 byte: move [0..n) to [1..n+1)
-    for (std::size_t n : {1u, 2u, 3u, 4u, 7u, 8u, 15u, 16u, 28u, 31u, 32u,
-                          33u, 48u, 63u, 64u, 65u, 96u, 128u, 255u}) {
+    for (std::size_t n : {1u, 2u, 3u, 4u, 7u, 8u, 15u, 16u, 28u, 31u, 32u, 33u, 48u, 63u, 64u, 65u, 96u, 128u, 255u}) {
         test_overlap(0, 1, n, aeabi_memmove_fn);
     }
 
@@ -169,7 +169,7 @@ int main() {
         for (std::size_t i = 0; i < sizeof(ref); ++i) ref[i] = buf[i];
         do_move(buf + 32, buf + 32, 64);
         for (std::size_t i = 0; i < sizeof(buf); ++i) {
-            ASSERT_EQ(buf[i], ref[i]);
+            gba::test.eq(buf[i], ref[i]);
         }
     }
 
@@ -189,8 +189,7 @@ int main() {
     }
 
     // Backward bulk: 32 byte boundary tests
-    for (std::size_t n : {32u, 33u, 34u, 35u, 36u, 60u, 63u, 64u, 65u,
-                          96u, 127u, 128u, 129u, 192u, 256u}) {
+    for (std::size_t n : {32u, 33u, 34u, 35u, 36u, 60u, 63u, 64u, 65u, 96u, 127u, 128u, 129u, 192u, 256u}) {
         test_overlap(0, 4, n, aeabi_memmove4_fn);
     }
 
@@ -240,10 +239,10 @@ int main() {
 
     // Offsets that differ in bit 0 (byte-only)
     for (std::size_t n : {1u, 2u, 3u, 4u, 7u, 8u, 15u, 16u, 31u, 32u, 63u}) {
-        test_overlap(1, 4, n, aeabi_memmove_fn);   // off 1 vs 4: bit0 differs
+        test_overlap(1, 4, n, aeabi_memmove_fn); // off 1 vs 4: bit0 differs
     }
     for (std::size_t n : {1u, 3u, 5u, 8u, 16u, 32u}) {
-        test_overlap(3, 6, n, aeabi_memmove_fn);   // off 3 vs 6: bit0 differs
+        test_overlap(3, 6, n, aeabi_memmove_fn); // off 3 vs 6: bit0 differs
     }
 
     // Backward word computed jump: each word count 1-7
@@ -264,8 +263,7 @@ int main() {
     {
         fill_pattern();
         void* ret = memmove_fn(buf + 16, buf, 32);
-        ASSERT_EQ(reinterpret_cast<std::uintptr_t>(ret),
-                  reinterpret_cast<std::uintptr_t>(buf + 16));
+        gba::test.eq(reinterpret_cast<std::uintptr_t>(ret), reinterpret_cast<std::uintptr_t>(buf + 16));
     }
 
     // C memmove wrapper: overlap safety with literal constant sizes.
@@ -286,7 +284,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 1);
             std::memmove(buf + 1, buf + 0, 1);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -296,7 +294,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 2);
             std::memmove(buf + 1, buf + 0, 2);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -306,7 +304,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 3);
             std::memmove(buf + 1, buf + 0, 3);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -316,7 +314,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 4);
             std::memmove(buf + 1, buf + 0, 4);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -326,7 +324,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 5);
             std::memmove(buf + 1, buf + 0, 5);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -336,7 +334,7 @@ int main() {
             ref_memmove(ref + 1, ref + 0, 6);
             std::memmove(buf + 1, buf + 0, 6);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
     }
@@ -350,7 +348,7 @@ int main() {
             ref_memmove(ref + 0, ref + 1, 4);
             std::memmove(buf + 0, buf + 1, 4);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
         {
@@ -360,7 +358,7 @@ int main() {
             ref_memmove(ref + 0, ref + 1, 6);
             std::memmove(buf + 0, buf + 1, 6);
             for (std::size_t i = 0; i < sizeof(buf); ++i) {
-                ASSERT_EQ(buf[i], ref[i]);
+                gba::test.eq(buf[i], ref[i]);
             }
         }
     }
@@ -374,7 +372,7 @@ int main() {
         ref_memmove(ref + 4, ref + 0, 8);
         std::memmove(buf + 4, buf + 0, 8);
         for (std::size_t i = 0; i < sizeof(buf); ++i) {
-            ASSERT_EQ(buf[i], ref[i]);
+            gba::test.eq(buf[i], ref[i]);
         }
     }
     {
@@ -384,7 +382,7 @@ int main() {
         ref_memmove(ref + 4, ref + 0, 32);
         std::memmove(buf + 4, buf + 0, 32);
         for (std::size_t i = 0; i < sizeof(buf); ++i) {
-            ASSERT_EQ(buf[i], ref[i]);
+            gba::test.eq(buf[i], ref[i]);
         }
     }
     {
@@ -394,7 +392,7 @@ int main() {
         ref_memmove(ref + 4, ref + 0, 60);
         std::memmove(buf + 4, buf + 0, 60);
         for (std::size_t i = 0; i < sizeof(buf); ++i) {
-            ASSERT_EQ(buf[i], ref[i]);
+            gba::test.eq(buf[i], ref[i]);
         }
     }
 
@@ -405,7 +403,7 @@ int main() {
         for (std::size_t i = 0; i < sizeof(ref); ++i) ref[i] = buf[i];
         std::memmove(buf + 8, buf + 8, 4);
         for (std::size_t i = 0; i < sizeof(buf); ++i) {
-            ASSERT_EQ(buf[i], ref[i]);
+            gba::test.eq(buf[i], ref[i]);
         }
     }
 
@@ -421,10 +419,5 @@ int main() {
         test_overlap(0, 4, n, aeabi_memmove_fn);
     }
 
-    test::with_logger([] {
-        mgba_printf(MGBA_LOG_INFO, "RESULT: OK (%d assertion(s))", test::passes());
-    });
-
-    test::exit(test::failures());
-    __builtin_unreachable();
+    return gba::test.finish();
 }

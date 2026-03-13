@@ -2,10 +2,9 @@
 /// @brief Tests for compile-time Huffman compression and BIOS decompression.
 #include <gba/bios>
 #include <gba/compress>
+#include <gba/testing>
 
 #include <array>
-
-#include <mgba_test.hpp>
 
 // Test data with skewed frequencies (compresses well with Huffman)
 static constexpr auto test_data = std::array<unsigned char, 64>{
@@ -24,9 +23,9 @@ static constexpr auto compressed = gba::huffman_compress<8>([] { return test_dat
 
 int main() {
     // Verify header is correct
-    EXPECT_EQ(compressed.comp_algo, gba::comp_algo_huff);
-    EXPECT_EQ(compressed.dst_len, test_data.size());
-    EXPECT_EQ(compressed.src_len, 8u); // 8-bit symbols
+    gba::test.expect.eq(compressed.comp_algo, gba::comp_algo_huff);
+    gba::test.expect.eq(compressed.dst_len, test_data.size());
+    gba::test.expect.eq(compressed.src_len, 8u); // 8-bit symbols
 
     // Decompress at runtime using BIOS
     alignas(4) std::array<unsigned char, 64> decompressed{};
@@ -34,6 +33,7 @@ int main() {
 
     // Verify decompressed data matches original
     for (std::size_t i = 0; i < test_data.size(); ++i) {
-        EXPECT_EQ(decompressed[i], test_data[i]);
+        gba::test.expect.eq(decompressed[i], test_data[i]);
     }
+    return gba::test.finish();
 }

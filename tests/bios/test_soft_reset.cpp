@@ -1,6 +1,5 @@
 #include <gba/bios>
-
-#include <mgba_test.hpp>
+#include <gba/testing>
 
 static constexpr uint32_t MAGIC = 0xDEADBEEF;
 
@@ -8,7 +7,7 @@ int main() {
     const auto marker = reinterpret_cast<volatile uint32_t*>(0x203FFFC);
 
     if (*marker == MAGIC) {
-        test::exit(0); // Detected soft reset
+        return gba::test.finish(); // Detected soft reset
     }
 
     *marker = MAGIC;
