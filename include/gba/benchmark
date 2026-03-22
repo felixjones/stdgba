@@ -20,9 +20,12 @@
 /// @endcode
 #pragma once
 
+#include <gba/logger>
 #include <gba/peripherals>
 
+#include <cstdarg>
 #include <cstddef>
+#include <cstdio>
 #include <type_traits>
 #include <utility>
 
@@ -201,9 +204,7 @@ namespace gba::benchmark {
         if (iterations <= 0) return 0;
         unsigned int total = 0;
         for (int i = 0; i < iterations; ++i) {
-            total += measure_on(pair, [] {
-                asm volatile("" ::: "memory");
-            });
+            total += measure_on(pair, [] { asm volatile("" ::: "memory"); });
         }
         return total / static_cast<unsigned int>(iterations);
     }
@@ -306,6 +307,65 @@ namespace gba::benchmark {
     template<typename Fn, typename... Args>
     unsigned int measure_avg_net_on(timer_pair_id id, int iterations, Fn&& fn, Args&&... args) {
         return measure_avg_net_on(make_timer_pair(id), iterations, std::forward<Fn>(fn), std::forward<Args>(args)...);
+    }
+
+} // namespace gba::benchmark
+
+// -- Benchmark reporting utilities -------------------------------------------
+//
+// These live outside the measurement namespace so benchmarks can log results
+// to the mGBA console without pulling in a separate bench.hpp helper.
+
+namespace gba::benchmark::report {
+
+    /// @brief printf-style log to the mGBA debug console.
+    ///
+    /// Formats into a 256-byte stack buffer and writes via gba::log.
+    /// Requires `#include <gba/logger>` in the translation unit.
+    inline void log_printf(gba::log::level lvl, const char* fmt, ...) {
+        char buf[256];
+        va_list args;
+        va_start(args, fmt);
+        vsnprintf(buf, sizeof(buf), fmt, args);
+        va_end(args);
+        gba::log::write(lvl, buf);
+    }
+
+    /// @brief Print a section header to the debug console.
+    inline void header(const char* title) {
+        if (!gba::log::get_backend()) gba::log::init();
+        log_printf(gba::log::level::info, "");
+        log_printf(gba::log::level::info, "%s", title);
+    }
+
+    /// @brief Print a comparison row: description, stdgba cycles, reference cycles, savings %.
+    inline void row(const char* desc, unsigned int stdgba, unsigned int reference) {
+        if (!gba::log::get_backend()) gba::log::init();
+        const int save = (reference > stdgba) ? static_cast<int>((reference - stdgba) * 100 / reference)
+                                              : -static_cast<int>((stdgba - reference) * 100 / stdgba);
+        log_printf(gba::log::level::info, "  %-24s %7u  %7u  %3d%%", desc, stdgba, reference, save);
+    }
+
+} // namespace gba::benchmark::report
+
+namespace gba::benchmark {
+
+    /// @brief Terminate benchmark via configurable SWI for mgba-headless.
+    ///
+    /// Uses STDGBA_EXIT_SWI (default 0x1A). Call instead of `return` so that
+    /// mgba-headless detects program termination.
+    [[gnu::noreturn, gnu::noinline]]
+    inline void exit(int code = 0) noexcept {
+        register auto r0 asm("r0") = code;
+#ifndef STDGBA_EXIT_SWI
+#define STDGBA_EXIT_SWI 0x1A
+#endif
+#define BENCH_SWI_STR2(x) #x
+#define BENCH_SWI_STR(x)  BENCH_SWI_STR2(x)
+        asm volatile("swi " BENCH_SWI_STR(STDGBA_EXIT_SWI) " << ((1f - . == 4) * -16); 1:" : : "r"(r0) : "memory");
+#undef BENCH_SWI_STR
+#undef BENCH_SWI_STR2
+        __builtin_unreachable();
     }
 
 } // namespace gba::benchmark

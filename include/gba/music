@@ -1,13 +1,11 @@
-/// @file music
-/// @brief Simplified music DSL for GBA using mini-notation.
+/// @file gba/music
+/// @brief Compile-time PSG music composition faithfully mirroring Strudel.
 ///
-/// This module provides a compile-time music composition system that:
-/// - Parses mini-notation at compile time
-/// - Compiles to a generator-style player
-/// - Targets the GBA's 4 PSG channels (sq1, sq2, wav, noise)
-/// - Uses hardware envelope decay for natural note release
+/// Write music patterns using Strudel mini-notation via `note("...")` that
+/// compile down to event-table players at build time - zero runtime
+/// parsing or interpretation.
 ///
-/// ## Quick Start
+/// ## Quick start
 ///
 /// @code{.cpp}
 /// #include <gba/music>
@@ -18,7 +16,6 @@
 /// using namespace gba::music::literals;
 ///
 /// int main() {
-///     // Initialize sound hardware directly
 ///     gba::reg_soundcnt_x = { .master_enable = true };
 ///     gba::reg_soundcnt_l = {
 ///         .volume_right = 7, .volume_left = 7,
@@ -29,256 +26,75 @@
 ///     };
 ///     gba::reg_soundcnt_h = { .psg_volume = 2 };
 ///
-///     // Simple melody
-///     constexpr auto melody = "c4 e4 g4 c5"_sq1;
-///     auto player = compile<120_bpm>(melody);
+///     // Single voice (auto-assigned to sq1):
+///     static constexpr auto music = compile<120_bpm>(note("c4 e4 g4 c5"));
 ///
+///     // Multi-voice via commas in <>:
+///     // static constexpr auto music = compile<120_bpm>(
+///     //     note("<c4 e4 g4 c5, c3 e3 g3 c4>"));
+///
+///     auto player = music_player<music>{};
 ///     while (player()) {
-///         VBlankIntrWait();
-///     }
-/// }
-/// @endcode
-///
-/// ## Mini-Notation Syntax
-///
-/// | Syntax | Meaning | Example |
-/// |--------|---------|---------|
-/// | `c4 e4` | Sequence | Notes played in order |
-/// | `~` | Rest | Silence |
-/// | `[a b]` | Subdivision | `[c4 e4]` splits time in half |
-/// | `<a b>` | Timeline | `<c4 e4>` alternates per cycle |
-/// | `a*N` | Fast | `c4*2` plays twice as fast |
-/// | `a/N` | Slow | `c4/2` plays twice as slow |
-/// | `a*<N M>` | Timeline fast | `c4*<2 4>` speed cycles 2x, 4x |
-/// | `a/<N M>` | Timeline slow | `c4/<1 2>` speed cycles 1x, 0.5x |
-/// | `a!N` | Replicate | `c4!3` = c4 c4 c4 |
-/// | `a(k,n)` | Euclidean | `c4(3,8)` = 3 hits over 8 steps |
-///
-/// ## Channels
-///
-/// - `_sq1` - Square wave 1 (with sweep capability)
-/// - `_sq2` - Square wave 2
-/// - `_wav` - Wave channel (requires wave data binding)
-/// - `_noise` - Noise channel (drum sounds)
-///
-/// ## Noise Channel - Drum Sounds
-///
-/// The noise channel supports drum names:
-///
-/// | Name | Sound |
-/// |------|-------|
-/// | `bd` | Bass drum (kick) |
-/// | `sd` | Snare drum |
-/// | `hh` | Hi-hat (closed) |
-/// | `oh` | Open hi-hat |
-/// | `cp` | Clap |
-/// | `lt` | Low tom |
-/// | `mt` | Mid tom |
-/// | `ht` | High tom |
-/// | `cb` | Cowbell |
-/// | `cr` | Crash cymbal |
-/// | `rd` | Ride cymbal |
-/// | `rs` | Rimshot |
-///
-/// @code{.cpp}
-/// constexpr auto beat = "bd hh sd hh"_noise;  // kick, hat, snare, hat
-/// constexpr auto fill = "bd sd sd cp"_noise;
-/// @endcode
-///
-/// Note-based fallback is also supported (C2=kick, C3=snare, C4=hat, C5=click).
-///
-/// ## Wave Channel
-///
-/// The wave channel requires wave data. Built-in waveforms are provided:
-///
-/// @code{.cpp}
-/// // Load waveform before playing
-/// waves::sine.load();
-///
-/// constexpr auto notes = "c4 e4 g4"_wav;
-/// auto player = compile<120_bpm>(notes(waves::sine));
-/// @endcode
-///
-/// Built-in waveforms: `waves::sine`, `waves::triangle`, `waves::saw`, `waves::square`
-///
-/// ## Multi-Channel with stack()
-///
-/// Use `stack()` for simultaneous playback on multiple channels:
-///
-/// @code{.cpp}
-/// constexpr auto melody = "c5 e5 g5 c6"_sq1;
-/// constexpr auto bass = "c3 ~ g3 ~"_sq2;
-/// constexpr auto beat = "c2 c4 c3 c4"_noise;
-///
-/// auto player = compile<120_bpm>(stack(melody, bass, beat));
-/// @endcode
-///
-/// ## Sequential Patterns with seq()
-///
-/// Use `seq()` to play patterns one after another:
-///
-/// @code{.cpp}
-/// constexpr auto intro = "c4 c4 c4 c4"_sq1;
-/// constexpr auto verse = "c4 e4 g4 c5"_sq1;
-/// constexpr auto chorus = "c5 g4 e4 c4"_sq1;
-///
-/// auto player = compile<120_bpm>(seq(intro, verse, chorus));
-/// @endcode
-///
-/// ## Timeline (Alternating Expansion)
-///
-/// Use `<a b c>` inside subdivisions to create alternating patterns:
-///
-/// @code{.cpp}
-/// // [c4 <e4 g4>] expands to: c4 e4 c4 g4
-/// // The subdivision repeats for each timeline alternative
-/// constexpr auto pattern = "[c4 <e4 g4>]"_sq1;
-/// auto player = compile<120_bpm>(loop(pattern));
-/// // Plays: c4 e4 c4 g4 c4 e4 c4 g4 ... (looping)
-/// @endcode
-///
-/// Standalone timelines expand to a sequence:
-/// @code{.cpp}
-/// // <c4 e4 g4> expands to: c4 e4 g4
-/// constexpr auto arpeggio = "<c4 e4 g4>"_sq1;
-/// @endcode
-///
-/// ## Looping
-///
-/// Use `loop()` for infinite repetition:
-///
-/// @code{.cpp}
-/// auto player = compile<120_bpm>(loop("c4 e4 g4"_sq1));
-/// // player() always returns true
-///
-/// // Can also loop stacks or sequences
-/// auto bgm = compile<120_bpm>(loop(stack(melody, bass, beat)));
-/// @endcode
-///
-/// ## Sweep Effects (SQ1 Only)
-///
-/// SQ1 has hardware frequency sweep for pitch bend effects:
-///
-/// @code{.cpp}
-/// // Laser sound - pitch rises
-/// constexpr auto laser = fast_up("c4 c5"_sq1);
-///
-/// // Bomb drop - pitch falls
-/// constexpr auto bomb = fast_down("c5 c4"_sq1);
-///
-/// // Quick chirp effects
-/// constexpr auto chirp = chirp_up("c4 e4 g4"_sq1);
-///
-/// auto player = compile<120_bpm>(laser);
-/// @endcode
-///
-/// Available sweep presets:
-/// - `fast_up()` - Quick pitch rise (laser)
-/// - `fast_down()` - Quick pitch fall (bomb)
-/// - `chirp_up()` - Very fast rise
-/// - `chirp_down()` - Very fast fall
-///
-/// ## Callback Events
-///
-/// Insert function callbacks into sequences for game events:
-///
-/// @code{.cpp}
-/// void on_beat() { flash_screen(); }
-/// void on_section_change() { next_animation(); }
-///
-/// auto player = compile<120_bpm>(seq(
-///     event(on_beat),
-///     "c4 e4"_sq1,
-///     event(on_section_change),
-///     "g4 c5"_sq1
-/// ));
-/// @endcode
-///
-/// Callbacks are executed as part of the sequence timeline, perfect for:
-/// - Syncing animations to music
-/// - Triggering game events
-/// - Changing visual effects on beat
-///
-/// ## Timeline Modifiers (Cycling Speed)
-///
-/// Use `*<values>` or `/<values>` to cycle through different speeds:
-///
-/// @code{.cpp}
-/// // Speed alternates: 2x, 4x, 2x, 4x...
-/// constexpr auto accel = "[c4 e4 g4]*<2 4>"_sq1;
-///
-/// // Slow down: 1x, 2x slower, 1x, 2x slower...
-/// constexpr auto decel = "[c4 e4 g4]/<1 2>"_sq1;
-///
-/// // Hi-hat with replication: 2x, 2x, 2x, 4x
-/// constexpr auto hihat = "[hh <oh hh>]*<2!3 4>"_noise;
-///
-/// auto player = compile<140_bpm>(hihat);
-/// @endcode
-///
-/// Timeline modifiers create dynamic rhythmic variation where each cycle
-/// through the pattern plays at a different speed.
-///
-/// ## Complete Example
-///
-/// @code{.cpp}
-/// #include <gba/music>
-/// #include <gba/peripherals>
-/// #include <gba/bios>
-/// #include <gba/interrupt>
-///
-/// using namespace gba::music;
-/// using namespace gba::music::literals;
-///
-/// int main() {
-///     // Setup interrupts
-///     gba::irq_handler = {};
-///     gba::reg_dispstat = { .enable_irq_vblank = true };
-///     gba::reg_ie = { .vblank = true };
-///     gba::reg_ime = true;
-///
-///     // Initialize sound
-///     gba::reg_soundcnt_x = { .master_enable = true };
-///     gba::reg_soundcnt_l = {
-///         .volume_right = 7, .volume_left = 7,
-///         .enable_1_right = true, .enable_2_right = true,
-///         .enable_3_right = true, .enable_4_right = true,
-///         .enable_1_left = true, .enable_2_left = true,
-///         .enable_3_left = true, .enable_4_left = true
-///     };
-///     gba::reg_soundcnt_h = { .psg_volume = 2 };
-///
-///     // Compose music
-///     constexpr auto melody = "c5 e5 g5 c6 g5 e5"_sq1;
-///     constexpr auto bass = "c3 ~ g3 ~ c3 ~"_sq2;
-///     constexpr auto beat = "c2 c4 c3 c4 c2 c4"_noise;
-///
-///     auto player = compile<120_bpm>(loop(stack(melody, bass, beat)));
-///
-///     while (true) {
-///         player();
 ///         gba::VBlankIntrWait();
 ///     }
 /// }
 /// @endcode
+///
+/// ## Mini-notation syntax (Strudel parity)
+///
+/// | Syntax | Meaning |
+/// |--------|---------|
+/// | `c4 e4` | Sequence (equal subdivision) |
+/// | `~` | Rest (silence) |
+/// | `[a b]` | Subdivision (fit into one step) |
+/// | `<a b c>` | Alternating (cycle-indexed) |
+/// | `<a b, c d>` | Stacked (parallel layers, auto-channel) |
+/// | `{a b, c d}` | Polymetric (parallel layers) |
+/// | `{a b c}%8` | Polymeter (fit into N steps) |
+/// | `a@3` | Elongation (weight = 3) |
+/// | `a!3` | Replicate (repeat as 3 steps) |
+/// | `a*3` | Fast (play 3x in one step) |
+/// | `a/3` | Slow (stretch over 3 cycles) |
+/// | `a*<2 3>` | Timeline fast |
+/// | `a/<2 3>` | Timeline slow |
+/// | `a(3,8)` | Euclidean (Bjorklund) |
+/// | `a(3,8,2)` | Euclidean with rotation |
+/// | `_` | Hold/tie (sustain, no retrigger) |
+/// | `eb3` | Flat notation (Eb3 = D#3) |
+///
+/// ## API
+///
+/// | Function | Purpose |
+/// |----------|---------|
+/// | `note("...")` | Primary entry point - parse mini-notation |
+/// | `s("...")` | Drum pattern - parse mini-notation, auto noise channel |
+/// | `.channel(ch)` | Assign PSG channel (+ optional instrument) |
+/// | `"..."_sq1` | UDL shorthand for `note("...").channel(sq1)` |
+/// | `"..."_s` | UDL shorthand for `s("...")` (drum-only, noise channel) |
+/// | `stack(...)` | Parallel voices (auto-channel assignment) |
+/// | `seq(...)` | Sequential (channel switching at boundaries) |
+/// | `loop(...)` | Infinite repeat |
+/// | `compile<tempo>(...)` | Compile to event table |
+///
+/// @see gba::music::note
+/// @see gba::music::s
+/// @see gba::music::compile
+/// @see gba::music::stack
+/// @see gba::music::seq
+/// @see gba::music::loop
+/// @see gba::music::music_player
+/// @see gba::music::wav_embed
+/// @see gba::music::wav_from_samples
+/// @see gba::music::wav_from_pcm8
+/// @see gba::music::add
+/// @see gba::music::sub
+/// @see gba::music::rev
+/// @see gba::music::ply
+/// @see gba::music::press
 #pragma once
 
-#include <gba/bits/music/ast.hpp>
-#include <gba/bits/music/bpm.hpp>
-#include <gba/bits/music/channel.hpp>
-#include <gba/bits/music/compile.hpp>
-#include <gba/bits/music/emit.hpp>
-#include <gba/bits/music/fixed_string.hpp>
-#include <gba/bits/music/note.hpp>
-#include <gba/bits/music/parser.hpp>
+#include <gba/bits/music/compiler.hpp>
+#include <gba/bits/music/parse.hpp>
 #include <gba/bits/music/pattern.hpp>
 #include <gba/bits/music/player.hpp>
-#include <gba/bits/music/token.hpp>
-#include <gba/bits/music/wave_data.hpp>
-
-namespace gba::music {
-
-    // Re-export literals into music namespace for convenience
-    using namespace literals;
-
-} // namespace gba::music
+#include <gba/bits/music/types.hpp>

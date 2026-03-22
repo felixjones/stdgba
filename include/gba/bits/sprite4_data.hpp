@@ -40,9 +40,18 @@ namespace gba::bits {
     /// @brief Check whether pixel dimensions match a valid GBA sprite size.
     consteval bool is_valid_sprite_size(unsigned int w, unsigned int h) {
         constexpr unsigned int valid[][2] = {
-            {8, 8}, {16, 16}, {32, 32}, {64, 64},
-            {16, 8}, {32, 8}, {32, 16}, {64, 32},
-            {8, 16}, {8, 32}, {16, 32}, {32, 64}
+            { 8,  8},
+            {16, 16},
+            {32, 32},
+            {64, 64},
+            {16,  8},
+            {32,  8},
+            {32, 16},
+            {64, 32},
+            { 8, 16},
+            { 8, 32},
+            {16, 32},
+            {32, 64}
         };
         for (const auto& v : valid)
             if (w == v[0] && h == v[1]) return true;
@@ -62,27 +71,23 @@ namespace gba::bits {
         std::array<gba::tile4bpp, TileCount> tiles{};
 
         [[nodiscard]]
-        static constexpr gba::object obj(unsigned short tile_idx = 0) {
-            static_assert(is_valid_sprite_size(Width, Height),
-                "Image dimensions do not match a valid GBA sprite size");
-            return {
-                .depth = depth_4bpp,
-                .shape = static_cast<gba::shape>(oam_shape_for(Width, Height)),
-                .size = static_cast<unsigned short>(oam_size_for(Width, Height)),
-                .tile_index = tile_idx
-            };
+        static constexpr gba::object obj(unsigned short tile_idx = 0, unsigned short pal_idx = 0) {
+            static_assert(is_valid_sprite_size(Width, Height), "Image dimensions do not match a valid GBA sprite size");
+            return {.depth = depth_4bpp,
+                    .shape = static_cast<gba::shape>(oam_shape_for(Width, Height)),
+                    .size = static_cast<unsigned short>(oam_size_for(Width, Height)),
+                    .tile_index = tile_idx,
+                    .palette_index = pal_idx};
         }
 
         [[nodiscard]]
-        static constexpr gba::object_affine obj_aff(unsigned short tile_idx = 0) {
-            static_assert(is_valid_sprite_size(Width, Height),
-                "Image dimensions do not match a valid GBA sprite size");
-            return {
-                .depth = depth_4bpp,
-                .shape = static_cast<gba::shape>(oam_shape_for(Width, Height)),
-                .size = static_cast<unsigned short>(oam_size_for(Width, Height)),
-                .tile_index = tile_idx
-            };
+        static constexpr gba::object_affine obj_aff(unsigned short tile_idx = 0, unsigned short pal_idx = 0) {
+            static_assert(is_valid_sprite_size(Width, Height), "Image dimensions do not match a valid GBA sprite size");
+            return {.depth = depth_4bpp,
+                    .shape = static_cast<gba::shape>(oam_shape_for(Width, Height)),
+                    .size = static_cast<unsigned short>(oam_size_for(Width, Height)),
+                    .tile_index = tile_idx,
+                    .palette_index = pal_idx};
         }
 
         /// @brief Pointer to tile data as packed bytes (4bpp tile order).
@@ -91,9 +96,7 @@ namespace gba::bits {
         }
 
         /// @brief Number of bytes occupied by the stored tiles.
-        [[nodiscard]] static constexpr std::size_t size() {
-            return TileCount * sizeof(gba::tile4bpp);
-        }
+        [[nodiscard]] static constexpr std::size_t size() { return TileCount * sizeof(gba::tile4bpp); }
     };
 
 } // namespace gba::bits

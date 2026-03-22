@@ -1,6 +1,6 @@
 find_package(librom REQUIRED)
 
-file(GLOB BENCH_SOURCES CONFIGURE_DEPENDS "*.cpp")
+file(GLOB_RECURSE BENCH_SOURCES bench_*.cpp)
 
 foreach(bench_src ${BENCH_SOURCES})
     get_filename_component(bench_name ${bench_src} NAME_WE)
@@ -31,9 +31,5 @@ foreach(bench_src ${BENCH_SOURCES})
     target_compile_options(${bench_name} PUBLIC -O3 -g3 -Wno-psabi)
     if(bench_name STREQUAL "bench_music")
         target_compile_options(${bench_name} PRIVATE -ftemplate-depth=2000 -fconstexpr-loop-limit=10000000 -fconstexpr-ops-limit=5000000000)
-    endif()
-    # Debug (-O0) benchmark variants: override optimisation level
-    if(bench_name STREQUAL "bench_ecs_debug")
-        target_compile_options(${bench_name} PRIVATE -O0)
     endif()
 endforeach()
