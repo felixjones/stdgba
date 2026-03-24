@@ -2,7 +2,6 @@
 /// @brief Tests for 16-bit fixed-point optimization.
 
 #include <gba/fixed_point>
-
 #include <gba/testing>
 
 int main() {
@@ -11,7 +10,7 @@ int main() {
 
     // Test 16-bit multiplication (should use fast path)
     {
-        using fix8_16 = fixed<short, 8>;  // 8.8 format, fits in 16 bits
+        using fix8_16 = fixed<short, 8>; // 8.8 format, fits in 16 bits
 
         fix8_16 a = 2.5;
         fix8_16 b = 3.0;
@@ -55,7 +54,7 @@ int main() {
 
     // Test 32-bit with fewer fractional bits (uses IntermediateRep without overflow)
     {
-        using fix8_32 = fixed<int, 8>;  // 24.8 format - less overflow risk
+        using fix8_32 = fixed<int, 8>; // 24.8 format - less overflow risk
 
         fix8_32 a = 2.5;
         fix8_32 b = 3.0;
@@ -95,7 +94,7 @@ int main() {
     // Test precise<> type alias for overflow-safe 16.16 multiplication
     // Note: 16.16 format can only represent values up to ~32767, so we use smaller values
     {
-        using precise16 = precise<int, 16>;  // Uses 64-bit intermediate
+        using precise16 = precise<int, 16>; // Uses 64-bit intermediate
 
         precise16 a = 100.0;
         precise16 b = 50.0;
@@ -115,6 +114,5 @@ int main() {
         gba::test.eq(c, precise16(7.5));
     }
 
-    
     return gba::test.finish();
 }
