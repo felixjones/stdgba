@@ -1,8 +1,7 @@
 #include <gba/angle>
+#include <gba/testing>
 
 #include <numbers>
-
-#include <gba/testing>
 
 int main() {
     using namespace gba;
@@ -124,6 +123,106 @@ int main() {
         angle a = 90_deg;
         angle b = a / 2;
         gba::test.eq(bit_cast(b), 0x20000000u); // 45 degrees
+    }
+
+    // -- Power-of-two fast-path correctness ------------------------------
+
+    {
+        // *= power-of-two matches generic multiply
+        angle a{0x10000000u}; // ~22.5 degrees
+        angle b = a;
+        a *= 8u;
+        b *= 8u; // both should use fast path for constant 8
+        gba::test.eq(bit_cast(a), 0x80000000u);
+        gba::test.eq(bit_cast(b), bit_cast(a));
+    }
+
+    {
+        // /= power-of-two matches generic divide
+        angle a{0x80000000u}; // 180 degrees
+        a /= 4u;
+        gba::test.eq(bit_cast(a), 0x20000000u); // 45 degrees
+    }
+
+    {
+        // *= 1 identity
+        angle a{0x12345678u};
+        a *= 1u;
+        gba::test.eq(bit_cast(a), 0x12345678u);
+    }
+
+    {
+        // /= 1 identity
+        angle a{0x12345678u};
+        a /= 1u;
+        gba::test.eq(bit_cast(a), 0x12345678u);
+    }
+
+    {
+        // *= 2 == left shift 1
+        angle a{0x20000000u};
+        angle b{0x20000000u};
+        a *= 2u;
+        b <<= 1;
+        gba::test.eq(bit_cast(a), bit_cast(b));
+    }
+
+    {
+        // /= 2 == right shift 1
+        angle a{0x80000000u};
+        angle b{0x80000000u};
+        a /= 2u;
+        b >>= 1;
+        gba::test.eq(bit_cast(a), bit_cast(b));
+    }
+
+    {
+        // *= with wraparound: 0xC0000000 * 4 overflows
+        angle a{0xC0000000u}; // 270 degrees
+        a *= 4u;
+        gba::test.eq(bit_cast(a), 0x00000000u); // wraps to 0
+    }
+
+    {
+        // /= large power of two
+        angle a{0x80000000u}; // 180 degrees
+        a /= 256u;
+        gba::test.eq(bit_cast(a), 0x00800000u);
+    }
+
+    {
+        // Free-function * pow2
+        angle a{0x10000000u};
+        angle b = a * 4u;
+        gba::test.eq(bit_cast(b), 0x40000000u);
+    }
+
+    {
+        // Free-function / pow2
+        angle a{0x40000000u};
+        angle b = a / 4u;
+        gba::test.eq(bit_cast(b), 0x10000000u);
+    }
+
+    {
+        // Reversed scalar * pow2
+        angle a{0x10000000u};
+        angle b = 4u * a;
+        gba::test.eq(bit_cast(b), 0x40000000u);
+    }
+
+    {
+        // *= 16 (larger power of two)
+        angle a{0x01000000u};
+        a *= 16u;
+        gba::test.eq(bit_cast(a), 0x10000000u);
+    }
+
+    {
+        // /= 16
+        angle a{0x10000000u};
+        a /= 16u;
+        gba::test.eq(bit_cast(a), 0x01000000u);
     }
 
     // Bit shift tests

@@ -105,12 +105,24 @@ namespace gba {
 
         /// @brief Multiply by scalar.
         constexpr angle& operator*=(value_type rhs) noexcept {
+#if defined(__clang__) || defined(__GNUC__)
+            if (__builtin_constant_p(rhs) && bits::is_positive_power_of_two(rhs)) {
+                m_data <<= bits::power_of_two_shift(rhs);
+                return *this;
+            }
+#endif
             m_data *= rhs;
             return *this;
         }
 
         /// @brief Divide by scalar.
         constexpr angle& operator/=(value_type rhs) noexcept {
+#if defined(__clang__) || defined(__GNUC__)
+            if (__builtin_constant_p(rhs) && bits::is_positive_power_of_two(rhs)) {
+                m_data >>= bits::power_of_two_shift(rhs);
+                return *this;
+            }
+#endif
             m_data /= rhs;
             return *this;
         }
@@ -166,19 +178,22 @@ namespace gba {
         /// @brief Multiply by scalar.
         [[nodiscard]]
         friend constexpr angle operator*(angle lhs, value_type rhs) noexcept {
-            return angle{lhs.m_data * rhs};
+            lhs *= rhs;
+            return lhs;
         }
 
         /// @brief Multiply by scalar (reversed).
         [[nodiscard]]
         friend constexpr angle operator*(value_type lhs, angle rhs) noexcept {
-            return angle{lhs * rhs.m_data};
+            rhs *= lhs;
+            return rhs;
         }
 
         /// @brief Divide by scalar.
         [[nodiscard]]
         friend constexpr angle operator/(angle lhs, value_type rhs) noexcept {
-            return angle{lhs.m_data / rhs};
+            lhs /= rhs;
+            return lhs;
         }
 
         /// @brief Shift left.

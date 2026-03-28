@@ -1,36 +1,8 @@
 #pragma once
 
-
 namespace gba {
 
     namespace bits {
-
-        template<std::integral T>
-        constexpr bool is_positive_power_of_two(T value) noexcept {
-            if constexpr (std::is_signed_v<T>) {
-                if (value <= 0) {
-                    return false;
-                }
-            } else {
-                if (value == 0) {
-                    return false;
-                }
-            }
-
-            using unsigned_t = std::make_unsigned_t<T>;
-            const auto u = static_cast<unsigned_t>(value);
-            return (u & (u - 1)) == 0;
-        }
-
-        template<std::unsigned_integral T>
-        constexpr int power_of_two_shift(T value) noexcept {
-            int shift = 0;
-            while ((value & T{1}) == 0) {
-                value >>= 1;
-                ++shift;
-            }
-            return shift;
-        }
 
         template<std::integral T>
         constexpr bool is_negative_power_of_two(T value) noexcept {
