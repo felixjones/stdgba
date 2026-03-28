@@ -1,0 +1,78 @@
+/// @file ecs
+/// @brief Static Entity-Component-System for GBA.
+///
+/// A zero-allocation, compile-time ECS with flat dense storage. All component
+/// pools are inline arrays indexed by entity slot - no heap, no sparse sets,
+/// no type-erasure overhead. Designed for ARM7TDMI where memory indirection
+/// and dynamic allocation are the primary performance killers.
+///
+/// ## Quick Start
+///
+/// @code{.cpp}
+/// #include <gba/ecs>
+///
+/// // Components - sizes must be powers of two
+/// struct position { int x, y; };   // 8 bytes
+/// struct velocity { int vx, vy; }; // 8 bytes
+/// struct health   { int hp; };     // 4 bytes
+///
+/// // Registry: max 128 entities, compile-time component list
+/// gba::ecs::registry<128, position, velocity, health> world;
+///
+/// // Create entities and attach components
+/// auto player = world.create();
+/// world.emplace<position>(player, 100, 50);
+/// world.emplace<velocity>(player, 1, 0);
+/// world.emplace<health>(player, 100);
+///
+/// // Iterate with range-based for (structured bindings)
+/// for (auto [pos, vel] : world.view<position, velocity>()) {
+///     pos.x += vel.vx;
+///     pos.y += vel.vy;
+/// }
+///
+/// // Or use .each() callback style
+/// world.view<position, velocity>().each([](position& pos, const velocity& vel) {
+///     pos.x += vel.vx;
+///     pos.y += vel.vy;
+/// });
+///
+/// // Entity lifecycle
+/// world.destroy(player);
+/// // player is now invalid - generation mismatch detects use-after-destroy
+/// @endcode
+///
+/// ## Power-of-Two Sizes
+///
+/// All component types must have power-of-two sizes. This enables shift-based
+/// addressing in the component pools (critical for ARM7TDMI, which lacks a
+/// barrel-shifter MUL path for indexed loads). Use `gba::ecs::pad<N>` to
+/// pad structs to compliance:
+///
+/// @code{.cpp}
+/// struct sprite_id {
+///     std::uint8_t id;
+///     gba::ecs::pad<3> _;   // pad 1 -> 4 bytes
+/// };
+/// static_assert(sizeof(sprite_id) == 4);
+/// @endcode
+///
+/// ## Constexpr Support
+///
+/// All registry operations are `constexpr`. Invalid operations (capacity
+/// overflow, double-emplace, use-after-destroy) produce clear compiler
+/// diagnostics when used in constant-evaluation contexts.
+///
+/// @code{.cpp}
+/// static constexpr auto result = [] {
+///     gba::ecs::registry<4, int> reg;
+///     auto e = reg.create();
+///     reg.emplace<int>(e, 42);
+///     return reg.get<int>(e);
+/// }();
+/// static_assert(result == 42);
+/// @endcode
+#pragma once
+
+#include <gba/bits/ecs/entity.hpp>
+#include <gba/bits/ecs/registry.hpp>

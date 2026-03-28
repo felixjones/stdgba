@@ -56,6 +56,7 @@
 
 #include <gba/video>
 #include <gba/sprite>
+#include <gba/bits/flipbook.hpp>
 
 #include <array>
 #include <cstddef>
@@ -843,6 +844,322 @@ namespace gba::embed {
             result.tiles[i] = oversized.tiles[i];
         for (unsigned int i = 0; i < sb_count * 1024; ++i)
             result.map[i] = oversized.map[i];
+        return result;
+    }
+
+    // ── Sprite sheet types ─────────────────────────────────────────────
+
+    /// @brief Row view into a sprite sheet — scoped flipbook builders for one row.
+    ///
+    /// Frame indices produced by `forward()`, `ping_pong()`, and `sequence()`
+    /// are absolute (sheet-global), not row-relative, so they can be fed
+    /// directly to `sheet4_result::tile_offset()`.
+    template<unsigned int RowStart, unsigned int FrameCountInRow>
+    struct row_view {
+        template<unsigned int Start, unsigned int Count>
+        static consteval auto forward() {
+            static_assert(Start + Count <= FrameCountInRow,
+                "Forward range exceeds row frame count");
+            flipbook<Count> result{};
+            for (unsigned int i = 0; i < Count; ++i)
+                result.frames[i] = RowStart + Start + i;
+            return result;
+        }
+
+        template<unsigned int Start, unsigned int Count>
+        static consteval auto ping_pong() {
+            static_assert(Start + Count <= FrameCountInRow,
+                "Ping-pong range exceeds row frame count");
+            static_assert(Count > 0, "Ping-pong requires at least one frame");
+            constexpr auto N = Count > 1 ? Count * 2 - 2 : 1;
+            flipbook<N> result{};
+            for (unsigned int i = 0; i < Count; ++i)
+                result.frames[i] = RowStart + Start + i;
+            for (unsigned int i = 1; i + 1 < Count; ++i)
+                result.frames[Count - 1 + i] = RowStart + Start + Count - 1 - i;
+            return result;
+        }
+
+        template<bits::ct_string Seq>
+        static consteval auto sequence() {
+            constexpr auto len = decltype(Seq)::length;
+            static_assert(len > 0, "Sequence string must not be empty");
+            flipbook<len> result{};
+            for (std::size_t i = 0; i < len; ++i) {
+                char c = Seq.data[i];
+                unsigned int idx;
+                if (c >= '0' && c <= '9') idx = c - '0';
+                else if (c >= 'a' && c <= 'z') idx = 10 + (c - 'a');
+                else if (c >= 'A' && c <= 'Z') idx = 10 + (c - 'A');
+                else throw "embed::sheet4: invalid character in row sequence string";
+                if (idx >= FrameCountInRow)
+                    throw "embed::sheet4: frame index out of range for row";
+                result.frames[i] = RowStart + idx;
+            }
+            return result;
+        }
+    };
+
+    /// @brief 4bpp sprite sheet result — all frames share one palette bank,
+    ///        tiles are packed in per-frame contiguous order for OBJ 1D mapping.
+    ///
+    /// @tparam FrameW     Frame width in pixels (must be a valid GBA sprite width).
+    /// @tparam FrameH     Frame height in pixels (must be a valid GBA sprite height).
+    /// @tparam Cols       Number of frame columns in the sheet.
+    /// @tparam Rows       Number of frame rows in the sheet.
+    /// @tparam PaletteSize Number of palette entries used (including transparent index 0).
+    template<unsigned int FrameW, unsigned int FrameH,
+             unsigned int Cols, unsigned int Rows,
+             std::size_t PaletteSize>
+    struct sheet4_result {
+        static constexpr unsigned int frame_width     = FrameW;
+        static constexpr unsigned int frame_height    = FrameH;
+        static constexpr unsigned int columns         = Cols;
+        static constexpr unsigned int rows            = Rows;
+        static constexpr unsigned int frame_count     = Cols * Rows;
+        static constexpr unsigned int tiles_per_frame = (FrameW / 8u) * (FrameH / 8u);
+        static constexpr std::size_t  total_tiles     = frame_count * tiles_per_frame;
+
+        std::array<gba::color, PaletteSize> palette{};
+        gba::sprite4<FrameW, FrameH, total_tiles> sprite{};
+
+        /// @brief Tile offset (in tile count) for a given frame index.
+        [[nodiscard]]
+        static constexpr unsigned int tile_offset(unsigned int frame) noexcept {
+            return frame * tiles_per_frame;
+        }
+
+        /// @brief Build a regular OAM object for a specific animation frame.
+        /// @param base_tile  Tile index returned by uploading `sprite` to VRAM.
+        /// @param frame      Frame index (0-based).
+        /// @param pal_idx    OBJ palette bank (default 0).
+        [[nodiscard]]
+        static constexpr gba::object frame_obj(unsigned short base_tile,
+                                               unsigned int frame,
+                                               unsigned short pal_idx = 0) {
+            return gba::sprite4<FrameW, FrameH>::obj(
+                static_cast<unsigned short>(base_tile + frame * tiles_per_frame), pal_idx);
+        }
+
+        /// @brief Build an affine OAM object for a specific animation frame.
+        [[nodiscard]]
+        static constexpr gba::object_affine frame_obj_aff(unsigned short base_tile,
+                                                          unsigned int frame,
+                                                          unsigned short pal_idx = 0) {
+            return gba::sprite4<FrameW, FrameH>::obj_aff(
+                static_cast<unsigned short>(base_tile + frame * tiles_per_frame), pal_idx);
+        }
+
+        // ── Flipbook builders ────────────────────────────────────────
+
+        /// @brief Sequential frames: Start, Start+1, ..., Start+Count-1.
+        template<unsigned int Start, unsigned int Count>
+        static consteval auto forward() {
+            static_assert(Start + Count <= frame_count, "Forward range exceeds frame count");
+            flipbook<Count> result{};
+            for (unsigned int i = 0; i < Count; ++i)
+                result.frames[i] = Start + i;
+            return result;
+        }
+
+        /// @brief Ping-pong: Start..Start+Count-1..Start+1. Length = 2·Count−2.
+        template<unsigned int Start, unsigned int Count>
+        static consteval auto ping_pong() {
+            static_assert(Start + Count <= frame_count, "Ping-pong range exceeds frame count");
+            static_assert(Count > 0, "Ping-pong requires at least one frame");
+            constexpr auto N = Count > 1 ? Count * 2 - 2 : 1;
+            flipbook<N> result{};
+            for (unsigned int i = 0; i < Count; ++i)
+                result.frames[i] = Start + i;
+            for (unsigned int i = 1; i + 1 < Count; ++i)
+                result.frames[Count - 1 + i] = Start + Count - 1 - i;
+            return result;
+        }
+
+        /// @brief Custom frame sequence from a string literal.
+        ///
+        /// Each character selects a frame: '0'..'9' → 0..9, 'a'..'z' → 10..35.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// static constexpr auto walk = sheet.sequence<"01232212">();
+        /// @endcode
+        template<bits::ct_string Seq>
+        static consteval auto sequence() {
+            constexpr auto len = decltype(Seq)::length;
+            static_assert(len > 0, "Sequence string must not be empty");
+            flipbook<len> result{};
+            for (std::size_t i = 0; i < len; ++i) {
+                char c = Seq.data[i];
+                unsigned int idx;
+                if (c >= '0' && c <= '9') idx = c - '0';
+                else if (c >= 'a' && c <= 'z') idx = 10 + (c - 'a');
+                else if (c >= 'A' && c <= 'Z') idx = 10 + (c - 'A');
+                else throw "embed::sheet4: invalid character in sequence string";
+                if (idx >= frame_count)
+                    throw "embed::sheet4: frame index out of range in sequence";
+                result.frames[i] = idx;
+            }
+            return result;
+        }
+
+        /// @brief Get a row view for building row-scoped flipbooks.
+        ///
+        /// Example (RPG Maker 4×4 sheet):
+        /// @code{.cpp}
+        /// static constexpr auto down  = actor.row<0>();  // frames 0..3
+        /// static constexpr auto left  = actor.row<1>();  // frames 4..7
+        /// static constexpr auto walk  = down.ping_pong<0, 4>();
+        /// @endcode
+        template<unsigned int R>
+        static consteval auto row() {
+            static_assert(R < Rows, "Row index out of range");
+            return row_view<R * Cols, Cols>{};
+        }
+    };
+
+    // ── indexed4_sheet converter ─────────────────────────────────────
+
+    /// @brief Convert a sprite sheet image to frame-ordered 4bpp tile data.
+    ///
+    /// Decodes a PPM/TGA image, validates that dimensions are exact multiples
+    /// of `FrameW` × `FrameH`, builds a single ≤15-color palette (+ transparent
+    /// index 0), and repacks tiles so each frame's tiles are contiguous in the
+    /// output — ready for GBA OBJ 1D tile mapping.
+    ///
+    /// @tparam FrameW  Width of each animation frame (must be a valid GBA sprite width).
+    /// @tparam FrameH  Height of each animation frame (must be a valid GBA sprite height).
+    /// @param supplier A callable returning `std::array<unsigned char, N>` (image data).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// static constexpr auto fish = gba::embed::indexed4_sheet<16, 16>([] {
+    ///     return std::to_array<unsigned char>({ #embed "fish.tga" });
+    /// });
+    /// // fish.frame_count == 3 (for a 48×16 source)
+    /// // fish.tiles_per_frame == 4 (for 16×16 frames)
+    /// const auto base = upload(pool, fish.sprite);
+    /// auto obj = fish.frame_obj(base, current_frame, palette_bank);
+    ///
+    /// static constexpr auto swim = fish.ping_pong<0, 3>();
+    /// renderable.tile_index = base + swim.tile_offset(counter, fish.tiles_per_frame);
+    /// @endcode
+    template<unsigned int FrameW, unsigned int FrameH>
+    consteval auto indexed4_sheet(auto supplier) {
+        static_assert(gba::bits::is_valid_sprite_size(FrameW, FrameH),
+            "Frame dimensions must match a valid GBA sprite size");
+        static_assert(FrameW % 8 == 0 && FrameH % 8 == 0,
+            "Frame dimensions must be multiples of 8");
+
+        using raw_type = decltype(supplier());
+        static constexpr auto raw_size = std::tuple_size<raw_type>::value;
+        static constexpr auto pixel_count = [&supplier] consteval {
+            auto h = bits::parse_header(supplier());
+            return h.width * h.height;
+        }();
+        static constexpr auto buf_size = raw_size > pixel_count ? raw_size : pixel_count;
+
+        static constexpr auto oversized = [&supplier] consteval {
+            const auto raw = supplier();
+            const auto hdr = bits::parse_header(raw);
+
+            if (hdr.width % FrameW != 0)
+                throw "indexed4_sheet: image width is not a multiple of frame width";
+            if (hdr.height % FrameH != 0)
+                throw "indexed4_sheet: image height is not a multiple of frame height";
+
+            const auto cols = hdr.width / FrameW;
+            const auto rows = hdr.height / FrameH;
+            const auto fc = cols * rows;
+            const auto tpf = (FrameW / 8u) * (FrameH / 8u);
+            const auto total_t = fc * tpf;
+
+            struct result_type {
+                unsigned int cols, rows;
+                unsigned int pal_count;
+                gba::color palette[16];
+                gba::tile4bpp tiles[buf_size]; // oversized; only total_t entries used
+            } r{cols, rows, 1, {}, {}};
+
+            // Decode all pixels
+            gba::color pixels[buf_size]{};
+            bool transparent[buf_size]{};
+            if (hdr.is_tga) {
+                bits::tga_decode_all(raw, hdr, pixels, transparent);
+            } else {
+                for (unsigned int y = 0; y < hdr.height; ++y)
+                    for (unsigned int x = 0; x < hdr.width; ++x)
+                        pixels[y * hdr.width + x] = bits::ppm_read_pixel(raw, hdr, x, y);
+            }
+
+            // Build single ≤15-color palette (index 0 = transparent)
+            r.palette[0] = {};
+            for (unsigned int i = 0; i < hdr.width * hdr.height; ++i) {
+                if (transparent[i]) continue;
+                auto c = pixels[i];
+                bool found = false;
+                for (unsigned int j = 1; j < r.pal_count; ++j) {
+                    if (bits::color_eq(r.palette[j], c)) { found = true; break; }
+                }
+                if (!found) {
+                    if (r.pal_count >= 16)
+                        throw "indexed4_sheet: sprite sheet has more than 15 opaque colors";
+                    r.palette[r.pal_count++] = c;
+                }
+            }
+
+            // Build per-pixel palette indices
+            unsigned char indices[buf_size]{};
+            for (unsigned int i = 0; i < hdr.width * hdr.height; ++i) {
+                if (transparent[i]) { indices[i] = 0; continue; }
+                auto c = pixels[i];
+                for (unsigned int j = 1; j < r.pal_count; ++j) {
+                    if (bits::color_eq(r.palette[j], c)) {
+                        indices[i] = static_cast<unsigned char>(j);
+                        break;
+                    }
+                }
+            }
+
+            // Build tiles in frame-contiguous order
+            for (unsigned int fr = 0; fr < rows; ++fr) {
+                for (unsigned int fc_col = 0; fc_col < cols; ++fc_col) {
+                    const auto frame_idx = fr * cols + fc_col;
+                    const auto tile_base = frame_idx * tpf;
+                    for (unsigned int ty = 0; ty < FrameH / 8; ++ty) {
+                        for (unsigned int tx = 0; tx < FrameW / 8; ++tx) {
+                            const auto ti = tile_base + ty * (FrameW / 8) + tx;
+                            gba::tile4bpp tile{};
+                            for (unsigned int row = 0; row < 8; ++row) {
+                                const unsigned int py = fr * FrameH + ty * 8 + row;
+                                unsigned int word = 0;
+                                for (unsigned int col = 0; col < 8; ++col) {
+                                    const unsigned int px = fc_col * FrameW + tx * 8 + col;
+                                    const auto pi = py * hdr.width + px;
+                                    word |= (static_cast<unsigned int>(indices[pi]) & 0xFu) << (col * 4);
+                                }
+                                tile[row] = word;
+                            }
+                            r.tiles[ti] = tile;
+                        }
+                    }
+                }
+            }
+
+            return r;
+        }();
+
+        constexpr auto cols = oversized.cols;
+        constexpr auto rows = oversized.rows;
+        constexpr auto fc = cols * rows;
+        constexpr auto tpf = (FrameW / 8u) * (FrameH / 8u);
+        constexpr auto total_t = fc * tpf;
+
+        sheet4_result<FrameW, FrameH, cols, rows, oversized.pal_count> result{};
+        for (unsigned int i = 0; i < oversized.pal_count; ++i)
+            result.palette[i] = oversized.palette[i];
+        for (unsigned int i = 0; i < total_t; ++i)
+            result.sprite.tiles[i] = oversized.tiles[i];
         return result;
     }
 

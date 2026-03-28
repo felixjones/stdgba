@@ -9,6 +9,7 @@ add_library(stdgba INTERFACE
         include/gba/color
         include/gba/compress
         include/gba/dma
+        include/gba/ecs
         include/gba/embed
         include/gba/filter
         include/gba/fixed_point
