@@ -23,6 +23,7 @@
 - [Colours & Palettes](./graphics/colors.md)
 - [Tiles & Maps](./graphics/tiles.md)
 - [Sprites (Objects)](./graphics/sprites.md)
+- [Text Rendering](./graphics/text-rendering.md)
 - [Embedding Images](./graphics/embed.md)
     - [Animated Sprite Sheets](./graphics/embed-animated.md)
 
@@ -38,6 +39,7 @@
 - [BIOS Functions](./advanced/bios.md)
 - [Save Data](./advanced/save.md)
 - [Memory Utilities](./utilities/memory.md)
+- [Functional Callbacks](./utilities/functional.md)
 - [Compression](./advanced/compression.md)
 - [String Formatting](./advanced/formatting.md)
 
@@ -61,6 +63,11 @@
 
 # Reference
 
+- [Keypad Class](./reference/keypad.md)
+- [Object Struct](./reference/object.md)
+- [Object Affine Struct](./reference/object-affine.md)
+- [Embedded Sprite Type](./reference/embed-sprite.md)
+- [Animated Sprite Sheet Type](./reference/embed-sheet.md)
 - [Peripheral Registers](./reference/peripherals.md)
     - [LCD](./reference/peripherals/lcd.md)
     - [Backgrounds](./reference/peripherals/backgrounds.md)

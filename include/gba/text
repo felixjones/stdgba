@@ -1,0 +1,24 @@
+/// @file text
+/// @brief Streaming text helpers for proportional fonts and bitplane palettes.
+#pragma once
+
+#include <gba/bits/text/palette.hpp>
+#include <gba/bits/text/render_bg4.hpp>
+#include <gba/bits/text/stream.hpp>
+#include <gba/bits/text/types.hpp>
+
+#include <utility>
+
+namespace gba::text {
+
+    template<typename Font>
+    constexpr auto stream(const char* text, const Font& font, stream_metrics metrics = {}) {
+        return cstr_stream<Font>{text, font, metrics};
+    }
+
+    template<typename Generator, typename Font>
+    constexpr auto stream(Generator gen, const Font& font, stream_metrics metrics = {}) {
+        return format_stream<Generator, Font>{std::move(gen), font, metrics};
+    }
+
+} // namespace gba::text

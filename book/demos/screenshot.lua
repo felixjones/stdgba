@@ -11,7 +11,7 @@ local frames = 0
 
 callbacks:add("frame", function()
     frames = frames + 1
-    if frames == 5 then
+    if frames == 14 then
         emu:screenshot()
         console:log("screenshot saved")
     end

@@ -25,6 +25,7 @@ add_library(stdgba INTERFACE
         include/gba/save
         include/gba/shapes
         include/gba/sprite
+        include/gba/text
         include/gba/testing
         include/gba/timer
         include/gba/video
