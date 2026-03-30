@@ -1,4 +1,4 @@
-# Wave (CH3)
+ma# Wave (CH3)
 
 Channel 3 plays a 32x4-bit waveform (64 nibbles in stdgba's 1x64 view). Use it for softer leads, pseudo-samples, and custom timbres.
 
@@ -33,3 +33,4 @@ auto melody = note("e5 d5 c5 b4").channel(channel::wav, piano);
 - CH3 ignores square/noise envelope semantics; waveform data defines the timbre.
 - Built-ins live in `gba::music::waves` (`sine`, `triangle`, `saw`, `square`).
 - `wav_embed()` requires a compiler that supports `#embed` (GCC 15+).
+- For full sample-embedding workflow details, see [Embedded WAV Samples](./wav-embed.md).

@@ -5,8 +5,7 @@ file(GLOB DEMO_SOURCES demo_*.cpp)
 
 set(EMBED_DEMOS
     demo_embed_sprite
-    demo_tetris
-    demo_wav
+    demo_hello_audio_wav
 )
 
 set(SKIPPED_EMBED_DEMOS)
