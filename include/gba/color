@@ -5,6 +5,7 @@
 #include <gba/peripherals>
 
 #include <cstddef>
+#include <string_view>
 
 namespace gba {
 
@@ -35,17 +36,200 @@ namespace gba {
 			return (hex_nibble(hi) << 4) | hex_nibble(lo);
 		}
 
+		consteval unsigned int hex_to_rgb(const char* str, std::size_t len) {
+			if (len != 7 || str[0] != '#') throw "expected \"#RRGGBB\" format";
+			unsigned short r = hex_byte(str[1], str[2]);
+			unsigned short g = hex_byte(str[3], str[4]);
+			unsigned short b = hex_byte(str[5], str[6]);
+			return (r << 16) | (g << 8) | b;
+		}
+
+		// CSS named color database (147 colors from CSS spec)
+		consteval unsigned int css_color_to_rgb(std::string_view name) {
+			// 3-letter colors
+			if (name == "red") return 0xFF0000;
+			if (name == "tan") return 0xD2B48C;
+			if (name == "gold") return 0xFFD700;
+			if (name == "peru") return 0xCD853F;
+			if (name == "navy") return 0x000080;
+			if (name == "blue") return 0x0000FF;
+			if (name == "cyan") return 0x00FFFF;
+			if (name == "gray") return 0x808080;
+			if (name == "grey") return 0x808080;
+			if (name == "pink") return 0xFFC0CB;
+			if (name == "plum") return 0xDDA0DD;
+			if (name == "snow") return 0xFFFAFA;
+			if (name == "teal") return 0x008080;
+			if (name == "aqua") return 0x00FFFF;
+			if (name == "lime") return 0x00FF00;
+			if (name == "olive") return 0x808000;
+			if (name == "maroon") return 0x800000;
+			if (name == "purple") return 0x800080;
+			if (name == "silver") return 0xC0C0C0;
+			if (name == "white") return 0xFFFFFF;
+			if (name == "black") return 0x000000;
+			if (name == "green") return 0x008000;
+			if (name == "orange") return 0xFFA500;
+			if (name == "salmon") return 0xFA8072;
+			if (name == "wheat") return 0xF5DEB3;
+
+			// 4-letter colors
+			if (name == "aquamarine") return 0x7FFFD4;
+			if (name == "azure") return 0xF0FFFF;
+			if (name == "beige") return 0xF5F5DC;
+			if (name == "bisque") return 0xFFE4C4;
+			if (name == "blueviolet") return 0x8A2BE2;
+			if (name == "brown") return 0xA52A2A;
+			if (name == "burlywood") return 0xDEB887;
+			if (name == "cadetblue") return 0x5F9EA0;
+			if (name == "chartreuse") return 0x7FFF00;
+			if (name == "chocolate") return 0xD2691E;
+			if (name == "coral") return 0xFF7F50;
+			if (name == "cornflowerblue") return 0x6495ED;
+			if (name == "cornsilk") return 0xFFF8DC;
+			if (name == "crimson") return 0xDC143C;
+			if (name == "darkblue") return 0x00008B;
+			if (name == "darkcyan") return 0x008B8B;
+			if (name == "darkgoldenrod") return 0xB8860B;
+			if (name == "darkgray") return 0xA9A9A9;
+			if (name == "darkgrey") return 0xA9A9A9;
+			if (name == "darkgreen") return 0x006400;
+			if (name == "darkkhaki") return 0xBDB76B;
+			if (name == "darkmagenta") return 0x8B008B;
+			if (name == "darkolivegreen") return 0x556B2F;
+			if (name == "darkorange") return 0xFF8C00;
+			if (name == "darkorchid") return 0x9932CC;
+			if (name == "darkred") return 0x8B0000;
+			if (name == "darksalmon") return 0xE9967A;
+			if (name == "darkseagreen") return 0x8FBC8F;
+			if (name == "darkslateblue") return 0x483D8B;
+			if (name == "darkslategray") return 0x2F4F4F;
+			if (name == "darkslategrey") return 0x2F4F4F;
+			if (name == "darkturquoise") return 0x00CED1;
+			if (name == "darkviolet") return 0x9400D3;
+			if (name == "deeppink") return 0xFF1493;
+			if (name == "deepskyblue") return 0x00BFFF;
+			if (name == "dimgray") return 0x696969;
+			if (name == "dimgrey") return 0x696969;
+			if (name == "dodgerblue") return 0x1E90FF;
+			if (name == "firebrick") return 0xB22222;
+			if (name == "floralwhite") return 0xFFFAF0;
+			if (name == "forestgreen") return 0x228B22;
+			if (name == "fuchsia") return 0xFF00FF;
+			if (name == "gainsboro") return 0xDCDCDC;
+			if (name == "ghostwhite") return 0xF8F8FF;
+			if (name == "goldenrod") return 0xDAA520;
+			if (name == "greenyellow") return 0xADFF2F;
+			if (name == "honeydew") return 0xF0FFF0;
+			if (name == "hotpink") return 0xFF69B4;
+			if (name == "indianred") return 0xCD5C5C;
+			if (name == "indigo") return 0x4B0082;
+			if (name == "ivory") return 0xFFFFF0;
+			if (name == "khaki") return 0xF0E68C;
+			if (name == "lavender") return 0xE6E6FA;
+			if (name == "lavenderblush") return 0xFFF0F5;
+			if (name == "lawngreen") return 0x7CFC00;
+			if (name == "lemonchiffon") return 0xFFFACD;
+			if (name == "lightblue") return 0xADD8E6;
+			if (name == "lightcoral") return 0xF08080;
+			if (name == "lightcyan") return 0xE0FFFF;
+			if (name == "lightgoldenrodyellow") return 0xFAFAD2;
+			if (name == "lightgray") return 0xD3D3D3;
+			if (name == "lightgrey") return 0xD3D3D3;
+			if (name == "lightgreen") return 0x90EE90;
+			if (name == "lightpink") return 0xFFB6C1;
+			if (name == "lightsalmon") return 0xFFA07A;
+			if (name == "lightseagreen") return 0x20B2AA;
+			if (name == "lightskyblue") return 0x87CEFA;
+			if (name == "lightslategray") return 0x778899;
+			if (name == "lightslategrey") return 0x778899;
+			if (name == "lightsteelblue") return 0xB0C4DE;
+			if (name == "lightyellow") return 0xFFFFE0;
+			if (name == "limegreen") return 0x32CD32;
+			if (name == "linen") return 0xFAF0E6;
+			if (name == "magenta") return 0xFF00FF;
+			if (name == "mediumaquamarine") return 0x66CDAA;
+			if (name == "mediumblue") return 0x0000CD;
+			if (name == "mediumorchid") return 0xBA55D3;
+			if (name == "mediumpurple") return 0x9370DB;
+			if (name == "mediumseagreen") return 0x3CB371;
+			if (name == "mediumslateblue") return 0x7B68EE;
+			if (name == "mediumspringgreen") return 0x00FA9A;
+			if (name == "mediumturquoise") return 0x48D1CC;
+			if (name == "mediumvioletred") return 0xC71585;
+			if (name == "midnightblue") return 0x191970;
+			if (name == "mintcream") return 0xF5FFFA;
+			if (name == "mistyrose") return 0xFFE4E1;
+			if (name == "moccasin") return 0xFFE4B5;
+			if (name == "navajowhite") return 0xFFDEAD;
+			if (name == "oldlace") return 0xFDF5E6;
+			if (name == "olivedrab") return 0x6B8E23;
+			if (name == "orangered") return 0xFF4500;
+			if (name == "orchid") return 0xDA70D6;
+			if (name == "palegoldenrod") return 0xEEE8AA;
+			if (name == "palegreen") return 0x98FB98;
+			if (name == "paleturquoise") return 0xAFEEEE;
+			if (name == "palevioletred") return 0xDB7093;
+			if (name == "papayawhip") return 0xFFEFD5;
+			if (name == "peachpuff") return 0xFFDAB9;
+			if (name == "piceablue") return 0x3BB9FF;
+			if (name == "pink") return 0xFFC0CB;
+			if (name == "powderblue") return 0xB0E0E6;
+			if (name == "rosybrown") return 0xBC8F8F;
+			if (name == "royalblue") return 0x4169E1;
+			if (name == "saddlebrown") return 0x8B4513;
+			if (name == "sandybrown") return 0xF4A460;
+			if (name == "seagreen") return 0x2E8B57;
+			if (name == "seashell") return 0xFFF5EE;
+			if (name == "sienna") return 0xA0522D;
+			if (name == "skyblue") return 0x87CEEB;
+			if (name == "slateblue") return 0x6A5ACD;
+			if (name == "slategray") return 0x708090;
+			if (name == "slategrey") return 0x708090;
+			if (name == "springgreen") return 0x00FF7F;
+			if (name == "steelblue") return 0x4682B4;
+			if (name == "thistle") return 0xD8BFD8;
+			if (name == "tomato") return 0xFF6347;
+			if (name == "turquoise") return 0x40E0D0;
+			if (name == "violet") return 0xEE82EE;
+			if (name == "whitesmoke") return 0xF5F5F5;
+			if (name == "yellowgreen") return 0x9ACD32;
+			if (name == "yellow") return 0xFFFF00;
+
+			throw "unknown CSS color name";
+		}
+
+		consteval color from_rgb(unsigned int rgb) {
+			unsigned short r = (rgb >> 16) & 0xFF;
+			unsigned short g = (rgb >> 8) & 0xFF;
+			unsigned short b = rgb & 0xFF;
+			// Convert 8-bit RGB to 5-bit GBA RGB
+			return {
+				.red = static_cast<unsigned short>(r >> 3),
+				.green = static_cast<unsigned short>(g >> 3),
+				.blue = static_cast<unsigned short>(b >> 3),
+				.grn_lo = static_cast<unsigned short>((g >> 2) & 1)
+			};
+		}
+
 	} // namespace bits
 
-	/// @brief User-defined literal for web hex colors (#RRGGBB).
+	/// @brief User-defined literal for web colors (hex #RRGGBB or CSS name).
+	/// @example "#FF8040"_clr or "cornflowerblue"_clr
 	consteval color operator""_clr(const char* str, std::size_t len) {
-		if (len != 7 || str[0] != '#') throw "expected \"#RRGGBB\" format";
-		return {
-			.red = static_cast<unsigned short>(bits::hex_byte(str[1], str[2]) >> 3),
-			.green = static_cast<unsigned short>(bits::hex_byte(str[3], str[4]) >> 3),
-			.blue = static_cast<unsigned short>(bits::hex_byte(str[5], str[6]) >> 3),
-			.grn_lo = static_cast<unsigned short>((bits::hex_byte(str[3], str[4]) >> 2) & 1)
-		};
+		std::string_view view(str, len);
+
+		// Try hex format first
+		if (len == 7 && str[0] == '#') {
+			return bits::from_rgb(bits::hex_to_rgb(str, len));
+		}
+
+		// Try CSS color name
+		if (len > 0 && str[0] != '#') {
+			return bits::from_rgb(bits::css_color_to_rgb(view));
+		}
+
+		throw "expected \"#RRGGBB\" or CSS color name";
 	}
 
 	inline constexpr auto pal_bg_mem = registral_cast<color[256]>(mem_pal_bg);

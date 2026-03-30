@@ -35,14 +35,15 @@ int main() {
 
     // Set up 8 color swatches across the top row
     using namespace gba;
-    pal_bg_bank[0][1] = {.red = 31};                       // Red
-    pal_bg_bank[1][1] = {.green = 31};                      // Green
-    pal_bg_bank[2][1] = {.blue = 31};                       // Blue
-    pal_bg_bank[3][1] = {.red = 31, .green = 31};           // Yellow
-    pal_bg_bank[4][1] = {.green = 31, .blue = 31};          // Cyan
-    pal_bg_bank[5][1] = {.red = 31, .blue = 31};            // Magenta
-    pal_bg_bank[6][1] = {.red = 31, .green = 31, .blue = 31}; // White
-    pal_bg_bank[7][1] = "#FF8040"_clr;                      // Orange via _clr
+    using namespace gba::literals;
+    pal_bg_bank[0][1] = "red"_clr;                          // CSS: red
+    pal_bg_bank[1][1] = "lime"_clr;                         // CSS: lime (pure green)
+    pal_bg_bank[2][1] = "blue"_clr;                         // CSS: blue
+    pal_bg_bank[3][1] = "gold"_clr;                         // CSS: gold
+    pal_bg_bank[4][1] = "cyan"_clr;                         // CSS: cyan
+    pal_bg_bank[5][1] = "magenta"_clr;                      // CSS: magenta
+    pal_bg_bank[6][1] = "white"_clr;                        // CSS: white
+    pal_bg_bank[7][1] = "cornflowerblue"_clr;               // CSS: cornflowerblue
 
     // Background color (palette 0, index 0)
     pal_bg_mem[0] = {.red = 2, .green = 2, .blue = 4};
