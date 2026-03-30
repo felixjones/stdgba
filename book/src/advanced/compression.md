@@ -79,7 +79,3 @@ constexpr auto filtered = gba::diff_filter<1>([] {
 
 constexpr auto compressed = gba::lz77_compress([] { return filtered; });
 ```
-
-## tonclib comparison
-
-In tonclib, compression is done with external tools (grit, etc.) and the compressed data is linked as a binary blob. stdgba does the compression at compile time in C++, so assets defined in source code can be compressed without external tools.

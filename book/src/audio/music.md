@@ -1,6 +1,6 @@
  # Music Composition
 
-The GBA has four PSG (Programmable Sound Generator) channels: two square waves, one wave (sample) channel, and one noise channel. Rather than manually writing register values, stdgba lets you compose music using Strudel notation—a text-based mini-language for patterns—and compiles it to an optimized event table at build time.
+The GBA has four PSG (Programmable Sound Generator) channels: two square waves, one wave (sample) channel, and one noise channel. Rather than manually writing register values, stdgba lets you compose music using Strudel notation ([a text-based mini-language for patterns](https://strudel.cc/workshop/getting-started/)) and compiles it to an optimised event table at build time.
 
 ## Quick Start
 
@@ -43,20 +43,20 @@ Patterns use Strudel notation. Here's the reference:
 - [Strudel `note()` reference](https://strudel.cc/learn/synths#note)
 - [Strudel `s()` reference](https://strudel.cc/learn/samples#s)
 
-| Syntax | Meaning | Example |
-|--------|---------|---------|
-| `c4 e4 g4` | Sequence (space-separated notes) | `"c4 e4 g4"` |
-| `~` | Rest (silence) | `"c4 ~ g4"` |
-| `_` | Hold/tie (sustain, no retrigger) | `"c4 _ _"` (hold for 3 steps) |
-| `[a b]` | Subdivision (fit into one parent step) | `"[c4 d4] e4"` |
-| `<a b c>` | Alternating (cycle through each step) | `"<c4 d4 e4>"` |
-| `<a, b>` | Parallel layers (commas create stacked voices) | `"<c4, g3>"` |
-| `a@3` | Elongation (weight = 3) | `"c4@3 e4"` |
-| `a!3` | Replicate (repeat 3 times equally) | `"c4!3"` |
-| `a*2` | Fast (play 2x in one step) | `"c4*2"` |
-| `a/2` | Slow (stretch over 2 cycles) | `"c4/2"` |
+| Syntax | Meaning                                           | Example |
+|--------|---------------------------------------------------|---------|
+| `c4 e4 g4` | Sequence (space-separated notes)                  | `"c4 e4 g4"` |
+| `~` | Rest (silence)                                    | `"c4 ~ g4"` |
+| `_` | Hold/tie (sustain, no retrigger)                  | `"c4 _ _"` (hold for 3 steps) |
+| `[a b]` | Subdivision (fit into one parent step)            | `"[c4 d4] e4"` |
+| `<a b c>` | Alternating (cycle through each step)             | `"<c4 d4 e4>"` |
+| `<a, b>` | Parallel layers (commas create stacked voices)    | `"<c4, g3>"` |
+| `a@3` | Elongation (weight = 3)                           | `"c4@3 e4"` |
+| `a!3` | Replicate (repeat 3 times equally)                | `"c4!3"` |
+| `a*2` | Fast (play 2x in one step)                        | `"c4*2"` |
+| `a/2` | Slow (stretch over 2 cycles)                      | `"c4/2"` |
 | `(3,8)` | Euclidean rhythm (Bjorklund: 3 pulses in 8 steps) | `"c4(3,8)"` |
-| `eb3` | Flat notation (E♭3 = D#3) | `"eb3 f3 g3"` |
+| `eb3` | Flat notation (Eb3 = D#3)                         | `"eb3 f3 g3"` |
 
 ## Creating Melodies with `note()`
 
@@ -72,7 +72,7 @@ auto slow = note("c4/2");        // Stretch over 2 cycles
 auto rests = note("c4 ~ ~ e4");  // With silences
 ```
 
-All notes from C2 to B8 are supported. Octave-1 notes (C1–B1) are rejected at compile time because the PSG hardware cannot represent those frequencies.
+All notes from C2 to B8 are supported. Octave-1 notes (C1-B1) are rejected at compile time because the PSG hardware cannot represent those frequencies.
 
 ## Multi-Voice Patterns with Stacking
 
@@ -94,7 +94,7 @@ static constexpr auto music = compile(
 );
 ```
 
-The layers are auto-assigned to channels in order: square 1 → square 2 → wave → noise.
+The layers are auto-assigned to channels in order: square 1 -> square 2 -> wave -> noise.
 
 ## PSG Channels (CH1-CH4)
 
@@ -199,6 +199,8 @@ auto drums = "bd sd hh"_s;       // Drums (noise channel)
 
 The wave channel (CH3) can play 4-bit sampled audio. Use built-in waveforms or embed `.wav` files:
 
+For a deeper guide to `wav_embed()`, resampling limits, and custom sample authoring, see [Embedded WAV Samples](./wav-embed.md).
+
 ```cpp
 // Built-in waveforms
 using namespace gba::music::waves;
@@ -242,7 +244,3 @@ Music playback uses tail-call recursive dispatch over compile-time batches. Per-
 - **4-channel batch dispatch**: ~760 cycles (~1.1% of VBlank)
 
 This leaves >99% of VBlank budget for game logic.
-
-## Examples
-
-See `book/demos/demo_tetris.cpp` for a multi-voice arrangement with drum accompaniment, and `book/demos/demo_wav.cpp` for waveform cycling.

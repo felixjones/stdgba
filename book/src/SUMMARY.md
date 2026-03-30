@@ -23,24 +23,40 @@
 - [Colors & Palettes](./graphics/colors.md)
 - [Tiles & Maps](./graphics/tiles.md)
 - [Sprites (Objects)](./graphics/sprites.md)
-- [Shapes](./graphics/shapes.md)
-- [DMA Transfers](./graphics/dma.md)
+- [Embedding Images](./graphics/embed.md)
+    - [Animated Sprite Sheets](./graphics/embed-animated.md)
 
 # Audio
 
 - [Music Composition](./audio/music.md)
+- [Embedded WAV Samples](./audio/wav-embed.md)
+
+# Utilities
+
+- [DMA Transfers](./utilities/dma.md)
+- [Shapes](./utilities/shapes.md)
+- [BIOS Functions](./advanced/bios.md)
+- [Save Data](./advanced/save.md)
+- [Memory Utilities](./utilities/memory.md)
+- [Compression](./advanced/compression.md)
+- [String Formatting](./advanced/formatting.md)
+
+# Testing & Debugging
+
+- [Logging](./advanced/logging.md)
+- [Testing & Benchmarking](./advanced/testing.md)
 
 # Advanced
 
 - [EWRAM & IWRAM Overlays](./advanced/overlays.md)
-- [Save Data](./advanced/save.md)
-- [Memory Utilities](./advanced/memory.md)
-- [BIOS Functions](./advanced/bios.md)
-- [Compression](./advanced/compression.md)
-- [Embedding Images](./advanced/embed.md)
-- [String Formatting](./advanced/formatting.md)
-- [Logging](./advanced/logging.md)
-- [Testing & Benchmarking](./advanced/testing.md)
+- [Green Low Bit (`grn_lo`)](./advanced/green-low-bit.md)
+- [Undocumented Namespace](./advanced/undocumented.md)
+
+# Entity Component Systems
+
+- [ECS](./ecs/index.md)
+- [Architecture Overview](./ecs/architecture.md)
+- [Implementation Details](./ecs/internal-implementation.md)
 
 # Reference
 

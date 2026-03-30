@@ -2,7 +2,7 @@
 
 stdgba provides a consteval API for generating sprite pixel data from geometric shapes. All pixel data is computed at compile time and stored directly in ROM.
 
-For file-based asset pipelines, see [Advanced: Embedding Images](../advanced/embed.md).
+For file-based asset pipelines, see [Embedding Images](./embed.md).
 
 ## Quick start
 
@@ -16,7 +16,7 @@ constexpr auto sprite = sprite_16x16(
     rect(2, 2, 12, 12)        // palette index 2
 );
 
-// Load colors into palette memory
+// Load colours into palette memory
 gba::pal_obj_bank[0][1] = { .red = 31 };    // red circle
 gba::pal_obj_bank[0][2] = { .green = 31 };  // green rectangle
 
@@ -49,7 +49,7 @@ Each `sprite_WxH()` call takes a list of shape groups. Each group is assigned a 
 
 | Shape | Signature | Notes |
 |-------|-----------|-------|
-| Circle | `circle(cx, cy, r)` | Float center + radius for pixel alignment |
+| Circle | `circle(cx, cy, r)` | Float centre + radius for pixel alignment |
 | Oval | `oval(x, y, w, h)` | Bounding box coordinates |
 | Rectangle | `rect(x, y, w, h)` | Bounding box coordinates |
 | Triangle | `triangle(x1, y1, x2, y2, x3, y3)` | Three vertices |
@@ -61,11 +61,11 @@ Each `sprite_WxH()` call takes a list of shape groups. Each group is assigned a 
 
 ## Circle pixel alignment
 
-The float center and radius control how circles align to the pixel grid:
+The float centre and radius control how circles align to the pixel grid:
 
 ```cpp
-circle(8.0, 8.0, 4.0)   // 8px even diameter, center between pixels
-circle(8.0, 8.0, 3.5)   // 7px odd diameter, center on pixel 8
+circle(8.0, 8.0, 4.0)   // 8px even diameter, centre between pixels
+circle(8.0, 8.0, 3.5)   // 7px odd diameter, centre on pixel 8
 oval(4, 4, 8, 8)         // Same 8px circle via bounding box
 ```
 
@@ -94,7 +94,7 @@ constexpr auto sprite = sprite_16x16(
 
 ## OAM attributes
 
-Each sprite result provides a pre-filled `obj` method that sets the correct shape, size, and color depth for OAM:
+Each sprite result provides a pre-filled `obj` method that sets the correct shape, size, and colour depth for OAM:
 
 ```cpp
 auto obj_attrs = sprite.obj(gba::tile_index(dest));
