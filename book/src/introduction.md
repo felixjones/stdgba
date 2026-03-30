@@ -17,14 +17,14 @@ You still decide your main loop, memory layout, rendering strategy, and frame bu
 
 ## Core design goals
 
-1. **Zero-cost abstractions** -- generated code should match hand-written low-level intent.
-2. **Compile-time validation** -- invalid asset/pattern/config inputs should fail at compile time when possible.
-3. **Typed hardware access** -- peripheral use should be explicit, discoverable, and hard to misuse.
-4. **Practical migration path** -- where meaningful, docs map familiar tonclib-era workflows to stdgba equivalents.
+1. **Zero-cost abstractions** - generated code should match hand-written low-level intent.
+2. **Compile-time validation** - invalid asset/pattern/config inputs should fail at compile time when possible.
+3. **Typed hardware access** - peripheral use should be explicit, discoverable, and hard to misuse.
+4. **Practical migration path** - where meaningful, docs map familiar tonclib-era workflows to stdgba equivalents.
 
 ## What you get
 
-- `registral<T>` register wrappers with designated initializers
+- `registral<T>` register wrappers with designated initialisers
 - fixed-point and angle types with literal support
 - BIOS wrappers for sync, math, memory, compression, affine setup
 - compile-time image embedding and conversion (`gba/embed`)
@@ -39,7 +39,7 @@ You still decide your main loop, memory layout, rendering strategy, and frame bu
 #include <gba/bios>
 
 int main() {
-    // Initialize interrupt handler
+    // Initialise interrupt handler
     gba::irq_handler = {};
 
     // Set video mode 0, enable BG0
@@ -68,7 +68,7 @@ int main() {
 - Add button-triggered sound in [Hello Audio](./getting-started/hello-audio.md).
 - Learn register and frame-loop basics in [Core Concepts](./concepts/registers.md).
 - Get pixels on screen via [Graphics](./graphics/video-modes.md).
-- Add timing/sync and BIOS helpers in [BIOS](./bios/index.md).
+- Reach for transfer, BIOS, and support APIs in [Utilities](./utilities/dma.md).
 - Explore [Audio](./audio/index.md), [ECS](./ecs/index.md), and [Additional Types](./concepts/fixed-point.md).
 
 ## Who this is for

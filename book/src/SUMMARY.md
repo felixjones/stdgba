@@ -20,7 +20,7 @@
 # Graphics
 
 - [Video Modes](./graphics/video-modes.md)
-- [Colors & Palettes](./graphics/colors.md)
+- [Colours & Palettes](./graphics/colors.md)
 - [Tiles & Maps](./graphics/tiles.md)
 - [Sprites (Objects)](./graphics/sprites.md)
 - [Embedding Images](./graphics/embed.md)
@@ -45,6 +45,7 @@
 
 - [Logging](./advanced/logging.md)
 - [Testing & Benchmarking](./advanced/testing.md)
+- [GDB Pretty Printers](./advanced/gdb-pretty-printers.md)
 
 # Advanced
 
@@ -65,7 +66,7 @@
     - [Backgrounds](./reference/peripherals/backgrounds.md)
     - [Windowing](./reference/peripherals/windowing.md)
     - [Mosaic](./reference/peripherals/mosaic.md)
-    - [Color Effects](./reference/peripherals/color-effects.md)
+    - [Colour Effects](./reference/peripherals/color-effects.md)
     - [Sound](./reference/peripherals/sound.md)
     - [DMA](./reference/peripherals/dma.md)
     - [Timers](./reference/peripherals/timers.md)

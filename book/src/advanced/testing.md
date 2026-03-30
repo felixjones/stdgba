@@ -2,6 +2,8 @@
 
 stdgba provides lightweight APIs for unit testing, assertions, and cycle-accurate benchmarking on hardware or emulator.
 
+For debugger value rendering, see [GDB Pretty Printers](./gdb-pretty-printers.md).
+
 ## Test API
 
 The `gba::test` singleton provides simple assertion and expectation checking. Tests run on real GBA hardware or mGBA emulator, with results reported via log output.
@@ -86,7 +88,7 @@ Build your test executable, then run with `mgba-headless`:
 
 ```bash
 # Build
-cmake --build build --target my_test -- -j 8
+cmake --build build --target my_test - -j 8
 
 # Run (exit SWI 0x1A, return exit code in r0, timeout 10 seconds)
 timeout 15 mgba-headless -S 0x1A -R r0 -t 10 build/tests/my_test.elf
@@ -94,7 +96,7 @@ echo "Exit code: $?"
 ```
 
 The test framework writes results to the logger, viewable via:
-- `mGBA` debug console (Ctrl+D or Tools → GDB)
+- `mGBA` debug console (Ctrl+D or Tools -> GDB)
 - `no$gba` debug window
 - Custom logger backend
 
@@ -171,7 +173,7 @@ gba::benchmark::do_not_optimize([&] {
 auto cycles = counter.stop();
 ```
 
-Without `do_not_optimize()`, the compiler may optimize away unused computations, giving misleading cycle counts.
+Without `do_not_optimize()`, the compiler may optimise away unused computations, giving misleading cycle counts.
 
 ## Combined example
 
@@ -214,10 +216,10 @@ int main() {
 - **Always call `gba::test.finish()`**: It flushes logs and signals the exit SWI to mgba-headless.
 - **Use `expect.*` for non-critical checks**: Failures don't stop the test, so you can gather multiple failures at once.
 - **Use `assert.*` for setup validation**: Stop immediately if preconditions fail, preventing cascade failures.
-- **Add descriptive messages**: The third parameter makes test failure output readable.
+- **Add descriptive messages**: The third parameter makes test-failure output readable.
 - **Benchmark multiple runs**: Use `measure_avg()` to reduce noise from VBlank interrupts.
 - **Isolate what you measure**: Wrap only the code under test with `do_not_optimize()`.
-- **Test on hardware too**: emulator behavior may differ from real GBA in timing or memory access patterns.
+- **Test on hardware too**: emulator behaviour may differ from real GBA in timing or memory access patterns.
 
 ## Reference
 
