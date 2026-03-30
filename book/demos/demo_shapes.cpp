@@ -1,5 +1,5 @@
 /// @file demo_shapes.cpp
-/// @brief Consteval sprite shapes. (Shapes chapter)
+/// @brief Consteval sprite shapes.
 ///
 /// Draws several sprites generated at compile time using the shapes API.
 
@@ -13,41 +13,26 @@
 using namespace gba::shapes;
 
 // Compile-time sprites
-constexpr auto spr_circle = sprite_16x16(
-    circle(8.0, 8.0, 7.0)
+constexpr auto spr_circle = sprite_16x16(circle(8.0, 8.0, 7.0));
+
+constexpr auto spr_donut = sprite_16x16(circle(8.0, 8.0, 7.0), palette_idx(0), circle(8.0, 8.0, 3.0));
+
+constexpr auto spr_rect = sprite_16x16(rect(1, 1, 14, 14));
+
+constexpr auto spr_triangle = sprite_16x16(triangle(8, 1, 15, 14, 1, 14));
+
+constexpr auto spr_face = sprite_32x32(circle(16.0, 16.0, 14.0), // Head (palette 1)
+                                       group(                    // Eyes (palette 2)
+                                           circle(11.0, 12.0, 2.5), circle(21.0, 12.0, 2.5)),
+                                       group( // Mouth (palette 3)
+                                           oval(10, 20, 12, 4)),
+                                       palette_idx(0),     // Erase
+                                       oval(11, 21, 10, 2) // Inner mouth cutout
 );
 
-constexpr auto spr_donut = sprite_16x16(
-    circle(8.0, 8.0, 7.0),
-    palette_idx(0),
-    circle(8.0, 8.0, 3.0)
-);
-
-constexpr auto spr_rect = sprite_16x16(
-    rect(1, 1, 14, 14)
-);
-
-constexpr auto spr_triangle = sprite_16x16(
-    triangle(8, 1, 15, 14, 1, 14)
-);
-
-constexpr auto spr_face = sprite_32x32(
-    circle(16.0, 16.0, 14.0),                // Head (palette 1)
-    group(                                     // Eyes (palette 2)
-        circle(11.0, 12.0, 2.5),
-        circle(21.0, 12.0, 2.5)
-    ),
-    group(                                     // Mouth (palette 3)
-        oval(10, 20, 12, 4)
-    ),
-    palette_idx(0),                            // Erase
-    oval(11, 21, 10, 2)                        // Inner mouth cutout
-);
-
-constexpr auto spr_label = sprite_64x32(
-    text(2, 2, "stdgba"),
-    group(),                                   // Reserve palette 2
-    rect_outline(0, 0, 64, 14, 1)             // Border (palette 3)
+constexpr auto spr_label = sprite_64x32(text(2, 2, "stdgba"),
+                                        group(),                      // Reserve palette 2
+                                        rect_outline(0, 0, 64, 14, 1) // Border (palette 3)
 );
 
 int main() {
@@ -66,10 +51,10 @@ int main() {
     gba::pal_bg_mem[0] = {.red = 4, .green = 6, .blue = 10};
 
     // Sprite palettes
-    gba::pal_obj_bank[0][1] = {.red = 28, .green = 8, .blue = 8};   // Red
-    gba::pal_obj_bank[1][1] = {.red = 8, .green = 28, .blue = 8};   // Green
-    gba::pal_obj_bank[2][1] = {.red = 8, .green = 8, .blue = 28};   // Blue
-    gba::pal_obj_bank[3][1] = {.red = 28, .green = 28, .blue = 8};  // Yellow
+    gba::pal_obj_bank[0][1] = {.red = 28, .green = 8, .blue = 8};  // Red
+    gba::pal_obj_bank[1][1] = {.red = 8, .green = 28, .blue = 8};  // Green
+    gba::pal_obj_bank[2][1] = {.red = 8, .green = 8, .blue = 28};  // Blue
+    gba::pal_obj_bank[3][1] = {.red = 28, .green = 28, .blue = 8}; // Yellow
 
     // Face palette
     gba::pal_obj_bank[4][1] = {.red = 31, .green = 25, .blue = 12}; // Skin
@@ -99,8 +84,8 @@ int main() {
     auto idx_label = copy_sprite(spr_label);
 
     // Place sprites across the screen
-    auto place = [](int slot, auto spr_data, unsigned short tile_idx,
-                    unsigned short x, unsigned short y, unsigned short pal) {
+    auto place = [](int slot, auto spr_data, unsigned short tile_idx, unsigned short x, unsigned short y,
+                    unsigned short pal) {
         auto obj = spr_data.obj(tile_idx);
         obj.x = x;
         obj.y = y;
@@ -108,12 +93,12 @@ int main() {
         gba::obj_mem[slot] = obj;
     };
 
-    place(0, spr_circle,   idx_circle,   20,  64, 0);
-    place(1, spr_donut,    idx_donut,    52,  64, 1);
-    place(2, spr_rect,     idx_rect,     84,  64, 2);
+    place(0, spr_circle, idx_circle, 20, 64, 0);
+    place(1, spr_donut, idx_donut, 52, 64, 1);
+    place(2, spr_rect, idx_rect, 84, 64, 2);
     place(3, spr_triangle, idx_triangle, 116, 64, 3);
-    place(4, spr_face,     idx_face,     156, 56, 4);
-    place(5, spr_label,    idx_label,    88,  120, 5);
+    place(4, spr_face, idx_face, 156, 56, 4);
+    place(5, spr_label, idx_label, 88, 120, 5);
 
     // Hide remaining sprites
     for (int i = 6; i < 128; ++i) {

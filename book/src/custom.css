@@ -5,6 +5,13 @@ code {
     font-size: 0.9em;
 }
 
+/* Long code blocks (including embedded demo includes) scroll vertically */
+.content pre code {
+    display: block;
+    max-height: 68rem;
+    overflow-y: auto;
+}
+
 /* Tonc/tonclib comparison blocks */
 .tonc-comparison {
     display: grid;

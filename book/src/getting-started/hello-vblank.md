@@ -1,6 +1,6 @@
 # Hello VBlank
 
-The simplest GBA program that actually *does something* is a VBlank loop. This is the heartbeat of every GBA game -- wait for the display to finish drawing, then update your game state.
+The simplest GBA program that actually *does something* is a VBlank loop. This is the heartbeat of every GBA game - wait for the display to finish drawing, then update your game state.
 
 ## The code
 
@@ -9,7 +9,7 @@ The simplest GBA program that actually *does something* is a VBlank loop. This i
 #include <gba/peripherals>
 
 int main() {
-    // Step 1: Initialize the interrupt handler
+    // Step 1: Initialise the interrupt handler
     gba::irq_handler = {};
 
     // Step 2: Tell the display hardware to fire an interrupt each VBlank
@@ -37,7 +37,7 @@ The GBA display draws 160 lines of pixels (the "active" period), then enters a 6
 
 1. **`gba::irq_handler = {}`** installs the default interrupt dispatcher. Without this, BIOS interrupt-wait functions will hang forever.
 
-2. **`gba::reg_dispstat = { .enable_irq_vblank = true }`** writes to the DISPSTAT register using a designated initializer. Only the `.enable_irq_vblank` bit is set; all other fields default to zero.
+2. **`gba::reg_dispstat = { .enable_irq_vblank = true }`** writes to the DISPSTAT register using a designated initialiser. Only the `.enable_irq_vblank` bit is set; all other fields default to zero.
 
 3. **`gba::reg_ie = { .vblank = true }`** enables the VBlank interrupt in the interrupt enable register. **`gba::reg_ime = true`** is the master interrupt switch.
 
@@ -60,7 +60,7 @@ int main() {
 }
 ```
 
-The key difference is that stdgba uses designated initializers (`{ .vblank = true }`) instead of bitfield macros (`II_VBLANK`). Typos in field names are compile errors; typos in macro names might silently compile to wrong values.
+The key difference is that stdgba uses designated initialisers (`{ .vblank = true }`) instead of bitfield macros (`II_VBLANK`). Typos in field names are compile errors; typos in macro names might silently compile to wrong values.
 
 ## Putting something on screen
 
@@ -74,4 +74,5 @@ The VBlank loop itself produces a blank screen. To prove the program is running,
 
 ## Next steps
 
-In the next chapters, we will explore video modes, colors, and tile-based rendering.
+- Continue to [Hello Graphics and Keypad](./hello-graphics.md) to draw and move a consteval sprite.
+- Then continue to [Hello Audio](./hello-audio.md) to play a PSG jingle on button press.

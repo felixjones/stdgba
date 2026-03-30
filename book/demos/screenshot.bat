@@ -27,7 +27,7 @@ for %%f in ("%BUILD_DIR%\demo_*.elf") do (
     del /q "%%~dpf!name!-*.png" 2>nul
 
     echo !screenshot_name!...
-    start "" "%MGBA%" --script "%SCRIPT%" "%%f"
+    start "" "%MGBA%" -C updateAutoCheck=0 -C skipBios=1 --script "%SCRIPT%" "%%f"
     ping -n 4 127.0.0.1 >nul
     taskkill /F /IM mGBA.exe >nul 2>&1
 

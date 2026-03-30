@@ -1,8 +1,8 @@
 /// @file demo_colors.cpp
-/// @brief Palette color swatches. (Colors & Palettes chapter)
+/// @brief Palette color swatches.
 ///
-/// Draws a row of color blocks using Mode 0 tiles. Each block shows a
-/// different palette color constructed via the stdgba color API.
+/// Draws a row of color blocks using Mode 0 tiles. Each block shows a different palette color constructed via the
+/// stdgba color API.
 
 #include <gba/bios>
 #include <gba/interrupt>
@@ -11,8 +11,7 @@
 static void fill_tile_solid(int tile_idx) {
     // Fill every nibble with palette index 1 (0x11111111 per row)
     gba::mem_tile_4bpp[0][tile_idx] = {
-        0x11111111, 0x11111111, 0x11111111, 0x11111111,
-        0x11111111, 0x11111111, 0x11111111, 0x11111111,
+        0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111,
     };
 }
 
@@ -36,14 +35,14 @@ int main() {
     // Set up 8 color swatches across the top row
     using namespace gba;
     using namespace gba::literals;
-    pal_bg_bank[0][1] = "red"_clr;                          // CSS: red
-    pal_bg_bank[1][1] = "lime"_clr;                         // CSS: lime (pure green)
-    pal_bg_bank[2][1] = "blue"_clr;                         // CSS: blue
-    pal_bg_bank[3][1] = "gold"_clr;                         // CSS: gold
-    pal_bg_bank[4][1] = "cyan"_clr;                         // CSS: cyan
-    pal_bg_bank[5][1] = "magenta"_clr;                      // CSS: magenta
-    pal_bg_bank[6][1] = "white"_clr;                        // CSS: white
-    pal_bg_bank[7][1] = "cornflowerblue"_clr;               // CSS: cornflowerblue
+    pal_bg_bank[0][1] = "red"_clr;            // CSS: red
+    pal_bg_bank[1][1] = "lime"_clr;           // CSS: lime (pure green)
+    pal_bg_bank[2][1] = "blue"_clr;           // CSS: blue
+    pal_bg_bank[3][1] = "gold"_clr;           // CSS: gold
+    pal_bg_bank[4][1] = "cyan"_clr;           // CSS: cyan
+    pal_bg_bank[5][1] = "magenta"_clr;        // CSS: magenta
+    pal_bg_bank[6][1] = "white"_clr;          // CSS: white
+    pal_bg_bank[7][1] = "cornflowerblue"_clr; // CSS: cornflowerblue
 
     // Background color (palette 0, index 0)
     pal_bg_mem[0] = {.red = 2, .green = 2, .blue = 4};

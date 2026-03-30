@@ -1,6 +1,6 @@
 # Registers & Peripherals
 
-Every piece of GBA hardware -- the display, sound, timers, DMA, buttons -- is controlled through memory-mapped registers. In tonclib, these are `#define` macros to raw addresses. In stdgba, they are `inline constexpr` objects with real C++ types.
+Every piece of GBA hardware - the display, sound, timers, DMA, buttons - is controlled through memory-mapped registers. In tonclib, these are `#define` macros to raw addresses. In stdgba, they are `inline constexpr` objects with real C++ types.
 
 ## The `registral<T>` wrapper
 
@@ -9,27 +9,41 @@ Every piece of GBA hardware -- the display, sound, timers, DMA, buttons -- is co
 ```cpp
 #include <gba/peripherals>
 
-// Write a struct with designated initializers
+// Write a struct with designated initialisers
 gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
 
 // Read the current value
 auto dispcnt = gba::reg_dispcnt.value();
 
-// Modify specific bits with compound assignment
-gba::reg_dispcnt |= { .enable_obj = true };
+// Write a raw integer directly (for non-integral register types)
+gba::reg_dispcnt = 0x0403u;
 ```
 
 ### How it compiles
 
-`registral<T>` stores the hardware address as a data member. Every operation compiles to a single `ldr`/`str` instruction -- exactly what you would write in assembly.
+`registral<T>` stores the hardware address as a data member. Every operation compiles to a single `ldr`/`str` instruction - exactly what you would write in assembly.
 
 ```cpp
 // This:
 gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
 
 // Compiles to the same code as:
-*gba::memory_map(gba::reg_dispcnt) = 0x0403;
+*(volatile uint16_t*) 0x4000000 = 0x0403u;
 ```
+
+### Writing raw integers
+
+When a register stores a non-integral type (a struct with bitfields), you can still write a raw integer value when needed:
+
+```cpp
+// Normal: designated initialiser
+gba::reg_dispcnt = { .video_mode = 3, .enable_bg2 = true };
+
+// Raw: write an integer directly
+gba::reg_dispcnt = 0x0403u; // Same effect, but less readable
+```
+
+This allows some compatibility with tonclib and similar C libraries that treat registers as raw integers.
 
 ## The `memory_map()` helper
 
@@ -52,7 +66,7 @@ This keeps code tied to named hardware mappings while still compiling to direct 
 
 The GBA has registers that are read-only, write-only, or read-write. stdgba encodes this in the type:
 
-| Qualifier | Behavior |
+| Qualifier | Behaviour |
 |-----------|----------|
 | `registral<T>` | Read-write |
 | `registral<const T>` | Read-only |
@@ -71,16 +85,41 @@ gba::reg_tmcnt_h[0] = { .prescaler = 3, .enable = true };
 // BG0 horizontal scroll
 gba::reg_bg_hofs[0] = 120;
 
-// Palette memory (256 BG colors + 256 OBJ colors)
+// Palette memory (256 BG colours + 256 OBJ colours)
 gba::mem_pal_bg[0] = 0x001F; // Red
 gba::mem_pal_obj[1] = 0x7C00; // Blue
 ```
 
 These compile to indexed memory stores with no overhead.
 
-## Designated initializers
+### Using std algorithms with array registers
 
-The biggest ergonomic win is designated initializers. Instead of remembering which bit is which:
+Array registers support range-based iteration and are compatible with `<algorithm>`:
+
+```cpp
+#include <algorithm>
+#include <gba/peripherals>
+
+// Initialise all 4 timers to zero
+std::fill(gba::reg_tmcnt_l.begin(), gba::reg_tmcnt_l.end(), 0);
+
+// Copy a preset palette from EWRAM into OBJ palette
+std::copy(preset_palette.begin(), preset_palette.end(), gba::mem_pal_obj.begin());
+
+// Check if any timer is running
+bool any_running = std::any_of(gba::reg_tmcnt_h.begin(), gba::reg_tmcnt_h.end(),
+    [] (auto tmcnt) { return tmcnt.enabled; });
+
+// Initialise all background control registers at once
+std::fill(gba::reg_bgcnt.begin(), gba::reg_bgcnt.end(),
+          gba::background_control{.priority = 0, .screenblock = 31});
+```
+
+The array wrapper provides standard range interface: `.begin()`, `.end()`, `.size()`, and forward iterators compatible with all `<algorithm>` calls.
+
+## Designated initialisers
+
+The biggest ergonomic win is designated initialisers. Instead of remembering which bit is which:
 
 ```c
 // tonclib: which bits are these?
@@ -100,4 +139,4 @@ gba::reg_dispcnt = {
 };
 ```
 
-Any field you omit defaults to zero/false. Misspelling a field name is a compile error.
+Any field you omit will use sensible default values.

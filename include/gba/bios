@@ -38,20 +38,20 @@ namespace gba {
     /// @endcode
     [[noreturn]]
     inline void SoftReset() noexcept {
-        asm volatile ("swi 0x0 << ((1f - . == 4) * -16); 1:");
+        asm volatile("swi 0x0 << ((1f - . == 4) * -16); 1:");
         __builtin_unreachable();
     }
 
     /// @brief Flags for RegisterRamReset specifying which memory regions to clear.
     struct register_ram_mask {
-        bool ewram : 1;     ///< Clear external work RAM (256KB).
-        bool iwram : 1;     ///< Clear internal work RAM (32KB).
-        bool palette : 1;   ///< Clear palette RAM (1KB).
-        bool vram : 1;      ///< Clear video RAM (96KB).
-        bool oam : 1;       ///< Clear object attribute memory (1KB).
-        bool reg_sio : 1;   ///< Reset serial IO registers.
+        bool ewram     : 1; ///< Clear external work RAM (256KB).
+        bool iwram     : 1; ///< Clear internal work RAM (32KB).
+        bool palette   : 1; ///< Clear palette RAM (1KB).
+        bool vram      : 1; ///< Clear video RAM (96KB).
+        bool oam       : 1; ///< Clear object attribute memory (1KB).
+        bool reg_sio   : 1; ///< Reset serial IO registers.
         bool reg_sound : 1; ///< Reset sound registers.
-        bool reg : 1;       ///< Reset other registers.
+        bool reg       : 1; ///< Reset other registers.
     };
 
     /// @brief Reset specified memory regions and registers.
@@ -70,7 +70,7 @@ namespace gba {
     /// @endcode
     inline void RegisterRamReset(register_ram_mask flags) noexcept {
         register auto r0 asm("r0") = flags;
-        asm volatile ("swi 0x1 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3", "memory");
+        asm volatile("swi 0x1 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3", "memory");
     }
 
     /// @brief Halt CPU until an interrupt occurs.
@@ -90,7 +90,7 @@ namespace gba {
     /// Halt();
     /// @endcode
     inline void Halt() noexcept {
-        asm volatile ("swi 0x2 << ((1f - . == 4) * -16); 1:");
+        asm volatile("swi 0x2 << ((1f - . == 4) * -16); 1:");
     }
 
     /// @brief Stop CPU and LCD until an interrupt occurs.
@@ -103,7 +103,7 @@ namespace gba {
     /// Stop();
     /// @endcode
     inline void Stop() noexcept {
-        asm volatile ("swi 0x3 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
+        asm volatile("swi 0x3 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
     }
 
     /// @brief Wait for specified interrupt(s) to occur.
@@ -124,7 +124,7 @@ namespace gba {
     inline void IntrWait(bool clearCurrent, irq flags) noexcept {
         register auto r0 asm("r0") = clearCurrent;
         register auto r1 asm("r1") = __builtin_bit_cast(short, flags);
-        asm volatile ("swi 0x4 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)  :: "r3");
+        asm volatile("swi 0x4 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
     }
 
     /// @brief Wait for vertical blank interrupt.
@@ -146,7 +146,7 @@ namespace gba {
     /// VBlankIntrWait();
     /// @endcode
     inline void VBlankIntrWait() noexcept {
-        asm volatile ("swi 0x5 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
+        asm volatile("swi 0x5 << ((1f - . == 4) * -16); 1:" ::: "r0", "r1", "r3");
     }
 
     /// @brief Signed integer division.
@@ -174,7 +174,7 @@ namespace gba {
         } else {
             register auto r0 asm("r0") = number;
             register auto r1 asm("r1") = denom;
-            asm volatile ("swi 0x6 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3");
+            asm volatile("swi 0x6 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
             return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
         }
     }
@@ -200,7 +200,7 @@ namespace gba {
         } else {
             register auto r0 asm("r0") = denom;
             register auto r1 asm("r1") = number;
-            asm volatile ("swi 0x7 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3");
+            asm volatile("swi 0x7 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
             return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
         }
     }
@@ -242,7 +242,7 @@ namespace gba {
             return result;
         } else {
             register auto r0 asm("r0") = arg;
-            asm volatile ("swi 0x8 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+            asm volatile("swi 0x8 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
             return r0;
         }
     }
@@ -259,9 +259,14 @@ namespace gba {
     /// auto root = gba::Sqrt(4.0_fx); // ~2.0
     /// @endcode
     [[nodiscard, gnu::const]]
-    constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg) requires (std::numeric_limits<typename fixed_point_traits<decltype(arg)>::underlying_type>::digits <= 16) {
-        const auto higherPrecision = __builtin_bit_cast(typename fixed_point_traits<decltype(arg)>::underlying_type, arg) << fixed_point_traits<decltype(arg)>::fractional_digits;
-        const auto result = static_cast<typename fixed_point_traits<decltype(arg)>::underlying_type>(Sqrt(higherPrecision));
+    constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg)
+        requires(std::numeric_limits<typename fixed_point_traits<decltype(arg)>::underlying_type>::digits <= 16)
+    {
+        const auto higherPrecision =
+            __builtin_bit_cast(typename fixed_point_traits<decltype(arg)>::underlying_type, arg)
+            << fixed_point_traits<decltype(arg)>::fractional_digits;
+        const auto result =
+            static_cast<typename fixed_point_traits<decltype(arg)>::underlying_type>(Sqrt(higherPrecision));
         return __builtin_bit_cast(decltype(arg), result);
     }
 
@@ -288,7 +293,7 @@ namespace gba {
             return packed_angle16{static_cast<std::uint16_t>(bits::arc_tan(__builtin_bit_cast(int, arg)))};
         } else {
             register auto r0 asm("r0") = __builtin_bit_cast(int, arg);
-            asm volatile ("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+            asm volatile("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
             return packed_angle16{static_cast<std::uint16_t>(r0)};
         }
     }
@@ -320,7 +325,7 @@ namespace gba {
         } else {
             register auto r0 asm("r0") = x;
             register auto r1 asm("r1") = y;
-            asm volatile ("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
+            asm volatile("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
             return packed_angle16{static_cast<std::uint16_t>(r0)};
         }
     }
@@ -338,10 +343,10 @@ namespace gba {
     /// @brief Configuration for CpuSet memory copy/fill operation.
     struct cpu_set {
         unsigned int count : 21; ///< Number of units to copy/fill.
-        int : 3;
-        bool fill : 1;           ///< If true, fill with first value; if false, copy.
-        int : 1;
-        bool set_32bit : 1;      ///< If true, use 32-bit transfers; if false, 16-bit.
+        int                : 3;
+        bool fill          : 1; ///< If true, fill with first value; if false, copy.
+        int                : 1;
+        bool set_32bit     : 1; ///< If true, use 32-bit transfers; if false, 16-bit.
     };
 
     /// @brief Copy or fill memory using CPU.
@@ -370,7 +375,7 @@ namespace gba {
         register auto* r0 asm("r0") = src;
         register auto* r1 asm("r1") = dest;
         register auto r2 asm("r2") = lenmode;
-        asm volatile ("swi 0xB << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+        asm volatile("swi 0xB << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
     /// @brief Configuration for CpuFastSet memory copy/fill operation.
@@ -378,8 +383,8 @@ namespace gba {
     /// @note CpuFastSet always uses 32-bit transfers and requires 4-byte alignment.
     struct cpu_fast_set {
         unsigned int count : 21; ///< Number of 32-bit words to copy/fill.
-        int : 3;
-        bool fill : 1;           ///< If true, fill with first value; if false, copy.
+        int                : 3;
+        bool fill          : 1; ///< If true, fill with first value; if false, copy.
     };
 
     /// @brief Fast copy or fill memory using CPU.
@@ -405,7 +410,7 @@ namespace gba {
         register auto* r0 asm("r0") = src;
         register auto* r1 asm("r1") = dest;
         register auto r2 asm("r2") = lenmode;
-        asm volatile ("swi 0xC << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+        asm volatile("swi 0xC << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
     /// @brief BIOS functions not considered "documented" by the community.
@@ -430,11 +435,11 @@ namespace gba {
         [[nodiscard, gnu::const]]
         inline int GetBiosChecksum() noexcept {
             register int i asm("r0");
-            asm volatile ("swi 0xD << ((1f - . == 4) * -16); 1:" : "=r"(i) :: "r1", "r3");
+            asm volatile("swi 0xD << ((1f - . == 4) * -16); 1:" : "=r"(i)::"r1", "r3");
             return i;
         }
 
-    }
+    } // namespace undocumented
 
     /// @brief Input parameters for BgAffineSet.
     ///
@@ -446,7 +451,7 @@ namespace gba {
         short scr_y;          ///< Screen space center Y.
         fixed<short> sx;      ///< Scale X (8.8 fixed-point).
         fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
-        packed_angle16 alpha;        ///< Rotation angle.
+        packed_angle16 alpha; ///< Rotation angle.
     };
 
     /// @brief Calculate affine background transformation matrices.
@@ -477,7 +482,8 @@ namespace gba {
     /// BgAffineSet(&src, &dest, 1);
     /// @endcode
     [[gnu::nonnull(1, 2)]]
-    inline constexpr void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest, std::size_t num) noexcept {
+    inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
+                                      background_matrix* __restrict__ dest, std::size_t num) noexcept {
         if consteval {
             for (std::size_t i = 0; i < num; ++i) {
                 const auto& bp = src[i];
@@ -511,26 +517,29 @@ namespace gba {
             register auto* r0 asm("r0") = src;
             register auto* r1 asm("r1") = dest;
             register auto r2 asm("r2") = num;
-            asm volatile ("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+            asm volatile("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
         }
     }
 
     /// @brief Input parameters for ObjAffineSet.
     ///
     /// Defines the transformation parameters for affine sprite calculation.
-    struct object_parameters {
-        fixed<short> sx;  ///< Scale X (8.8 fixed-point).
-        fixed<short> sy;  ///< Scale Y (8.8 fixed-point).
-        packed_angle16 alpha;    ///< Rotation angle.
+    /// The BIOS requires this structure to be word-aligned when passed to SWI 0x0F.
+    struct alignas(int) object_parameters {
+        fixed<short> sx;      ///< Scale X (8.8 fixed-point).
+        fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
+        packed_angle16 alpha; ///< Rotation angle.
     };
+
+    static_assert(alignof(object_parameters) >= alignof(int));
 
     /// @brief Calculate affine sprite transformation matrices.
     ///
     /// Computes the affine transformation matrix for rotated/scaled sprites.
     /// Can write directly to OAM with proper stride.
     ///
-    /// @param src Array of input parameters.
-    /// @param dest Output location for matrix coefficients.
+    /// @param src Array of input parameters. Must be 4-byte aligned.
+    /// @param dest Output location for matrix coefficients. Must be 4-byte aligned.
     /// @param num Number of transformations to calculate.
     /// @param stride Byte stride between matrix elements (2 for packed, 8 for OAM).
     ///
@@ -552,7 +561,8 @@ namespace gba {
     /// ObjAffineSet(&src, &dest, 1, 2);
     /// @endcode
     [[gnu::nonnull(1, 2)]]
-    inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest, std::size_t num, std::size_t stride = 2) noexcept {
+    inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest,
+                                       std::size_t num, std::size_t stride = 2) noexcept {
         if consteval {
             stride /= sizeof(short);
             for (std::size_t i = 0; i < num; ++i) {
@@ -580,7 +590,7 @@ namespace gba {
             register auto* r1 asm("r1") = dest;
             register auto r2 asm("r2") = num;
             register auto r3 asm("r3") = stride;
-            asm volatile ("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
+            asm volatile("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
         }
     }
 
@@ -588,11 +598,11 @@ namespace gba {
     ///
     /// Specifies how to expand packed bit data to larger bit depths.
     struct unpack_parameters {
-        unsigned short src_len;   ///< Source data length in bytes.
-        unsigned char src_bpp : 4; ///< Source bits per pixel (1, 2, 4, or 8).
-        unsigned char dst_bpp : 6; ///< Destination bits per pixel (1, 2, 4, 8, 16, or 32).
-        unsigned int dst_ofs : 31; ///< Offset added to each destination unit.
-        bool offset_zero : 1;      ///< If true, add offset to zero values too.
+        unsigned short src_len;     ///< Source data length in bytes.
+        unsigned char src_bpp : 4;  ///< Source bits per pixel (1, 2, 4, or 8).
+        unsigned char dst_bpp : 6;  ///< Destination bits per pixel (1, 2, 4, 8, 16, or 32).
+        unsigned int dst_ofs  : 31; ///< Offset added to each destination unit.
+        bool offset_zero      : 1;  ///< If true, add offset to zero values too.
 
         /// @brief Calculate destination data length.
         /// @return The required destination buffer size in bytes.
@@ -630,11 +640,12 @@ namespace gba {
     /// BitUnPack(font_1bpp, font_4bpp, &bup);
     /// @endcode
     [[gnu::nonnull(1, 2)]]
-    inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest, const unpack_parameters& unpack) noexcept {
+    inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest,
+                          const unpack_parameters& unpack) noexcept {
         register auto* r0 asm("r0") = src;
         register auto* r1 asm("r1") = dest;
         register auto* r2 asm("r2") = &unpack;
-        asm volatile ("swi 0x10 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
+        asm volatile("swi 0x10 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
     /// @brief Compression algorithm identifiers.
@@ -649,9 +660,9 @@ namespace gba {
     ///
     /// Standard GBA compression header format used by LZ77, Huffman, and RLE.
     struct uncompress_header {
-        unsigned int src_len : 4;         ///< Reserved/source unit length.
-        gba::comp_algo comp_algo : 4;     ///< Compression algorithm used.
-        unsigned int dst_len : 24;        ///< Decompressed data length in bytes.
+        unsigned int src_len     : 4;  ///< Reserved/source unit length.
+        gba::comp_algo comp_algo : 4;  ///< Compression algorithm used.
+        unsigned int dst_len     : 24; ///< Decompressed data length in bytes.
     };
 
     /// @brief Decompress LZ77 data to work RAM.
@@ -673,7 +684,7 @@ namespace gba {
     inline void LZ77UnCompWram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x11 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x11 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Decompress LZ77 data to video RAM.
@@ -690,7 +701,7 @@ namespace gba {
     inline void LZ77UnCompVram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x12 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x12 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Decompress Huffman-encoded data.
@@ -705,7 +716,7 @@ namespace gba {
     inline void HuffUnComp(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x13 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x13 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Decompress run-length encoded data to work RAM.
@@ -720,7 +731,7 @@ namespace gba {
     inline void RLUnCompWram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x14 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x14 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Decompress run-length encoded data to video RAM.
@@ -737,7 +748,7 @@ namespace gba {
     inline void RLUnCompVram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x15 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x15 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Apply 8-bit differential filter to work RAM.
@@ -754,7 +765,7 @@ namespace gba {
     inline void Diff8bitUnFilterWram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x16 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x16 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Apply 8-bit differential filter to video RAM.
@@ -773,7 +784,7 @@ namespace gba {
     inline void Diff8bitUnFilterVram(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x17 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x17 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Apply 16-bit differential filter.
@@ -790,14 +801,14 @@ namespace gba {
     inline void Diff16bitUnFilter(const uncompress_header& src, void* dest) noexcept {
         register auto* r0 asm("r0") = &src;
         register auto* r1 asm("r1") = dest;
-        asm volatile ("swi 0x18 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) :: "r3", "memory");
+        asm volatile("swi 0x18 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
     /// @brief Configuration for SoundBias BIOS function.
     struct sound_bias_config {
         unsigned int delay_shift : 2; ///< Delay between bias changes (0-3). Higher = slower transition.
-        unsigned int : 29;
-        bool enable : 1;      ///< If true, set bias to 0x200; if false, set to 0.
+        unsigned int             : 29;
+        bool enable              : 1; ///< If true, set bias to 0x200; if false, set to 0.
     };
 
     /// @brief Gradually adjust sound bias level.
@@ -822,7 +833,7 @@ namespace gba {
     /// @endcode
     inline void SoundBias(sound_bias_config bias) noexcept {
         register auto r0 asm("r0") = __builtin_bit_cast(unsigned int, bias);
-        asm volatile ("swi 0x19 << ((1f - . == 4) * -16); 1:" : "+r"(r0) :: "r1", "r3");
+        asm volatile("swi 0x19 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
     }
 
     /// @brief MultiBoot transfer mode.
@@ -847,10 +858,8 @@ namespace gba {
     ///
     /// @see multiboot_param
     consteval unsigned char multiboot_palette(int color, int speed, bool ascending) {
-        if (color < 0 || color > 6)
-        throw "multiboot_palette: color out of range (0-6)";
-        if (speed < 0 || speed > 3)
-        throw "multiboot_palette: speed out of range (0-3)";
+        if (color < 0 || color > 6) throw "multiboot_palette: color out of range (0-6)";
+        if (speed < 0 || speed > 3) throw "multiboot_palette: speed out of range (0-3)";
         return static_cast<unsigned char>(0x81 + color * 0x10 + ascending * 0x8 + speed * 0x2);
     }
 
@@ -863,8 +872,7 @@ namespace gba {
     ///
     /// @see multiboot_param
     consteval unsigned char multiboot_palette_fixed(int color) {
-        if (color < 0 || color > 6)
-        throw "multiboot_palette_fixed: color out of range (0-6)";
+        if (color < 0 || color > 6) throw "multiboot_palette_fixed: color out of range (0-6)";
         return static_cast<unsigned char>(0xF1 + color * 0x2);
     }
 
@@ -955,8 +963,8 @@ namespace gba {
     inline int MultiBoot(multiboot_param* param, multiboot_mode mode) noexcept {
         register auto r0 asm("r0") = reinterpret_cast<unsigned int>(param);
         register auto r1 asm("r1") = static_cast<unsigned int>(mode);
-        asm volatile ("swi 0x25 << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r2", "r3", "memory");
+        asm volatile("swi 0x25 << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r2", "r3", "memory");
         return static_cast<int>(r0);
     }
 
-}
+} // namespace gba

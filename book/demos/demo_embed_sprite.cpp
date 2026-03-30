@@ -1,5 +1,5 @@
 /// @file demo_embed_sprite.cpp
-/// @brief Scrollable 2x1 background with a movable sprite. (Embed chapter)
+/// @brief Scrollable 2x1 background with a movable sprite.
 
 #include <gba/bios>
 #include <gba/embed>

@@ -1,5 +1,5 @@
 /// @file demo_green_lo.cpp
-/// @brief Hidden word revealed by 6-bit green channel. (Colors chapter)
+/// @brief Hidden word revealed by 6-bit green channel.
 
 #include <gba/video>
 

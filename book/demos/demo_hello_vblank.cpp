@@ -1,5 +1,5 @@
 /// @file demo_hello_vblank.cpp
-/// @brief Minimal VBlank loop with a visible result. (Hello VBlank chapter)
+/// @brief Minimal VBlank loop with a visible result.
 ///
 /// Sets up Mode 3 and draws a white rectangle in the center to prove
 /// the program ran.

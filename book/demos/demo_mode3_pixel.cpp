@@ -1,5 +1,5 @@
 /// @file demo_mode3_pixel.cpp
-/// @brief Mode 3 bitmap: draw colored pixels. (Video Modes chapter)
+/// @brief Mode 3 bitmap: draw colored pixels.
 
 #include <gba/bios>
 #include <gba/interrupt>

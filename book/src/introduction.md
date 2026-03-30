@@ -64,6 +64,8 @@ int main() {
 ## Book roadmap
 
 - Start with [Hello VBlank](./getting-started/hello-vblank.md).
+- Draw and move your first sprite in [Hello Graphics and Keypad](./getting-started/hello-graphics.md).
+- Add button-triggered sound in [Hello Audio](./getting-started/hello-audio.md).
 - Learn register and frame-loop basics in [Core Concepts](./concepts/registers.md).
 - Get pixels on screen via [Graphics](./graphics/video-modes.md).
 - Add timing/sync and BIOS helpers in [BIOS](./bios/index.md).

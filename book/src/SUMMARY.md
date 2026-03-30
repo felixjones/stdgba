@@ -5,6 +5,8 @@
 # Getting Started
 
 - [Hello VBlank](./getting-started/hello-vblank.md)
+- [Hello Graphics and Keypad](./getting-started/hello-graphics.md)
+- [Hello Audio](./getting-started/hello-audio.md)
 
 # Core Concepts
 
@@ -38,6 +40,7 @@
 - [Embedding Images](./advanced/embed.md)
 - [String Formatting](./advanced/formatting.md)
 - [Logging](./advanced/logging.md)
+- [Testing & Benchmarking](./advanced/testing.md)
 
 # Reference
 

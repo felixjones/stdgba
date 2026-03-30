@@ -7,7 +7,7 @@ The GBA has 10 buttons: A, B, L, R, Start, Select, and the 4-direction D-pad.
 - level checks (`held`)
 - edge checks (`pressed`, `released`)
 - axis helpers (`xaxis`, `i_xaxis`, `yaxis`, `i_yaxis`, `lraxis`, `i_lraxis`)
-- predefined combo constants like `gba::reset_combo`
+- a predefined combo constant named `gba::reset_combo`
 
 ## Reading keys
 
@@ -38,9 +38,9 @@ for (;;) {
 
 ## Frame update contract
 
-`gba::keypad` stores previous and current state internally. Each assignment from `gba::reg_keyinput` advances that state by one frame. This is what powers `pressed()` and `released()`.
+`gba::keypad` stores previous and current state internally. Each assignment from `gba::reg_keyinput` updates that state (normally once per frame). This is what powers `pressed()` and `released()`.
 
-Recommended pattern: call `keys = gba::reg_keyinput;` exactly once per game frame (usually right after `VBlankIntrWait()`).
+Recommended pattern: call `keys = gba::reg_keyinput;` exactly once per game frame (usually right before game state needs to be updated).
 
 If you sample multiple times in the same frame, edge checks can appear inconsistent because you advanced the internal history more than once.
 
@@ -166,4 +166,16 @@ if (keys.held(gba::reset_combo)) {
 
 `key_tri_vert()` and `keys.yaxis()` both treat up as positive. For screen-space movement where Y increases downward, use `keys.i_yaxis()`.
 
+For keypad API details (`gba::keypad`, key masks, edge and axis methods), see `book/src/reference/keypad.md`.
+
 For keypad register details (including active-low hardware semantics), see `book/src/reference/peripherals/keypad.md`.
+
+## Demo: Visual button layout
+
+This demo renders a simple GBA-style button layout and updates each button colour from `pressed()`, `released()`, and `held()` state:
+
+```cpp
+{{#include ../../demos/demo_keypad_buttons.cpp:14:}}
+```
+
+![Keypad buttons demo screenshot](../img/keypad_buttons.png)

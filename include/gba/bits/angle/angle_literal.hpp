@@ -10,6 +10,14 @@ namespace gba::literals {
     ///
     /// Represents an angle value that converts to `angle` or any `packed_angle<Bits>`.
     /// Created by the `_deg` and `_rad` literals.
+    ///
+    /// Supports compile-time arithmetic operations (consteval only) to combine and
+    /// scale angle literals:
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// constexpr auto sum = 45_deg + 45_deg;  // 90 degrees
+    /// constexpr auto doubled = 45_deg * 2;    // 90 degrees
+    /// @endcode
     struct angle_literal {
         long double turns; ///< Angle as fraction of full rotation [0, 1).
 
@@ -24,6 +32,52 @@ namespace gba::literals {
         [[nodiscard]]
         constexpr operator packed_angle<Bits>() const noexcept {
             return packed_angle<Bits>{static_cast<angle>(*this)};
+        }
+
+        /// @brief Add two literals at compile time.
+        [[nodiscard]]
+        consteval angle_literal operator+(const angle_literal& rhs) const noexcept {
+            return {turns + rhs.turns};
+        }
+
+        /// @brief Subtract two literals at compile time.
+        [[nodiscard]]
+        consteval angle_literal operator-(const angle_literal& rhs) const noexcept {
+            return {turns - rhs.turns};
+        }
+
+        /// @brief Multiply literal by scalar at compile time.
+        [[nodiscard]]
+        consteval angle_literal operator*(long double scalar) const noexcept {
+            return {turns * scalar};
+        }
+
+        /// @brief Divide literal by scalar at compile time.
+        [[nodiscard]]
+        consteval angle_literal operator/(long double scalar) const noexcept {
+            return {turns / scalar};
+        }
+
+        /// @brief Negate the angle literal.
+        [[nodiscard]]
+        consteval angle_literal operator-() const noexcept {
+            return {-turns};
+        }
+
+        /// @brief Multiply literal by unsigned integer at runtime.
+        ///
+        /// Implicitly converts the literal to angle and multiplies.
+        [[nodiscard]]
+        constexpr angle operator*(unsigned int scalar) const noexcept {
+            return angle{*this} * scalar;
+        }
+
+        /// @brief Divide literal by unsigned integer at runtime.
+        ///
+        /// Implicitly converts the literal to angle and divides.
+        [[nodiscard]]
+        constexpr angle operator/(unsigned int scalar) const noexcept {
+            return angle{*this} / scalar;
         }
     };
 
@@ -48,6 +102,30 @@ namespace gba::literals {
     [[nodiscard]]
     consteval angle_literal operator""_deg(unsigned long long degrees) noexcept {
         return {static_cast<long double>(degrees) / 360.0L};
+    }
+
+    /// @brief Multiply scalar by literal at compile time (reverse operand order).
+    [[nodiscard]]
+    consteval angle_literal operator*(long double scalar, const angle_literal& rhs) noexcept {
+        return {rhs.turns * scalar};
+    }
+
+    /// @brief Multiply unsigned integer by literal (reverse operand order).
+    ///
+    /// Implicitly converts the literal to angle and multiplies.
+    [[nodiscard]]
+    constexpr angle operator*(unsigned int scalar, const angle_literal& rhs) noexcept {
+        return rhs * scalar;
+    }
+
+    /// @brief Divide scalar by literal at compile time (reverse operand order).
+    ///
+    /// Note: dividing a scalar by an angle (e.g., `1.0 / 45_deg`) is unusual.
+    /// Typically used only for special angle ratio calculations.
+    [[nodiscard]]
+    consteval angle_literal operator/(long double scalar, const angle_literal& rhs) noexcept {
+        if (rhs.turns == 0.0L) throw "division by zero angle";
+        return {scalar / rhs.turns};
     }
 
     /// @brief Literal for angle from radians.

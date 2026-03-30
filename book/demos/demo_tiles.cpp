@@ -1,8 +1,7 @@
 /// @file demo_tiles.cpp
-/// @brief Tile mode 0 with auto-scrolling checkerboard. (Tiles & Maps chapter)
+/// @brief Tile mode 0 with auto-scrolling checkerboard.
 ///
-/// Creates two tiles (light and dark), fills the screen with a
-/// checkerboard, and auto-scrolls diagonally.
+/// Creates two tiles (light and dark), fills the screen with a checkerboard, and auto-scrolls diagonally.
 
 #include <gba/bios>
 #include <gba/interrupt>
@@ -24,14 +23,12 @@ int main() {
 
     // Tile 1: solid light (palette index 1)
     gba::mem_tile_4bpp[0][1] = {
-        0x11111111, 0x11111111, 0x11111111, 0x11111111,
-        0x11111111, 0x11111111, 0x11111111, 0x11111111,
+        0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111, 0x11111111,
     };
 
     // Tile 2: solid dark (palette index 2)
     gba::mem_tile_4bpp[0][2] = {
-        0x22222222, 0x22222222, 0x22222222, 0x22222222,
-        0x22222222, 0x22222222, 0x22222222, 0x22222222,
+        0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22222222,
     };
 
     // Fill the 32x32 tilemap with a checkerboard
