@@ -21,7 +21,14 @@ code {
 
 /* GBA screenshots at 2x integer scale with pixel-perfect rendering */
 img[src$=".png"] {
-    width: 480px;
+    width: 100%;
     height: 320px;
     image-rendering: pixelated;
+}
+
+/* Preserve aspect ratio for the green-low-bit comparison table screenshots */
+img {
+    object-fit: contain;
+    width: 100%;
+    height: auto;
 }
