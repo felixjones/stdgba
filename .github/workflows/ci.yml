@@ -1,0 +1,187 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  discover-tests:
+    runs-on: ubuntu-latest
+    outputs:
+      tests: ${{ steps.tests.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build non-manual test matrix
+        id: tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          excluded = {"test_assert", "test_divzero", "test_pretty_printers"}
+          tests = sorted(
+              path.stem
+              for path in Path("tests").rglob("test_*.cpp")
+              if path.stem not in excluded
+          )
+
+          if not tests:
+              raise SystemExit("No non-manual tests discovered under tests/**/test_*.cpp")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+              out.write(f"matrix={json.dumps(tests)}\\n")
+          PY
+
+  build-tests:
+    runs-on: ubuntu-latest
+    needs: discover-tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve gba-toolchain experimental commit
+        id: gba_toolchain_ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          commit=$(git ls-remote https://github.com/felixjones/gba-toolchain.git refs/heads/experimental | awk '{print $1}')
+          echo "commit=${commit}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache gba-toolchain checkout
+        id: cache_gba_toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/stdgba/gba-toolchain
+          key: ${{ runner.os }}-gba-toolchain-experimental-${{ steps.gba_toolchain_ref.outputs.commit }}
+
+      - name: Clone gba-toolchain experimental
+        if: steps.cache_gba_toolchain.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ~/.cache/stdgba/gba-toolchain
+          mkdir -p ~/.cache/stdgba
+          git clone --depth 1 --branch experimental https://github.com/felixjones/gba-toolchain.git ~/.cache/stdgba/gba-toolchain
+
+      - name: Resolve latest Arm GNU toolchain archive URL
+        id: arm_url
+        shell: bash
+        run: |
+          set -euo pipefail
+          page=$(curl -fsSL https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads)
+          url=$(printf '%s' "$page" | grep -oE 'https://[^" ]*arm-gnu-toolchain-[^" ]*x86_64-arm-none-eabi\.tar\.xz' | head -n 1 || true)
+          if [ -z "$url" ]; then
+            rel=$(printf '%s' "$page" | grep -oE '/-/media/Files/downloads/gnu[^" ]*/arm-gnu-toolchain-[^" ]*x86_64-arm-none-eabi\.tar\.xz' | head -n 1 || true)
+            if [ -n "$rel" ]; then
+              url="https://developer.arm.com${rel}"
+            fi
+          fi
+          if [ -z "$url" ]; then
+            echo 'Failed to discover latest Arm GNU toolchain archive URL from developer.arm.com' >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "archive_name=$(basename "$url")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Arm GNU toolchain
+        id: cache_arm_gnu
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/stdgba/arm-gnu-toolchain
+          key: ${{ runner.os }}-arm-gnu-toolchain-${{ steps.arm_url.outputs.archive_name }}
+
+      - name: Install Arm GNU toolchain from official archive
+        if: steps.cache_arm_gnu.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ~/.cache/stdgba/arm-gnu-toolchain
+          mkdir -p ~/.cache/stdgba/arm-gnu-toolchain
+          curl -fsSL "${{ steps.arm_url.outputs.url }}" | tar -xJ -C ~/.cache/stdgba/arm-gnu-toolchain --strip-components=1
+
+      - name: Add Arm GNU toolchain to PATH
+        shell: bash
+        run: |
+          echo "$HOME/.cache/stdgba/arm-gnu-toolchain/bin" >> "$GITHUB_PATH"
+
+      - name: Verify compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          arm-none-eabi-gcc --version
+
+      - name: Configure (tests and benchmarks)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$HOME/.cache/stdgba/gba-toolchain/cmake/gba.toolchain.cmake" \
+            -DSTDGBA_BUILD_TESTS=ON \
+            -DSTDGBA_BUILD_BENCHMARKS=ON \
+            -DSTDGBA_BUILD_DEMOS=OFF
+
+      - name: Build test targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build build --target $(printf '%s ' ${{ join(fromJson(needs.discover-tests.outputs.tests), ' ') }}) -- -j "$(nproc)"
+
+      - name: Export ctest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build --show-only=json-v1 > build/ctest-metadata.json
+
+      - name: Upload test ELF artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-elfs
+          if-no-files-found: error
+          path: |
+            build/tests/test_*.elf
+            build/tests/test_*.elf.map
+
+      - name: Upload ctest metadata
+        uses: actions/upload-artifact@v4
+        with:
+          name: ctest-metadata
+          if-no-files-found: error
+          path: |
+            build/ctest-metadata.json
+            build/Testing/**
+
+  run-tests:
+    runs-on: ubuntu-latest
+    needs:
+      - discover-tests
+      - build-tests
+    if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        test_name: ${{ fromJson(needs.discover-tests.outputs.tests) }}
+    steps:
+      - name: Download test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-elfs
+          path: build/tests
+
+      - name: Run test in mGBA headless
+        id: mgba
+        uses: felixjones/github-mgba-rom-test@v1
+        with:
+          swi-call: "0x1A"
+          read-register: "r0"
+          success-code: "0"
+          rom-path: build/tests/${{ matrix.test_name }}.elf
