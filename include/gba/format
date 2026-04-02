@@ -14,7 +14,7 @@
 /// #include <gba/format>
 ///
 /// // With literals
-/// using namespace gba::format::literals;
+/// using namespace gba::literals;
 /// constexpr auto fmt = "HP: {hp}/{max}"_fmt;
 /// char buf[32];
 /// fmt.to(buf, "hp"_arg = 42, "max"_arg = 100);
@@ -36,14 +36,49 @@
 /// }
 /// @endcode
 ///
+/// ## Format Spec Grammar
+///
+/// `[[fill]align][sign][#][0][width][grouping][.precision][type]`
+///
 /// ## Format Specifiers
 ///
+/// ### Integer
 /// | Syntax | Meaning |
 /// |--------|---------|
-/// | `{x}` | Default format |
+/// | `{x}` | Default decimal |
 /// | `{x:d}` | Decimal integer |
+/// | `{x:b}` | Binary |
+/// | `{x:o}` | Octal |
 /// | `{x:x}` | Hex lowercase |
 /// | `{x:X}` | Hex uppercase |
+/// | `{x:n}` | Grouped decimal |
+/// | `{x:c}` | Character from code point |
+///
+/// ### String
+/// | Syntax | Meaning |
+/// |--------|---------|
+/// | `{s}` | Default string |
+/// | `{s:s}` | Explicit string |
+/// | `{s:.3}` | Truncate to 3 chars |
+///
+/// ### Fixed-point (`gba::fixed_point`)
+/// | Syntax | Meaning |
+/// |--------|---------|
+/// | `{x}` | Default (trimmed trailing zeros) |
+/// | `{x:.2f}` | Exactly 2 fractional digits |
+/// | `{x:,.2f}` | Grouped integer part |
+/// | `{x:.2e}` | Scientific notation (`1.23e+03`) |
+/// | `{x:.4g}` | General format (auto-switch fixed/scientific) |
+/// | `{x:%}` | Percent (multiply by 100, append `%`) |
+///
+/// ### Angle (`gba::angle`, `gba::packed_angle`)
+/// | Syntax | Meaning |
+/// |--------|---------|
+/// | `{a}` | Default degrees |
+/// | `{a:.4r}` | Radians with 4 decimal places |
+/// | `{a:.3t}` | Turns with 3 decimal places |
+/// | `{a:i}` | Raw integer storage value |
+/// | `{a:#.4X}` | Raw hex (4 MSB digits with 0X prefix) |
 ///
 /// ## Word Boundary Lookahead
 ///
@@ -66,12 +101,28 @@
 /// @see gba::format::make_arg
 #pragma once
 
-#include <gba/bits/format/fixed_string.hpp>
-#include <gba/bits/format/generator.hpp>
-#include <gba/bits/format/parse.hpp>
+#include <gba/bits/format/compiled_format.hpp>
 
 namespace gba::format {
-    // Import literal operators for convenience
-    using literals::operator""_fmt;
-    using literals::operator""_arg;
+	template<fixed_string Fmt>
+	consteval auto make_format() {
+		return compiled_format<Fmt>{};
+	}
+
+	template<fixed_string Name>
+	consteval auto make_arg() {
+		return arg_binder<Name>{};
+	}
 } // namespace gba::format
+
+namespace gba::literals {
+	template<format::fixed_string Fmt>
+	consteval auto operator""_fmt() {
+		return format::compiled_format<Fmt>{};
+	}
+
+	template<format::fixed_string Name>
+	consteval auto operator""_arg() {
+		return format::arg_binder<Name>{};
+	}
+} // namespace gba::literals

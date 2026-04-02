@@ -10,7 +10,7 @@
 ///
 /// @code{.cpp}
 /// #include <gba/logger>
-/// using namespace gba::format::literals;
+/// using namespace gba::literals;
 ///
 /// int main() {
 ///     // Auto-detect emulator and initialize

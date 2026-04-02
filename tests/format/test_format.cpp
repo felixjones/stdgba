@@ -2,9 +2,29 @@
 /// @brief Unit tests for format module using mgba test framework.
 
 #include <gba/format>
+#include <gba/angle>
+#include <gba/fixed_point>
 #include <gba/testing>
 
 using namespace gba::format;
+using namespace gba::literals;
+
+static_assert(parse_format<"{x:*^7.3}">().valid);
+static_assert(parse_format<"{x:#010x}">().valid);
+static_assert(parse_format<"{x:.3f}">().valid);
+static_assert(parse_format<"{a:.4x}">().valid);
+static_assert(parse_format<"{x:%}">().valid);
+static_assert(parse_format<"{x:.2e}">().valid);
+static_assert(parse_format<"{x:.2E}">().valid);
+static_assert(parse_format<"{x:.4g}">().valid);
+static_assert(parse_format<"{x:.4G}">().valid);
+
+static_assert(!parse_format<"{x:!}">().valid);
+static_assert(!parse_format<"{x:.2,}">().valid);
+static_assert(!parse_format<"{x:+s}">().valid);
+static_assert(!parse_format<"{x:,s}">().valid);
+static_assert(!parse_format<"{x:=s}">().valid);
+static_assert(!parse_format<"{x:.2i}">().valid);
 
 int main() {
     // Basic literal formatting
@@ -57,6 +77,21 @@ int main() {
         gba::test.eq(buf[7], 'W');
     }
 
+    // String precision + alignment
+    {
+        constexpr auto fmt = "{name:*^7.3}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "name"_arg = "World");
+        gba::test.eq(len, 7u);
+        gba::test.eq(buf[0], '*');
+        gba::test.eq(buf[1], '*');
+        gba::test.eq(buf[2], 'W');
+        gba::test.eq(buf[3], 'o');
+        gba::test.eq(buf[4], 'r');
+        gba::test.eq(buf[5], '*');
+        gba::test.eq(buf[6], '*');
+    }
+
     // Hex formatting
     {
         constexpr auto fmt = "{x:x}"_fmt;
@@ -74,6 +109,44 @@ int main() {
         gba::test.eq(buf[1], 'B');
         gba::test.eq(buf[2], 'C');
         gba::test.eq(buf[3], 'D');
+    }
+
+    // Alternate-form hex + zero pad
+    {
+        constexpr auto fmt = "{x:#010x}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 0x2A);
+        gba::test.eq(len, 10u);
+        gba::test.eq(buf[0], '0');
+        gba::test.eq(buf[1], 'x');
+        gba::test.eq(buf[2], '0');
+        gba::test.eq(buf[7], '0');
+        gba::test.eq(buf[8], '2');
+        gba::test.eq(buf[9], 'a');
+    }
+
+    // Grouped decimal
+    {
+        constexpr auto fmt = "{x:_d}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 1234567);
+        gba::test.eq(len, 9u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '_');
+        gba::test.eq(buf[5], '_');
+        gba::test.eq(buf[8], '7');
+    }
+
+    // Width + sign
+    {
+        constexpr auto fmt = "{x:+08d}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 123);
+        gba::test.eq(len, 8u);
+        gba::test.eq(buf[0], '+');
+        gba::test.eq(buf[1], '0');
+        gba::test.eq(buf[5], '1');
+        gba::test.eq(buf[7], '3');
     }
 
     // Negative numbers
@@ -176,12 +249,322 @@ int main() {
         gba::test.eq(len, 10u);
     }
 
+    // Fixed-point default formatting
+    {
+        constexpr auto fmt = "{x}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{3.5_fx});
+        gba::test.eq(len, 3u);
+        gba::test.eq(buf[0], '3');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+    }
+
+    // Fixed-point explicit precision
+    {
+        constexpr auto fmt = "{x:.3f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{3.5_fx});
+        gba::test.eq(len, 5u);
+        gba::test.eq(buf[0], '3');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '0');
+    }
+
+    // Fixed-point grouped formatting
+    {
+        constexpr auto fmt = "{x:,.2f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{1234.5_fx});
+        gba::test.eq(len, 8u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], ',');
+        gba::test.eq(buf[2], '2');
+        gba::test.eq(buf[5], '.');
+        gba::test.eq(buf[6], '5');
+        gba::test.eq(buf[7], '0');
+    }
+
+    // Fixed-point alternate form with zero precision
+    {
+        constexpr auto fmt = "{x:#.0f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{3.0_fx});
+        gba::test.eq(len, 2u);
+        gba::test.eq(buf[0], '3');
+        gba::test.eq(buf[1], '.');
+    }
+
+    // Fixed-point runtime fractional helper path: near-one value
+    {
+        using fix8 = gba::fixed<int, 8>;
+        constexpr auto fmt = "{x:.4f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = __builtin_bit_cast(fix8, 255));
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '0');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '9');
+        gba::test.eq(buf[3], '9');
+        gba::test.eq(buf[4], '6');
+        gba::test.eq(buf[5], '0');
+    }
+
+    // Fixed-point runtime fractional helper path: 12 fractional bits
+    {
+        using fix12 = gba::fixed<int, 12>;
+        constexpr auto fmt = "{x:.4f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = fix12{1.5_fx});
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '0');
+        gba::test.eq(buf[5], '0');
+    }
+
+    // Fixed-point runtime fractional helper path: 16 fractional bits
+    {
+        using fix16 = gba::fixed<int, 16>;
+        constexpr auto fmt = "{x:.4f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = fix16{1.25_fx});
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '2');
+        gba::test.eq(buf[3], '5');
+        gba::test.eq(buf[4], '0');
+        gba::test.eq(buf[5], '0');
+    }
+
+    // Fixed-point fallback path above 16 fractional bits remains correct
+    {
+        using fix20 = gba::fixed<int, 20>;
+        constexpr auto fmt = "{x:.4f}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = fix20{1.5_fx});
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '0');
+        gba::test.eq(buf[5], '0');
+    }
+
     // Constexpr formatting (to_static)
     {
         constexpr auto msg = "Answer: {x}"_fmt.to_static<32>("x"_arg = 42);
         gba::test.eq(msg[0], 'A');
         gba::test.eq(msg[8], '4');
         gba::test.eq(msg[9], '2');
+    }
+
+    // Constexpr formatting with width
+    {
+        constexpr auto msg = "[{x:>4}]"_fmt.to_static<32>("x"_arg = 42);
+        gba::test.eq(msg[0], '[');
+        gba::test.eq(msg[1], ' ');
+        gba::test.eq(msg[2], ' ');
+        gba::test.eq(msg[3], '4');
+        gba::test.eq(msg[4], '2');
+        gba::test.eq(msg[5], ']');
+    }
+
+    // Constexpr formatting with fixed literal
+    {
+        constexpr auto msg = "Pi {x:.2f}"_fmt.to_static<32>("x"_arg = 3.14_fx);
+        gba::test.eq(msg[0], 'P');
+        gba::test.eq(msg[1], 'i');
+        gba::test.eq(msg[2], ' ');
+        gba::test.eq(msg[3], '3');
+        gba::test.eq(msg[4], '.');
+        gba::test.eq(msg[5], '1');
+        gba::test.eq(msg[6], '4');
+    }
+
+    // Angle default formatting (degrees)
+    {
+        constexpr auto fmt = "{a}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = 90_deg);
+        gba::test.eq(len, 2u);
+        gba::test.eq(buf[0], '9');
+        gba::test.eq(buf[1], '0');
+    }
+
+    // Angle radians formatting
+    {
+        constexpr auto fmt = "{a:.4r}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = 90_deg);
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+        gba::test.eq(buf[3], '7');
+        gba::test.eq(buf[4], '0');
+        gba::test.eq(buf[5], '7');
+    }
+
+    // Angle turns formatting
+    {
+        constexpr auto fmt = "{a:.3t}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = 90_deg);
+        gba::test.eq(len, 5u);
+        gba::test.eq(buf[0], '0');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '2');
+        gba::test.eq(buf[3], '5');
+        gba::test.eq(buf[4], '0');
+    }
+
+    // Angle raw integer formatting
+    {
+        constexpr auto fmt = "{a:i}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = 90_deg);
+        gba::test.eq(len, 10u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[9], '4');
+    }
+
+    // Angle raw hex precision
+    {
+        constexpr auto fmt = "{a:.4x}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = 90_deg);
+        gba::test.eq(len, 4u);
+        gba::test.eq(buf[0], '4');
+        gba::test.eq(buf[1], '0');
+        gba::test.eq(buf[2], '0');
+        gba::test.eq(buf[3], '0');
+    }
+
+    // Packed angle raw hex precision with alternate form
+    {
+        constexpr auto fmt = "{a:#.4X}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "a"_arg = gba::packed_angle16{90_deg});
+        gba::test.eq(len, 6u);
+        gba::test.eq(buf[0], '0');
+        gba::test.eq(buf[1], 'X');
+        gba::test.eq(buf[2], '4');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '0');
+        gba::test.eq(buf[5], '0');
+    }
+
+    // Fixed-point percent formatting
+    {
+        constexpr auto fmt = "{x:%}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{0.5_fx});
+        gba::test.eq(buf[0], '5');
+        gba::test.eq(buf[1], '0');
+        gba::test.eq(buf[2], '%');
+    }
+
+    // Fixed-point percent with precision
+    {
+        constexpr auto fmt = "{x:.1%}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{0.5_fx});
+        gba::test.eq(buf[0], '5');
+        gba::test.eq(buf[1], '0');
+        gba::test.eq(buf[2], '.');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '%');
+    }
+
+    // Fixed-point scientific formatting
+    {
+        constexpr auto fmt = "{x:.2e}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{1234.5_fx});
+        // Expect "1.23e+03"
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '2');
+        gba::test.eq(buf[3], '3');
+        gba::test.eq(buf[4], 'e');
+        gba::test.eq(buf[5], '+');
+        gba::test.eq(buf[6], '0');
+        gba::test.eq(buf[7], '3');
+    }
+
+    // Fixed-point uppercase scientific
+    {
+        constexpr auto fmt = "{x:.2E}"_fmt;
+        char buf[64];
+        fmt.to(buf, "x"_arg = gba::fixed<int, 8>{1234.5_fx});
+        gba::test.eq(buf[4], 'E');
+    }
+
+    // Fixed-point scientific with small value
+    {
+        constexpr auto fmt = "{x:.3e}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{0.25_fx});
+        // Expect "2.500e-01"
+        gba::test.eq(buf[0], '2');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[5], 'e');
+        gba::test.eq(buf[6], '-');
+        gba::test.eq(buf[7], '0');
+        gba::test.eq(buf[8], '1');
+    }
+
+    // Fixed-point general formatting (small value -> fixed)
+    {
+        constexpr auto fmt = "{x:.4g}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{3.5_fx});
+        // 3.5 with precision 4: exponent 0, 0 >= -4 && 0 < 4 -> fixed
+        gba::test.eq(buf[0], '3');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[2], '5');
+    }
+
+    // Fixed-point general formatting (large value -> scientific)
+    {
+        constexpr auto fmt = "{x:.3g}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = gba::fixed<int, 8>{1234.5_fx});
+        // 1234.5 with precision 3: exponent 3, 3 >= 3 -> scientific "1.23e+03"
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], '.');
+        gba::test.eq(buf[4], 'e');
+    }
+
+    // Fixed-point general uppercase
+    {
+        constexpr auto fmt = "{x:.3G}"_fmt;
+        char buf[64];
+        fmt.to(buf, "x"_arg = gba::fixed<int, 8>{1234.5_fx});
+        gba::test.eq(buf[4], 'E');
+    }
+
+    // Compile-time fixed_literal percent
+    {
+        constexpr auto msg = "{x:%}"_fmt.to_static<32>("x"_arg = 0.5_fx);
+        gba::test.eq(msg[0], '5');
+        gba::test.eq(msg[1], '0');
+        gba::test.eq(msg[2], '%');
+    }
+
+    // Compile-time fixed_literal scientific
+    {
+        constexpr auto msg = "{x:.2e}"_fmt.to_static<32>("x"_arg = 1234.5_fx);
+        gba::test.eq(msg[0], '1');
+        gba::test.eq(msg[1], '.');
+        gba::test.eq(msg[4], 'e');
     }
 
     // User workspace

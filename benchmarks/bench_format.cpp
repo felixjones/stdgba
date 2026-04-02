@@ -12,6 +12,8 @@
 ///
 /// Uses gba::benchmark helpers. Run in mgba-headless to see output.
 
+#include <gba/angle>
+#include <gba/fixed_point>
 #include <gba/format>
 
 #include "bench.hpp"
@@ -33,12 +35,45 @@ namespace {
     constexpr auto fmt_multi = "HP: {hp}/{max} ({name})"_fmt;
     constexpr auto fmt_hex = "Addr: {a:X}"_fmt;
     constexpr auto fmt_long = "Player {name} has {hp}/{max} HP and {gold} gold"_fmt;
+    constexpr auto fmt_grouped = "Gold: {gold:_d}"_fmt;
+    constexpr auto fmt_fixed = "X: {x}"_fmt;
+    constexpr auto fmt_fixed_prec = "X: {x:.2f}"_fmt;
+    constexpr auto fmt_fixed_grouped = "X: {x:,.2f}"_fmt;
+    constexpr auto fmt_angle_deg = "Angle: {a}"_fmt;
+    constexpr auto fmt_angle_rad = "Angle: {a:.4r}"_fmt;
+    constexpr auto fmt_angle_hex = "Angle: {a:#.4X}"_fmt;
+    constexpr auto fmt_fixed_pct = "X: {x:%}"_fmt;
+    constexpr auto fmt_fixed_sci = "X: {x:.2e}"_fmt;
+    constexpr auto fmt_fixed_general = "X: {x:.4g}"_fmt;
 
     // Volatile values to prevent constant folding
     volatile int val_hp = 42;
     volatile int val_max = 100;
     volatile int val_gold = 9999;
     volatile int val_addr = 0xFF80;
+    volatile int val_fixed_bits = 1234 << 8 | 128;
+    volatile unsigned int val_angle_bits = 0x40000000u;
+    volatile unsigned short val_packed_angle16_bits = 0x4000u;
+
+    using fix8 = gba::fixed<int, 8>;
+
+    [[gnu::always_inline]]
+    inline fix8 load_fixed(volatile int& raw_bits) {
+        const auto raw = raw_bits;
+        return __builtin_bit_cast(fix8, raw);
+    }
+
+    [[gnu::always_inline]]
+    inline gba::angle load_angle(volatile unsigned int& raw_bits) {
+        const auto raw = raw_bits;
+        return gba::angle{raw};
+    }
+
+    [[gnu::always_inline]]
+    inline gba::packed_angle16 load_packed_angle16(volatile unsigned short& raw_bits) {
+        const auto raw = raw_bits;
+        return gba::packed_angle16{raw};
+    }
 
     // -- Benchmark functions ------------------------------------------------------
 
@@ -79,6 +114,76 @@ namespace {
     void format_hex_to_buf() {
         char buf[64];
         auto len = fmt_hex.to(buf, "a"_arg = val_addr);
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_grouped_to_buf() {
+        char buf[64];
+        auto len = fmt_grouped.to(buf, "gold"_arg = val_gold);
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed.to(buf, "x"_arg = load_fixed(val_fixed_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_prec_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed_prec.to(buf, "x"_arg = load_fixed(val_fixed_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_grouped_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed_grouped.to(buf, "x"_arg = load_fixed(val_fixed_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_angle_deg_to_buf() {
+        char buf[64];
+        auto len = fmt_angle_deg.to(buf, "a"_arg = load_angle(val_angle_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_angle_rad_to_buf() {
+        char buf[64];
+        auto len = fmt_angle_rad.to(buf, "a"_arg = load_angle(val_angle_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_angle_hex_to_buf() {
+        char buf[64];
+        auto len = fmt_angle_hex.to(buf, "a"_arg = load_packed_angle16(val_packed_angle16_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_pct_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed_pct.to(buf, "x"_arg = load_fixed(val_fixed_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_sci_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed_sci.to(buf, "x"_arg = load_fixed(val_fixed_bits));
+        sink_len = static_cast<int>(len);
+    }
+
+    [[gnu::noinline]]
+    void format_fixed_general_to_buf() {
+        char buf[64];
+        auto len = fmt_fixed_general.to(buf, "x"_arg = load_fixed(val_fixed_bits));
         sink_len = static_cast<int>(len);
     }
 
@@ -160,6 +265,99 @@ int main() {
         auto avg = bench::measure_avg(iters, format_hex_to_buf);
         bench::with_logger(
             [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "hex \"Addr: {a:X}\"", single, avg); });
+    }
+
+    // -- Grouped integer ------------------------------------------------------
+    {
+        auto single = bench::measure(format_grouped_to_buf);
+        auto avg = bench::measure_avg(iters, format_grouped_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "grouped int \"Gold: {gold:_d}\"", single,
+                              avg);
+        });
+    }
+
+    // -- Fixed-point default --------------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_to_buf);
+        bench::with_logger(
+            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed default \"X: {x}\"", single, avg); });
+    }
+
+    // -- Fixed-point precision ------------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_prec_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_prec_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed \"X: {x:.2f}\"", single, avg);
+        });
+    }
+
+    // -- Fixed-point grouped --------------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_grouped_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_grouped_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed grouped \"X: {x:,.2f}\"", single,
+                              avg);
+        });
+    }
+
+    // -- Angle degrees --------------------------------------------------------
+    {
+        auto single = bench::measure(format_angle_deg_to_buf);
+        auto avg = bench::measure_avg(iters, format_angle_deg_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle deg \"Angle: {a}\"", single, avg);
+        });
+    }
+
+    // -- Angle radians --------------------------------------------------------
+    {
+        auto single = bench::measure(format_angle_rad_to_buf);
+        auto avg = bench::measure_avg(iters, format_angle_rad_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle rad \"Angle: {a:.4r}\"", single,
+                              avg);
+        });
+    }
+
+    // -- Angle raw hex --------------------------------------------------------
+    {
+        auto single = bench::measure(format_angle_hex_to_buf);
+        auto avg = bench::measure_avg(iters, format_angle_hex_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle hex \"Angle: {a:#.4X}\"", single,
+                              avg);
+        });
+    }
+
+    // -- Fixed-point percent --------------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_pct_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_pct_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed pct \"X: {x:%%}\"", single, avg);
+        });
+    }
+
+    // -- Fixed-point scientific -----------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_sci_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_sci_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed sci \"X: {x:.2e}\"", single, avg);
+        });
+    }
+
+    // -- Fixed-point general --------------------------------------------------
+    {
+        auto single = bench::measure(format_fixed_general_to_buf);
+        auto avg = bench::measure_avg(iters, format_fixed_general_to_buf);
+        bench::with_logger([&] {
+            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed general \"X: {x:.4g}\"", single, avg);
+        });
     }
 
     // -- Long multi-arg -------------------------------------------------------

@@ -42,6 +42,7 @@ target_sources(stdgba INTERFACE
         source/divzero_entry.s
         source/flash_ops.cpp
         source/flash.s
+        source/format_digits.s
         source/interrupt.cpp
         source/memchr.s
         source/memcmp.cpp
