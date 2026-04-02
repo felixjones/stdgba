@@ -8,7 +8,10 @@
 
 #include <cstdint>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+#include <gba/testing>
+
+using namespace gba::literals;
 
 // stdgba entry points (provided by lmul.s)
 extern "C" {
@@ -75,13 +78,18 @@ namespace {
 } // namespace
 
 int main() {
-    bench::with_logger([] { bench::log_printf(gba::log::level::info, "=== lmul/shift benchmark (cycles) ==="); });
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== lmul/shift benchmark (cycles) ===");
+    });
 
     // 64-bit multiplication
     {
-        bench::print_header("--- lmul (64-bit multiply) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- lmul (64-bit multiply) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const mul_case cases[] = {
             // Small x small (best-case mul timing: Rs fits in 1 byte)
@@ -105,17 +113,20 @@ int main() {
         };
 
         for (const auto& [name, a, b] : cases) {
-            const auto sg = bench::measure_avg(64, do_lmul_sg, a, b);
-            const auto ab = bench::measure_avg(64, do_lmul_ab, a, b);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_lmul_sg, a, b);
+            const auto ab = gba::benchmark::measure_avg(64, do_lmul_ab, a, b);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit logical shift left
     {
-        bench::print_header("--- llsl (64-bit shift left) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- llsl (64-bit logical shift left) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         constexpr auto val = static_cast<long long>(0xDEADBEEFCAFEBABEULL);
         static const shift_case cases[] = {
@@ -134,17 +145,20 @@ int main() {
         };
 
         for (const auto& [name, value, shift] : cases) {
-            const auto sg = bench::measure_avg(64, do_llsl_sg, value, shift);
-            const auto ab = bench::measure_avg(64, do_llsl_ab, value, shift);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_llsl_sg, value, shift);
+            const auto ab = gba::benchmark::measure_avg(64, do_llsl_ab, value, shift);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit logical shift right
     {
-        bench::print_header("--- llsr (64-bit logical shift right) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- llsr (64-bit logical shift right) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         constexpr auto val = static_cast<long long>(0xDEADBEEFCAFEBABEULL);
         static const shift_case cases[] = {
@@ -162,17 +176,20 @@ int main() {
         };
 
         for (const auto& [name, value, shift] : cases) {
-            const auto sg = bench::measure_avg(64, do_llsr_sg, value, shift);
-            const auto ab = bench::measure_avg(64, do_llsr_ab, value, shift);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_llsr_sg, value, shift);
+            const auto ab = gba::benchmark::measure_avg(64, do_llsr_ab, value, shift);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit arithmetic shift right
     {
-        bench::print_header("--- lasr (64-bit arithmetic shift right) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- lasr (64-bit arithmetic shift right) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         constexpr auto neg_val = static_cast<long long>(0xDEADBEEFCAFEBABEULL);
         constexpr auto pos_val = 0x7EADBEEFCAFEBABELL;
@@ -191,9 +208,9 @@ int main() {
         };
 
         for (const auto& [name, value, shift] : cases) {
-            const auto sg = bench::measure_avg(64, do_lasr_sg, value, shift);
-            const auto ab = bench::measure_avg(64, do_lasr_ab, value, shift);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_lasr_sg, value, shift);
+            const auto ab = gba::benchmark::measure_avg(64, do_lasr_ab, value, shift);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
@@ -229,9 +246,9 @@ int main() {
         gba::test.eq(__aeabi_lasr(0x7FFFFFFFFFFFFFFFLL, 32), 0x7FFFFFFFLL);
     }
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
     return 0;

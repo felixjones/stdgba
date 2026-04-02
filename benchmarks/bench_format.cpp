@@ -16,7 +16,8 @@
 #include <gba/fixed_point>
 #include <gba/format>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
 
 using namespace gba::literals;
 
@@ -217,178 +218,148 @@ namespace {
 } // namespace
 
 int main() {
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== format benchmark (cycles) ===");
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "  %-36s  %6s  %6s", "Case", "single", "avg");
+    const auto log_row = [](const char* caseName, unsigned int single, unsigned int avg) {
+        gba::benchmark::log(gba::log::level::info, "  {case:<36}  {single:>6}  {avg:>6}"_fmt, "case"_arg = caseName,
+                   "single"_arg = single, "avg"_arg = avg);
+    };
+
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== format benchmark (cycles) ===");
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "  {case:<36}  {single:>6}  {avg:>6}"_fmt, "case"_arg = "Case",
+                   "single"_arg = "single", "avg"_arg = "avg");
     });
 
     // -- Literal only ---------------------------------------------------------
     {
-        auto single = bench::measure(format_literal_to_buf);
-        auto avg = bench::measure_avg(iters, format_literal_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "literal \"Hello, World!\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_literal_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_literal_to_buf);
+        gba::benchmark::with_logger([&] { log_row("literal \"Hello, World!\"", single, avg); });
     }
 
     // -- Single integer -------------------------------------------------------
     {
-        auto single = bench::measure(format_int_to_buf);
-        auto avg = bench::measure_avg(iters, format_int_to_buf);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "int \"HP: {hp}\"", single, avg); });
+        auto single = gba::benchmark::measure(format_int_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_int_to_buf);
+        gba::benchmark::with_logger([&] { log_row("int \"HP: {hp}\"", single, avg); });
     }
 
     // -- Single string --------------------------------------------------------
     {
-        auto single = bench::measure(format_string_to_buf);
-        auto avg = bench::measure_avg(iters, format_string_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "string \"Name: {name}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_string_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_string_to_buf);
+        gba::benchmark::with_logger([&] { log_row("string \"Name: {name}\"", single, avg); });
     }
 
     // -- Multiple args --------------------------------------------------------
     {
-        auto single = bench::measure(format_multi_to_buf);
-        auto avg = bench::measure_avg(iters, format_multi_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "multi \"HP: {hp}/{max} ({name})\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(format_multi_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_multi_to_buf);
+        gba::benchmark::with_logger([&] { log_row("multi \"HP: {hp}/{max} ({name})\"", single, avg); });
     }
 
     // -- Hex formatting -------------------------------------------------------
     {
-        auto single = bench::measure(format_hex_to_buf);
-        auto avg = bench::measure_avg(iters, format_hex_to_buf);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "hex \"Addr: {a:X}\"", single, avg); });
+        auto single = gba::benchmark::measure(format_hex_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_hex_to_buf);
+        gba::benchmark::with_logger([&] { log_row("hex \"Addr: {a:X}\"", single, avg); });
     }
 
     // -- Grouped integer ------------------------------------------------------
     {
-        auto single = bench::measure(format_grouped_to_buf);
-        auto avg = bench::measure_avg(iters, format_grouped_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "grouped int \"Gold: {gold:_d}\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(format_grouped_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_grouped_to_buf);
+        gba::benchmark::with_logger([&] { log_row("grouped int \"Gold: {gold:_d}\"", single, avg); });
     }
 
     // -- Fixed-point default --------------------------------------------------
     {
-        auto single = bench::measure(format_fixed_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_to_buf);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed default \"X: {x}\"", single, avg); });
+        auto single = gba::benchmark::measure(format_fixed_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed default \"X: {x}\"", single, avg); });
     }
 
     // -- Fixed-point precision ------------------------------------------------
     {
-        auto single = bench::measure(format_fixed_prec_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_prec_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed \"X: {x:.2f}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_fixed_prec_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_prec_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed \"X: {x:.2f}\"", single, avg); });
     }
 
     // -- Fixed-point grouped --------------------------------------------------
     {
-        auto single = bench::measure(format_fixed_grouped_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_grouped_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed grouped \"X: {x:,.2f}\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(format_fixed_grouped_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_grouped_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed grouped \"X: {x:,.2f}\"", single, avg); });
     }
 
     // -- Angle degrees --------------------------------------------------------
     {
-        auto single = bench::measure(format_angle_deg_to_buf);
-        auto avg = bench::measure_avg(iters, format_angle_deg_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle deg \"Angle: {a}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_angle_deg_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_angle_deg_to_buf);
+        gba::benchmark::with_logger([&] { log_row("angle deg \"Angle: {a}\"", single, avg); });
     }
 
     // -- Angle radians --------------------------------------------------------
     {
-        auto single = bench::measure(format_angle_rad_to_buf);
-        auto avg = bench::measure_avg(iters, format_angle_rad_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle rad \"Angle: {a:.4r}\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(format_angle_rad_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_angle_rad_to_buf);
+        gba::benchmark::with_logger([&] { log_row("angle rad \"Angle: {a:.4r}\"", single, avg); });
     }
 
     // -- Angle raw hex --------------------------------------------------------
     {
-        auto single = bench::measure(format_angle_hex_to_buf);
-        auto avg = bench::measure_avg(iters, format_angle_hex_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "angle hex \"Angle: {a:#.4X}\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(format_angle_hex_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_angle_hex_to_buf);
+        gba::benchmark::with_logger([&] { log_row("angle hex \"Angle: {a:#.4X}\"", single, avg); });
     }
 
     // -- Fixed-point percent --------------------------------------------------
     {
-        auto single = bench::measure(format_fixed_pct_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_pct_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed pct \"X: {x:%%}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_fixed_pct_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_pct_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed pct \"X: {x:%}\"", single, avg); });
     }
 
     // -- Fixed-point scientific -----------------------------------------------
     {
-        auto single = bench::measure(format_fixed_sci_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_sci_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed sci \"X: {x:.2e}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_fixed_sci_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_sci_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed sci \"X: {x:.2e}\"", single, avg); });
     }
 
     // -- Fixed-point general --------------------------------------------------
     {
-        auto single = bench::measure(format_fixed_general_to_buf);
-        auto avg = bench::measure_avg(iters, format_fixed_general_to_buf);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "fixed general \"X: {x:.4g}\"", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_fixed_general_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_fixed_general_to_buf);
+        gba::benchmark::with_logger([&] { log_row("fixed general \"X: {x:.4g}\"", single, avg); });
     }
 
     // -- Long multi-arg -------------------------------------------------------
     {
-        auto single = bench::measure(format_long_to_buf);
-        auto avg = bench::measure_avg(iters, format_long_to_buf);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "long 4-arg mixed", single, avg); });
+        auto single = gba::benchmark::measure(format_long_to_buf);
+        auto avg = gba::benchmark::measure_avg(iters, format_long_to_buf);
+        gba::benchmark::with_logger([&] { log_row("long 4-arg mixed", single, avg); });
     }
 
     // -- Generator drain ------------------------------------------------------
     {
-        auto single = bench::measure(format_generator_drain);
-        auto avg = bench::measure_avg(iters, format_generator_drain);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "generator drain (typewriter)", single, avg);
-        });
+        auto single = gba::benchmark::measure(format_generator_drain);
+        auto avg = gba::benchmark::measure_avg(iters, format_generator_drain);
+        gba::benchmark::with_logger([&] { log_row("generator drain (typewriter)", single, avg); });
     }
 
     // -- to_array convenience -------------------------------------------------
     {
-        auto single = bench::measure(format_to_array);
-        auto avg = bench::measure_avg(iters, format_to_array);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "to_array<64> multi", single, avg); });
+        auto single = gba::benchmark::measure(format_to_array);
+        auto avg = gba::benchmark::measure_avg(iters, format_to_array);
+        gba::benchmark::with_logger([&] { log_row("to_array<64> multi", single, avg); });
     }
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    bench::exit(0);
+    gba::benchmark::exit(0);
 }

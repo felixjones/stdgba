@@ -8,7 +8,10 @@
 
 #include <cstdint>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+#include <gba/testing>
+
+using namespace gba::literals;
 
 // stdgba entry points (provided by div.s and ldiv.s)
 extern "C" {
@@ -84,13 +87,16 @@ namespace {
 } // namespace
 
 int main() {
-    bench::with_logger([] { bench::log_printf(gba::log::level::info, "=== div/ldiv benchmark (cycles) ==="); });
+    gba::benchmark::with_logger([] { gba::benchmark::log(gba::log::level::info, "=== div/ldiv benchmark (cycles) ==="); });
 
     // 32-bit unsigned division
     {
-        bench::print_header("--- uidiv (32-bit unsigned) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- uidiv (32-bit unsigned) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const test_case_32 cases[] = {
             {            "7 / 3",          7,     3},
@@ -109,17 +115,20 @@ int main() {
         };
 
         for (const auto& [name, num, denom] : cases) {
-            const auto sg = bench::measure_avg(64, do_udiv_sg, num, denom);
-            const auto ab = bench::measure_avg(64, do_udiv_ab, num, denom);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_udiv_sg, num, denom);
+            const auto ab = gba::benchmark::measure_avg(64, do_udiv_ab, num, denom);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 32-bit signed division
     {
-        bench::print_header("--- idiv (32-bit signed) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- idiv (32-bit signed) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const struct {
             const char* name;
@@ -137,17 +146,20 @@ int main() {
         };
 
         for (const auto& [name, num, denom] : cases) {
-            const auto sg = bench::measure_avg(64, do_idiv_sg, num, denom);
-            const auto ab = bench::measure_avg(64, do_idiv_ab, num, denom);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(64, do_idiv_sg, num, denom);
+            const auto ab = gba::benchmark::measure_avg(64, do_idiv_ab, num, denom);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit unsigned division (64/32 path -- high word of denom is 0)
     {
-        bench::print_header("--- uldiv 64/32 (denom fits 32-bit) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- uldiv 64/32 (denom fits 32-bit) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const test_case_64 cases[] = {
             {     "0x100000000 / 3",        0x100000000ULL,    3},
@@ -159,17 +171,20 @@ int main() {
         };
 
         for (const auto& [name, num, denom] : cases) {
-            const auto sg = bench::measure_avg(32, do_uldiv_sg, num, denom);
-            const auto ab = bench::measure_avg(32, do_uldiv_ab, num, denom);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(32, do_uldiv_sg, num, denom);
+            const auto ab = gba::benchmark::measure_avg(32, do_uldiv_ab, num, denom);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit unsigned division (64/64 path -- high word of denom is nonzero)
     {
-        bench::print_header("--- uldiv 64/64 (full 64-bit denom) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- uldiv 64/64 (full 64-bit denom) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const test_case_64 cases[] = {
             {             "max / (max/2+1)", 0xFFFFFFFFFFFFFFFFULL, 0x8000000000000000ULL},
@@ -180,17 +195,20 @@ int main() {
         };
 
         for (const auto& [name, num, denom] : cases) {
-            const auto sg = bench::measure_avg(32, do_uldiv_sg, num, denom);
-            const auto ab = bench::measure_avg(32, do_uldiv_ab, num, denom);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(32, do_uldiv_sg, num, denom);
+            const auto ab = gba::benchmark::measure_avg(32, do_uldiv_ab, num, denom);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
     // 64-bit signed division
     {
-        bench::print_header("--- ldiv (64-bit signed) ---");
-        bench::with_logger(
-            [] { bench::log_printf(gba::log::level::info, "  %-24s  stdgba   agbabi  save%%", "Case"); });
+        gba::benchmark::print_header("--- ldiv (64-bit signed) ---");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {case:<24}  stdgba   agbabi  save%"_fmt,
+                       "case"_arg = "Case");
+        });
 
         static const struct {
             const char* name;
@@ -207,9 +225,9 @@ int main() {
         };
 
         for (const auto& [name, num, denom] : cases) {
-            const auto sg = bench::measure_avg(32, do_ldiv_sg, num, denom);
-            const auto ab = bench::measure_avg(32, do_ldiv_ab, num, denom);
-            bench::print_row(name, sg, ab);
+            const auto sg = gba::benchmark::measure_avg(32, do_ldiv_sg, num, denom);
+            const auto ab = gba::benchmark::measure_avg(32, do_ldiv_ab, num, denom);
+            gba::benchmark::print_row(name, sg, ab);
         }
     }
 
@@ -218,9 +236,9 @@ int main() {
     gba::test.eq(__aeabi_idiv(-100, 10), -10);
     gba::test.eq(__aeabi_idiv(100, -10), -10);
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
     return 0;

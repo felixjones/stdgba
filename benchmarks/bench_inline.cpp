@@ -14,7 +14,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
+using namespace gba::literals;
 
 extern "C" {
 void __aeabi_memcpy(void*, const void*, std::size_t);
@@ -31,8 +33,8 @@ static void (*volatile fn_memset4)(void*, std::size_t, int) = &__aeabi_memset4;
 
 namespace {
 
-    constexpr std::size_t MAX_N = 128;
-    constexpr int ITERS = 256;
+constexpr std::size_t MAX_N = 128;
+constexpr int ITERS = 256;
 
     // Part 1: byte-by-byte memcpy (inline ldrb/strb sequence) vs call
     // ROM/Thumb context, unaligned pointers (byte-only)
@@ -190,22 +192,32 @@ namespace {
     }
 
     template<std::size_t N>
-    void run_bytes_cpy(const char* desc) {
+    void run_bytes_cpy() {
         const auto inl = bench_memcpy_bytes_inline<N>();
         const auto call = bench_memcpy_bytes_call<N>();
-        const char* w = (inl <= call) ? "inline" : "CALL";
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %s", static_cast<unsigned>(N), inl, call, w);
+        const char* winner = (inl <= call) ? "inline" : "CALL";
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "inl"_arg = inl,
+                       "call"_arg = call,
+                       "winner"_arg = winner);
         });
     }
 
     template<std::size_t N>
-    void run_bytes_set(const char* desc) {
+    void run_bytes_set() {
         const auto inl = bench_memset_bytes_inline<N>();
         const auto call = bench_memset_bytes_call<N>();
-        const char* w = (inl <= call) ? "inline" : "CALL";
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %s", static_cast<unsigned>(N), inl, call, w);
+        const char* winner = (inl <= call) ? "inline" : "CALL";
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "inl"_arg = inl,
+                       "call"_arg = call,
+                       "winner"_arg = winner);
         });
     }
 
@@ -215,8 +227,13 @@ namespace {
         const auto aln = bench_memcpy_aligned<N>();
         const int save = (gen > aln) ? static_cast<int>((gen - aln) * 100 / gen)
                                      : -static_cast<int>((aln - gen) * 100 / aln);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %3d%%", static_cast<unsigned>(N), gen, aln, save);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {gen:>6} {aln:>6}  {save:>3}%"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "gen"_arg = gen,
+                       "aln"_arg = aln,
+                       "save"_arg = save);
         });
     }
 
@@ -226,57 +243,77 @@ namespace {
         const auto aln = bench_memset_aligned<N>();
         const int save = (gen > aln) ? static_cast<int>((gen - aln) * 100 / gen)
                                      : -static_cast<int>((aln - gen) * 100 / aln);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %3d%%", static_cast<unsigned>(N), gen, aln, save);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {gen:>6} {aln:>6}  {save:>3}%"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "gen"_arg = gen,
+                       "aln"_arg = aln,
+                       "save"_arg = save);
         });
     }
 
 } // namespace
 
 int main() {
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== inline specialisation benchmarks (ROM/Thumb, -O3) ===");
-        bench::log_printf(gba::log::level::info, "");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== inline specialisation benchmarks (ROM/Thumb, -O3) ===");
+        gba::benchmark::log(gba::log::level::info, "");
     });
 
-    // Part 1: memcpy byte threshold
-    bench::print_header("--- memcpy: inline bytes vs __aeabi_memcpy ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %s", "N", "inline", "call", "winner"); });
-    run_bytes_cpy<1>("");
-    run_bytes_cpy<2>("");
-    run_bytes_cpy<3>("");
-    run_bytes_cpy<4>("");
-    run_bytes_cpy<5>("");
-    run_bytes_cpy<6>("");
-    run_bytes_cpy<7>("");
-    run_bytes_cpy<8>("");
-    run_bytes_cpy<10>("");
-    run_bytes_cpy<12>("");
-    run_bytes_cpy<14>("");
-    run_bytes_cpy<16>("");
+    gba::benchmark::print_header("--- memcpy: inline bytes vs __aeabi_memcpy ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                   "n"_arg = "N",
+                   "inl"_arg = "inline",
+                   "call"_arg = "call",
+                   "winner"_arg = "winner");
+    });
+    run_bytes_cpy<1>();
+    run_bytes_cpy<2>();
+    run_bytes_cpy<3>();
+    run_bytes_cpy<4>();
+    run_bytes_cpy<5>();
+    run_bytes_cpy<6>();
+    run_bytes_cpy<7>();
+    run_bytes_cpy<8>();
+    run_bytes_cpy<10>();
+    run_bytes_cpy<12>();
+    run_bytes_cpy<14>();
+    run_bytes_cpy<16>();
 
-    // Part 2: memset byte threshold
-    bench::print_header("--- memset: inline bytes vs __aeabi_memset ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %s", "N", "inline", "call", "winner"); });
-    run_bytes_set<1>("");
-    run_bytes_set<2>("");
-    run_bytes_set<3>("");
-    run_bytes_set<4>("");
-    run_bytes_set<5>("");
-    run_bytes_set<6>("");
-    run_bytes_set<7>("");
-    run_bytes_set<8>("");
-    run_bytes_set<10>("");
-    run_bytes_set<12>("");
-    run_bytes_set<14>("");
-    run_bytes_set<16>("");
+    gba::benchmark::print_header("--- memset: inline bytes vs __aeabi_memset ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                   "n"_arg = "N",
+                   "inl"_arg = "inline",
+                   "call"_arg = "call",
+                   "winner"_arg = "winner");
+    });
+    run_bytes_set<1>();
+    run_bytes_set<2>();
+    run_bytes_set<3>();
+    run_bytes_set<4>();
+    run_bytes_set<5>();
+    run_bytes_set<6>();
+    run_bytes_set<7>();
+    run_bytes_set<8>();
+    run_bytes_set<10>();
+    run_bytes_set<12>();
+    run_bytes_set<14>();
+    run_bytes_set<16>();
 
-    // Part 3: memcpy generic vs aligned entry
-    bench::print_header("--- memcpy: __aeabi_memcpy vs __aeabi_memcpy4 ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %5s", "N", "generic", "align4", "save%"); });
+    gba::benchmark::print_header("--- memcpy: __aeabi_memcpy vs __aeabi_memcpy4 ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {gen:>6} {aln:>6}  {save:>5}"_fmt,
+                   "n"_arg = "N",
+                   "gen"_arg = "generic",
+                   "aln"_arg = "align4",
+                   "save"_arg = "save%");
+    });
     run_align_cpy<4>();
     run_align_cpy<8>();
     run_align_cpy<12>();
@@ -290,10 +327,15 @@ int main() {
     run_align_cpy<96>();
     run_align_cpy<128>();
 
-    // Part 4: memset generic vs aligned entry
-    bench::print_header("--- memset: __aeabi_memset vs __aeabi_memset4 ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %5s", "N", "generic", "align4", "save%"); });
+    gba::benchmark::print_header("--- memset: __aeabi_memset vs __aeabi_memset4 ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {gen:>6} {aln:>6}  {save:>5}"_fmt,
+                   "n"_arg = "N",
+                   "gen"_arg = "generic",
+                   "aln"_arg = "align4",
+                   "save"_arg = "save%");
+    });
     run_align_set<4>();
     run_align_set<8>();
     run_align_set<12>();
@@ -307,9 +349,9 @@ int main() {
     run_align_set<96>();
     run_align_set<128>();
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
     return 0;

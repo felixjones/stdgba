@@ -13,10 +13,12 @@
 #include <gba/music>
 #include <gba/peripherals>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
 
 using namespace gba::music;
 using namespace gba::music::literals;
+using namespace gba::literals;
 
 // -- Compiled patterns (consteval) --------------------------------------------
 
@@ -51,6 +53,11 @@ namespace {
 } // namespace
 
 int main() {
+    const auto log_case_cycles = [](const char* caseName, unsigned int cycles) {
+        gba::benchmark::log(gba::log::level::info, "  {case:<24}  {cycles}"_fmt, "case"_arg = caseName,
+                   "cycles"_arg = cycles);
+    };
+
     // IRQ + PSG setup (player writes to sound registers)
     gba::irq_handler = {};
     gba::reg_dispstat = {.enable_irq_vblank = true};
@@ -71,74 +78,72 @@ int main() {
     };
     gba::reg_soundcnt_h = {.psg_volume = 2};
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== music_player benchmark (cycles) ===");
-        bench::log_printf(gba::log::level::info, "");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== music_player benchmark (cycles) ===");
+        gba::benchmark::log(gba::log::level::info, "");
     });
 
     // -- Pattern metadata -------------------------------------------------
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "--- Pattern metadata ---");
-        bench::log_printf(gba::log::level::info, "  simple: %d events, %d timepoints", simple_music.event_count,
-                          simple_music.timepoint_count);
-        bench::log_printf(gba::log::level::info, "  full:   %d events, %d timepoints", full_music.event_count,
-                          full_music.timepoint_count);
-        bench::log_printf(gba::log::level::info, "");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "--- Pattern metadata ---");
+        gba::benchmark::log(gba::log::level::info, "  simple: {events} events, {timepoints} timepoints"_fmt,
+                   "events"_arg = simple_music.event_count, "timepoints"_arg = simple_music.timepoint_count);
+        gba::benchmark::log(gba::log::level::info, "  full:   {events} events, {timepoints} timepoints"_fmt,
+                   "events"_arg = full_music.event_count, "timepoints"_arg = full_music.timepoint_count);
+        gba::benchmark::log(gba::log::level::info, "");
     });
 
     // -- Skip-frame cost (no events due) ----------------------------------
     {
-        bench::with_logger([] {
-            bench::log_printf(gba::log::level::info, "--- Skip-frame (no events due) ---");
-            bench::log_printf(gba::log::level::info, "  %-24s  cycles", "Case");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info, "--- Skip-frame (no events due) ---");
+            gba::benchmark::log(gba::log::level::info, "  {case:<24}  cycles"_fmt, "case"_arg = "Case");
         });
 
         // Simple: advance past the first batch, then measure a skip frame
         {
             music_player<simple_music> player{};
             advance_to_skip_frame(player, 2); // past initial events
-            auto cycles = bench::measure_avg(64, tick_player<simple_music>, player);
-            bench::with_logger(
-                [&] { bench::log_printf(gba::log::level::info, "  %-24s  %u", "simple (1ch)", cycles); });
+            auto cycles = gba::benchmark::measure_avg(64, tick_player<simple_music>, player);
+            gba::benchmark::with_logger([&] { log_case_cycles("simple (1ch)", cycles); });
         }
 
         // Full: advance past the first batch, then measure a skip frame
         {
             music_player<full_music> player{};
             advance_to_skip_frame(player, 2);
-            auto cycles = bench::measure_avg(64, tick_player<full_music>, player);
-            bench::with_logger([&] { bench::log_printf(gba::log::level::info, "  %-24s  %u", "full (4ch)", cycles); });
+            auto cycles = gba::benchmark::measure_avg(64, tick_player<full_music>, player);
+            gba::benchmark::with_logger([&] { log_case_cycles("full (4ch)", cycles); });
         }
     }
 
     // -- Event-firing cost (first frame with events) ----------------------
     {
-        bench::with_logger([] {
-            bench::log_printf(gba::log::level::info, "");
-            bench::log_printf(gba::log::level::info, "--- First-frame dispatch (events fire) ---");
-            bench::log_printf(gba::log::level::info, "  %-24s  cycles", "Case");
+        gba::benchmark::with_logger([] {
+            gba::benchmark::log(gba::log::level::info, "");
+            gba::benchmark::log(gba::log::level::info, "--- First-frame dispatch (events fire) ---");
+            gba::benchmark::log(gba::log::level::info, "  {case:<24}  cycles"_fmt, "case"_arg = "Case");
         });
 
         // Simple: measure frame 0 (instrument_change + first note_on)
         {
             music_player<simple_music> player{};
-            auto cycles = bench::measure(tick_player<simple_music>, player);
-            bench::with_logger(
-                [&] { bench::log_printf(gba::log::level::info, "  %-24s  %u", "simple (1ch)", cycles); });
+            auto cycles = gba::benchmark::measure(tick_player<simple_music>, player);
+            gba::benchmark::with_logger([&] { log_case_cycles("simple (1ch)", cycles); });
         }
 
         // Full: measure frame 0 (4x instrument_change + 4x note_on)
         {
             music_player<full_music> player{};
-            auto cycles = bench::measure(tick_player<full_music>, player);
-            bench::with_logger([&] { bench::log_printf(gba::log::level::info, "  %-24s  %u", "full (4ch)", cycles); });
+            auto cycles = gba::benchmark::measure(tick_player<full_music>, player);
+            gba::benchmark::with_logger([&] { log_case_cycles("full (4ch)", cycles); });
         }
     }
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    bench::exit(0);
+    gba::benchmark::exit(0);
 }

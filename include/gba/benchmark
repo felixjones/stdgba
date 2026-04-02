@@ -23,9 +23,7 @@
 #include <gba/logger>
 #include <gba/peripherals>
 
-#include <cstdarg>
 #include <cstddef>
-#include <cstdio>
 #include <type_traits>
 #include <utility>
 
@@ -309,46 +307,57 @@ namespace gba::benchmark {
         return measure_avg_net_on(make_timer_pair(id), iterations, std::forward<Fn>(fn), std::forward<Args>(args)...);
     }
 
-} // namespace gba::benchmark
+    inline void ensure_logger() {
+        if (!gba::log::get_backend()) gba::log::init();
+    }
 
-// -- Benchmark reporting utilities -------------------------------------------
-//
-// These live outside the measurement namespace so benchmarks can log results
-// to the mGBA console without pulling in a separate bench.hpp helper.
+    inline void log(gba::log::level lvl, const char* msg) {
+        ensure_logger();
+        gba::log::write(lvl, msg);
+    }
 
-namespace gba::benchmark::report {
-
-    /// @brief printf-style log to the mGBA debug console.
-    ///
-    /// Formats into a 256-byte stack buffer and writes via gba::log.
-    /// Requires `#include <gba/logger>` in the translation unit.
-    inline void log_printf(gba::log::level lvl, const char* fmt, ...) {
-        char buf[256];
-        va_list args;
-        va_start(args, fmt);
-        vsnprintf(buf, sizeof(buf), fmt, args);
-        va_end(args);
-        gba::log::write(lvl, buf);
+    template<format::fixed_string Fmt, typename... Args>
+    inline void log(gba::log::level lvl, format::compiled_format<Fmt> fmt, Args... args) {
+        ensure_logger();
+        gba::log::write(lvl, fmt, std::move(args)...);
     }
 
     /// @brief Print a section header to the debug console.
     inline void header(const char* title) {
-        if (!gba::log::get_backend()) gba::log::init();
-        log_printf(gba::log::level::info, "");
-        log_printf(gba::log::level::info, "%s", title);
+        using gba::literals::operator""_arg;
+        using gba::literals::operator""_fmt;
+
+        static constexpr auto fmt_title = "{title}"_fmt;
+        log(gba::log::level::info, "");
+        log(gba::log::level::info, fmt_title, "title"_arg = title);
     }
 
     /// @brief Print a comparison row: description, stdgba cycles, reference cycles, savings %.
     inline void row(const char* desc, unsigned int stdgba, unsigned int reference) {
-        if (!gba::log::get_backend()) gba::log::init();
+        using gba::literals::operator""_arg;
+        using gba::literals::operator""_fmt;
+
+        static constexpr auto fmt_row = "  {desc:<24} {stdgba:>7}  {reference:>7}  {save:>3}%"_fmt;
         const int save = (reference > stdgba) ? static_cast<int>((reference - stdgba) * 100 / reference)
                                               : -static_cast<int>((stdgba - reference) * 100 / stdgba);
-        log_printf(gba::log::level::info, "  %-24s %7u  %7u  %3d%%", desc, stdgba, reference, save);
+        log(gba::log::level::info, fmt_row, "desc"_arg = desc, "stdgba"_arg = stdgba,
+            "reference"_arg = reference, "save"_arg = save);
     }
 
-} // namespace gba::benchmark::report
 
-namespace gba::benchmark {
+    inline void print_header(const char* title) {
+        header(title);
+    }
+
+    inline void print_row(const char* desc, unsigned int sg, unsigned int ab) {
+        row(desc, sg, ab);
+    }
+
+    template<typename Fn>
+    inline void with_logger(Fn&& fn) {
+        if (!gba::log::get_backend()) gba::log::init();
+        std::forward<Fn>(fn)();
+    }
 
     /// @brief Terminate benchmark via configurable SWI for mgba-headless.
     ///

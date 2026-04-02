@@ -14,7 +14,9 @@
 #include <cstdint>
 #include <cstring>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
+using namespace gba::literals;
 
 extern "C" {
 int __stdgba_memcmp(const void*, const void*, std::size_t);
@@ -284,9 +286,14 @@ namespace {
     void run_bytes_cmp() {
         const auto inl = bench_memcmp_bytes_inline<N>();
         const auto call = bench_memcmp_bytes_call<N>();
-        const char* w = (inl <= call) ? "inline" : "CALL";
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %s", static_cast<unsigned>(N), inl, call, w);
+        const char* w = (inl < call) ? "inline" : "call";
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "inl"_arg = inl,
+                       "call"_arg = call,
+                       "winner"_arg = w);
         });
     }
 
@@ -294,9 +301,14 @@ namespace {
     void run_words_cmp() {
         const auto inl = bench_memcmp_words_inline<N>();
         const auto call = bench_memcmp_words_call<N>();
-        const char* w = (inl <= call) ? "inline" : "CALL";
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %s", static_cast<unsigned>(N), inl, call, w);
+        const char* w = (inl < call) ? "inline" : "call";
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "inl"_arg = inl,
+                       "call"_arg = call,
+                       "winner"_arg = w);
         });
     }
 
@@ -306,9 +318,13 @@ namespace {
         const auto direct = bench_direct_memcmp<N>();
         const int save = (direct > wrap) ? static_cast<int>((direct - wrap) * 100 / direct)
                                          : -static_cast<int>((wrap - direct) * 100 / wrap);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %3d%%", static_cast<unsigned>(N), wrap, direct,
-                              save);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {wrap:>6} {direct:>6}  {save:>3}%"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "wrap"_arg = wrap,
+                       "direct"_arg = direct,
+                       "save"_arg = save);
         });
     }
 
@@ -318,9 +334,13 @@ namespace {
         const auto direct = bench_direct_bcmp<N>();
         const int save = (direct > wrap) ? static_cast<int>((direct - wrap) * 100 / direct)
                                          : -static_cast<int>((wrap - direct) * 100 / wrap);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %3d%%", static_cast<unsigned>(N), wrap, direct,
-                              save);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {wrap:>6} {direct:>6}  {save:>3}%"_fmt,
+                       "n"_arg = static_cast<unsigned>(N),
+                       "wrap"_arg = wrap,
+                       "direct"_arg = direct,
+                       "save"_arg = save);
         });
     }
 
@@ -329,24 +349,33 @@ namespace {
         const auto direct = bench_direct_volatile_n(n);
         const int save = (direct > wrap) ? static_cast<int>((direct - wrap) * 100 / direct)
                                          : -static_cast<int>((wrap - direct) * 100 / wrap);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %3u  %6u %6u  %3d%%", static_cast<unsigned>(n), wrap, direct,
-                              save);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {n:>3}  {wrap:>6} {direct:>6}  {save:>3}%"_fmt,
+                       "n"_arg = static_cast<unsigned>(n),
+                       "wrap"_arg = wrap,
+                       "direct"_arg = direct,
+                       "save"_arg = save);
         });
     }
 
 } // namespace
 
 int main() {
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== memcmp inline specialisation benchmarks (ROM/Thumb, -O3) ===");
-        bench::log_printf(gba::log::level::info, "");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== memcmp inline specialisation benchmarks (ROM/Thumb, -O3) ===");
+        gba::benchmark::log(gba::log::level::info, "");
     });
 
-    // Part 1: byte threshold
-    bench::print_header("--- memcmp: inline bytes vs __stdgba_memcmp call ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %s", "N", "inline", "call", "winner"); });
+    gba::benchmark::print_header("--- Part 1: inline bytes vs __stdgba_memcmp ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                   "n"_arg = "N",
+                   "inl"_arg = "inline",
+                   "call"_arg = "call",
+                   "winner"_arg = "winner");
+    });
     run_bytes_cmp<1>();
     run_bytes_cmp<2>();
     run_bytes_cmp<3>();
@@ -356,10 +385,15 @@ int main() {
     run_bytes_cmp<7>();
     run_bytes_cmp<8>();
 
-    // Part 2: word XOR threshold
-    bench::print_header("--- memcmp: inline word XOR vs __stdgba_memcmp call (aligned) ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %s", "N", "inline", "call", "winner"); });
+    gba::benchmark::print_header("--- Part 2: inline word XOR vs __stdgba_memcmp ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {inl:>6} {call:>6}  {winner}"_fmt,
+                   "n"_arg = "N",
+                   "inl"_arg = "inline",
+                   "call"_arg = "call",
+                   "winner"_arg = "winner");
+    });
     run_words_cmp<4>();
     run_words_cmp<8>();
     run_words_cmp<12>();
@@ -371,10 +405,15 @@ int main() {
     run_words_cmp<48>();
     run_words_cmp<64>();
 
-    // Part 3: wrapper with constant N (aligned) vs direct call
-    bench::print_header("--- memcmp: wrapper (const N, aligned) vs direct call ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %5s", "N", "wrap", "direct", "save%"); });
+    gba::benchmark::print_header("--- Part 3: memcmp wrapper vs direct (const N) ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {wrap:>6} {direct:>6}  {save:>5}"_fmt,
+                   "n"_arg = "N",
+                   "wrap"_arg = "wrap",
+                   "direct"_arg = "direct",
+                   "save"_arg = "save%");
+    });
     run_wrapper_cmp<1>();
     run_wrapper_cmp<2>();
     run_wrapper_cmp<4>();
@@ -389,10 +428,15 @@ int main() {
     run_wrapper_cmp<64>();
     run_wrapper_cmp<128>();
 
-    // Part 4: bcmp wrapper with constant N (aligned) vs direct call
-    bench::print_header("--- bcmp: wrapper (const N, aligned) vs direct call ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %5s", "N", "wrap", "direct", "save%"); });
+    gba::benchmark::print_header("--- Part 4: bcmp wrapper vs direct (const N) ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {wrap:>6} {direct:>6}  {save:>5}"_fmt,
+                   "n"_arg = "N",
+                   "wrap"_arg = "wrap",
+                   "direct"_arg = "direct",
+                   "save"_arg = "save%");
+    });
     run_wrapper_bcmp<1>();
     run_wrapper_bcmp<4>();
     run_wrapper_bcmp<8>();
@@ -400,19 +444,24 @@ int main() {
     run_wrapper_bcmp<32>();
     run_wrapper_bcmp<64>();
 
-    // Part 5: volatile N (wrapper should just forward, no regression)
-    bench::print_header("--- memcmp: wrapper (volatile N) vs direct call ---");
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "  %3s  %6s %6s  %5s", "N", "wrap", "direct", "save%"); });
+    gba::benchmark::print_header("--- Part 5: wrapper vs direct (volatile N) ---");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info,
+                   "  {n:>3}  {wrap:>6} {direct:>6}  {save:>5}"_fmt,
+                   "n"_arg = "N",
+                   "wrap"_arg = "wrap",
+                   "direct"_arg = "direct",
+                   "save"_arg = "save%");
+    });
     run_volatile_n(4);
     run_volatile_n(16);
     run_volatile_n(32);
     run_volatile_n(64);
     run_volatile_n(128);
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
     return 0;

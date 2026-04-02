@@ -8,7 +8,9 @@
 
 #include <cstring>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
+using namespace gba::literals;
 
 // stdgba entry points
 extern "C" {
@@ -44,10 +46,12 @@ namespace {
 
     void bench_backward(const char* title, unsigned char* buf, std::size_t max_size, unsigned int overlap,
                         const unsigned int* sizes, std::size_t n_sizes) {
-        bench::print_header(title);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-8s  %6s %6s  %6s %6s  %5s", "Size", "stdgba", "stdg4",
-                              "agbabi", "agb4", "save%");
+        gba::benchmark::print_header(title);
+        gba::benchmark::with_logger([&] {
+            gba::benchmark::log(gba::log::level::info,
+                       "  {size:<8}  {stdgba:>6} {stdg4:>6}  {agbabi:>6} {agb4:>6}  {save:>5}"_fmt,
+                       "size"_arg = "Size", "stdgba"_arg = "stdgba", "stdg4"_arg = "stdg4",
+                       "agbabi"_arg = "agbabi", "agb4"_arg = "agb4", "save"_arg = "save%");
         });
 
         for (std::size_t si = 0; si < n_sizes; ++si) {
@@ -60,20 +64,22 @@ namespace {
             // This forces backward copy since dest > src and dest < src + size
             fill_buf(buf, size + overlap);
 
-            const auto sg = bench::measure_avg(iters, sg_fn, buf + overlap, buf, size);
+            const auto sg = gba::benchmark::measure_avg(iters, sg_fn, buf + overlap, buf, size);
             fill_buf(buf, size + overlap);
-            const auto sg4 = bench::measure_avg(iters, sg4_fn, buf + overlap, buf, size);
+            const auto sg4 = gba::benchmark::measure_avg(iters, sg4_fn, buf + overlap, buf, size);
             fill_buf(buf, size + overlap);
-            const auto ab = bench::measure_avg(iters, ab_fn, buf + overlap, buf, size);
+            const auto ab = gba::benchmark::measure_avg(iters, ab_fn, buf + overlap, buf, size);
             fill_buf(buf, size + overlap);
-            const auto ab4 = bench::measure_avg(iters, ab4_fn, buf + overlap, buf, size);
+            const auto ab4 = gba::benchmark::measure_avg(iters, ab4_fn, buf + overlap, buf, size);
 
             const int save = (ab > sg) ? static_cast<int>((ab - sg) * 100 / ab)
                                        : -static_cast<int>((sg - ab) * 100 / sg);
 
-            bench::with_logger([&] {
-                bench::log_printf(gba::log::level::info, "  %6u  %6u %6u  %6u %6u  %3d%%", size, sg, sg4, ab, ab4,
-                                  save);
+            gba::benchmark::with_logger([&] {
+                gba::benchmark::log(gba::log::level::info,
+                           "  {size:>6}  {sg:>6} {sg4:>6}  {ab:>6} {ab4:>6}  {save:>3}%"_fmt,
+                           "size"_arg = size, "sg"_arg = sg, "sg4"_arg = sg4, "ab"_arg = ab, "ab4"_arg = ab4,
+                           "save"_arg = save);
             });
         }
     }
@@ -81,8 +87,9 @@ namespace {
 } // namespace
 
 int main() {
-    bench::with_logger(
-        [] { bench::log_printf(gba::log::level::info, "=== memmove benchmark (backward copy, word-aligned) ==="); });
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== memmove benchmark (backward copy, word-aligned) ===");
+    });
 
     static constexpr unsigned int iwram_sizes[] = {4,  8,  12,  16,  20,  24,   28,   32,  48,
                                                    64, 96, 128, 256, 512, 1024, 2048, 4096};
@@ -100,9 +107,9 @@ int main() {
     bench_backward("--- EWRAM backward (overlap=4) ---", ewram_buf, sizeof(ewram_buf), 4, ewram_sizes,
                    std::size(ewram_sizes));
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
     return 0;

@@ -27,7 +27,6 @@ foreach(bench_src ${BENCH_SOURCES})
     endif()
 
     target_link_libraries(${bench_name} PRIVATE librom stdgba)
-    target_include_directories(${bench_name} PRIVATE .)
     target_compile_options(${bench_name} PUBLIC -O3 -g3 -Wno-psabi)
     if(bench_name STREQUAL "bench_music")
         target_compile_options(${bench_name} PRIVATE -ftemplate-depth=2000 -fconstexpr-loop-limit=10000000 -fconstexpr-ops-limit=5000000000)

@@ -7,8 +7,9 @@
 /// Run with: timeout 15 mgba-headless -S 0x1A -R r0 -t 10 build/benchmarks/bench_angle.elf
 
 #include <gba/angle>
+#include <gba/benchmark>
 
-#include "bench.hpp"
+using namespace gba::literals;
 
 namespace {
 
@@ -138,68 +139,77 @@ namespace {
 } // namespace
 
 int main() {
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== angle power-of-two constant benchmark ===");
-        bench::log_printf(gba::log::level::info, "  %d avg-net iterations per measurement", iters);
-        bench::log_printf(gba::log::level::info, "  %-36s  %5s  %5s  %5s", "operation", "const", "rtvar", "delta");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== angle power-of-two constant benchmark ===");
+        gba::benchmark::log(gba::log::level::info, "  {iters} avg-net iterations per measurement"_fmt,
+                   "iters"_arg = iters);
+        gba::benchmark::log(gba::log::level::info, "  {operation:<36}  {konst:>5}  {rtvar:>5}  {delta:>5}"_fmt,
+                   "operation"_arg = "operation",
+                   "konst"_arg = "const",
+                   "rtvar"_arg = "rtvar",
+                   "delta"_arg = "delta");
     });
 
     auto report = [](const char* name, unsigned int konst, unsigned int rtvar) {
-        bench::with_logger([&] {
+        gba::benchmark::with_logger([&] {
             const int delta = static_cast<int>(konst) - static_cast<int>(rtvar);
-            bench::log_printf(gba::log::level::info, "  %-36s  %5u  %5u  %+4d", name, konst, rtvar, delta);
+            gba::benchmark::log(gba::log::level::info, "  {operation:<36}  {konst:>5}  {rtvar:>5}  {delta:+4}"_fmt,
+                       "operation"_arg = name,
+                       "konst"_arg = konst,
+                       "rtvar"_arg = rtvar,
+                       "delta"_arg = delta);
         });
     };
 
     // -- *= pow2 ----------------------------------------------------------
     {
-        const auto k = bench::measure_avg(iters, angle_mul_const_pow2);
-        const auto r = bench::measure_avg(iters, angle_mul_runtime_pow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_mul_const_pow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_mul_runtime_pow2);
         report("angle *= 8 (pow2)", k, r);
     }
 
     // -- /= pow2 ----------------------------------------------------------
     {
-        const auto k = bench::measure_avg(iters, angle_div_const_pow2);
-        const auto r = bench::measure_avg(iters, angle_div_runtime_pow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_div_const_pow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_div_runtime_pow2);
         report("angle /= 8 (pow2)", k, r);
     }
 
     // -- /= 2 -------------------------------------------------------------
     {
-        const auto k = bench::measure_avg(iters, angle_div_const_2);
-        const auto r = bench::measure_avg(iters, angle_div_runtime_2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_div_const_2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_div_runtime_2);
         report("angle /= 2", k, r);
     }
 
     // -- Controls: *= 3, /= 3 (non-power-of-two) -------------------------
     {
-        const auto k = bench::measure_avg(iters, angle_mul_const_nonpow2);
-        const auto r = bench::measure_avg(iters, angle_mul_runtime_nonpow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_mul_const_nonpow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_mul_runtime_nonpow2);
         report("angle *= 3 (control)", k, r);
     }
     {
-        const auto k = bench::measure_avg(iters, angle_div_const_nonpow2);
-        const auto r = bench::measure_avg(iters, angle_div_runtime_nonpow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_div_const_nonpow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_div_runtime_nonpow2);
         report("angle /= 3 (control)", k, r);
     }
 
     // -- Free-function operators ------------------------------------------
     {
-        const auto k = bench::measure_avg(iters, angle_free_mul_const_pow2);
-        const auto r = bench::measure_avg(iters, angle_free_mul_runtime_pow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_free_mul_const_pow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_free_mul_runtime_pow2);
         report("angle * 8 (free fn)", k, r);
     }
     {
-        const auto k = bench::measure_avg(iters, angle_free_div_const_pow2);
-        const auto r = bench::measure_avg(iters, angle_free_div_runtime_pow2);
+        const auto k = gba::benchmark::measure_avg(iters, angle_free_div_const_pow2);
+        const auto r = gba::benchmark::measure_avg(iters, angle_free_div_runtime_pow2);
         report("angle / 8 (free fn)", k, r);
     }
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    bench::exit(0);
+    gba::benchmark::exit(0);
 }

@@ -3,7 +3,8 @@
 
 #include <gba/fixed_point>
 
-#include "bench.hpp"
+#include <gba/benchmark>
+
 
 namespace {
 
@@ -273,19 +274,19 @@ namespace {
     void run_row(const char* name, bench_fn constant_literal_fn, bench_fn runtime_variable_fn) {
         const auto constant_cycles = gba::benchmark::measure_avg_net(iters, constant_literal_fn);
         const auto runtime_cycles = gba::benchmark::measure_avg_net(iters, runtime_variable_fn);
-        bench::print_row(name, constant_cycles, runtime_cycles);
+        gba::benchmark::print_row(name, constant_cycles, runtime_cycles);
     }
 
 } // namespace
 
 int main() {
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== fixed_point integral fast-path benchmark (cycles, net) ===");
-        bench::log_printf(gba::log::level::info,
-                          "left cycle column = constant literal operand; right = runtime variable operand");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== fixed_point integral fast-path benchmark (cycles, net) ===");
+        gba::benchmark::log(gba::log::level::info,
+                   "left cycle column = constant literal operand; right = runtime variable operand");
     });
 
-    bench::print_header("--- fixed<int,8> direct operators ---");
+    gba::benchmark::print_header("--- fixed<int,8> direct operators ---");
     run_row("mul *= 8", fixed_mul_const_pow2, fixed_mul_runtime_pow2);
     run_row("div /= 8", fixed_div_const_pow2, fixed_div_runtime_pow2);
     run_row("mul *= -8", fixed_mul_const_neg_pow2, fixed_mul_runtime_neg_pow2);
@@ -299,16 +300,16 @@ int main() {
     run_row("div /= 3 control", fixed_div_const_nonpow2, fixed_div_runtime_nonpow2);
     run_row("ufixed /= 8", ufixed_div_const_pow2, ufixed_div_runtime_pow2);
 
-    bench::print_header("--- as_lhs(...) wrapper forwarding ---");
+    gba::benchmark::print_header("--- as_lhs(...) wrapper forwarding ---");
     run_row("as_lhs * 8", lhs_mul_const_pow2, lhs_mul_runtime_pow2);
     run_row("as_lhs / 8", lhs_div_const_pow2, lhs_div_runtime_pow2);
     run_row("as_lhs * -8", lhs_mul_const_neg_pow2, lhs_mul_runtime_neg_pow2);
     run_row("as_lhs / -8", lhs_div_const_neg_pow2, lhs_div_runtime_neg_pow2);
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    bench::exit(0);
+    gba::benchmark::exit(0);
 }

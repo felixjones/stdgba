@@ -22,7 +22,7 @@
 #include <array>
 #include <cstddef>
 
-#include "bench.hpp"
+#include <gba/benchmark>
 
 using namespace gba::literals;
 
@@ -442,6 +442,11 @@ namespace {
 } // namespace
 
 int main() {
+    const auto log_row = [](const char* caseName, unsigned int single, unsigned int avg) {
+        gba::benchmark::log(gba::log::level::info, "  {case:<36}  {single:>6}  {avg:>6}"_fmt, "case"_arg = caseName,
+                   "single"_arg = single, "avg"_arg = avg);
+    };
+
     // Minimal HW setup so VRAM writes succeed
     gba::irq_handler = {};
     gba::reg_dispstat = {.enable_irq_vblank = true};
@@ -464,82 +469,70 @@ int main() {
                                      .shadow = "#304060"_clr,
                                  });
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "=== text render benchmark (cycles) ===");
-        bench::log_printf(gba::log::level::info, "  BDF font: %d glyphs", font.glyph_count);
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "  %-36s  %6s  %6s", "Case", "single", "avg");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "=== text render benchmark (cycles) ===");
+        gba::benchmark::log(gba::log::level::info, "  BDF font: {glyphs} glyphs"_fmt, "glyphs"_arg = font.glyph_count);
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "  {case:<36}  {single:>6}  {avg:>6}"_fmt, "case"_arg = "Case",
+                   "single"_arg = "single", "avg"_arg = "avg");
     });
 
     // -- Short C-string, no shadow --------------------------------------------
     {
-        auto single = bench::measure(draw_cstr_short);
-        auto avg = bench::measure_avg(iters, draw_cstr_short);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "cstr short (9ch, no shadow)", single, avg);
-        });
+        auto single = gba::benchmark::measure(draw_cstr_short);
+        auto avg = gba::benchmark::measure_avg(iters, draw_cstr_short);
+        gba::benchmark::with_logger([&] { log_row("cstr short (9ch, no shadow)", single, avg); });
     }
 
     // -- Longer C-string with wrapping ----------------------------------------
     {
-        auto single = bench::measure(draw_cstr_long);
-        auto avg = bench::measure_avg(iters, draw_cstr_long);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "cstr long (30ch, wrap)", single, avg);
-        });
+        auto single = gba::benchmark::measure(draw_cstr_long);
+        auto avg = gba::benchmark::measure_avg(iters, draw_cstr_long);
+        gba::benchmark::with_logger([&] { log_row("cstr long (30ch, wrap)", single, avg); });
     }
 
     // -- Format generator stream ----------------------------------------------
     {
-        auto single = bench::measure(draw_format_stream);
-        auto avg = bench::measure_avg(iters, draw_format_stream);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "format stream \"HP: {hp}/{max}\"", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(draw_format_stream);
+        auto avg = gba::benchmark::measure_avg(iters, draw_format_stream);
+        gba::benchmark::with_logger([&] { log_row("format stream \"HP: {hp}/{max}\"", single, avg); });
     }
 
     // -- Shadow comparison ----------------------------------------------------
     {
-        auto avg_no = bench::measure_avg(iters, draw_no_shadow);
-        auto avg_yes = bench::measure_avg(iters, draw_with_shadow);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "shadow off (9ch)", 0u, avg_no);
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "shadow on  (9ch)", 0u, avg_yes);
+        auto avg_no = gba::benchmark::measure_avg(iters, draw_no_shadow);
+        auto avg_yes = gba::benchmark::measure_avg(iters, draw_with_shadow);
+        gba::benchmark::with_logger([&] {
+            log_row("shadow off (9ch)", 0u, avg_no);
+            log_row("shadow on  (9ch)", 0u, avg_yes);
         });
     }
 
     // -- Single glyph ---------------------------------------------------------
     {
-        auto single = bench::measure(draw_single_char);
-        auto avg = bench::measure_avg(iters, draw_single_char);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "single draw_char ('H')", single, avg);
-        });
+        auto single = gba::benchmark::measure(draw_single_char);
+        auto avg = gba::benchmark::measure_avg(iters, draw_single_char);
+        gba::benchmark::with_logger([&] { log_row("single draw_char ('H')", single, avg); });
     }
 
     // -- Layer clear ----------------------------------------------------------
     {
-        auto single = bench::measure(layer_clear_only);
-        auto avg = bench::measure_avg(iters, layer_clear_only);
-        bench::with_logger(
-            [&] { bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "layer clear (32x32)", single, avg); });
+        auto single = gba::benchmark::measure(layer_clear_only);
+        auto avg = gba::benchmark::measure_avg(iters, layer_clear_only);
+        gba::benchmark::with_logger([&] { log_row("layer clear (32x32)", single, avg); });
     }
 
     // -- Typewriter reveal (partial) ------------------------------------------
     {
-        auto single = bench::measure(draw_typewriter_reveal);
-        auto avg = bench::measure_avg(iters, draw_typewriter_reveal);
-        bench::with_logger([&] {
-            bench::log_printf(gba::log::level::info, "  %-36s  %6u  %6u", "typewriter reveal (5/9ch, shadow)", single,
-                              avg);
-        });
+        auto single = gba::benchmark::measure(draw_typewriter_reveal);
+        auto avg = gba::benchmark::measure_avg(iters, draw_typewriter_reveal);
+        gba::benchmark::with_logger([&] { log_row("typewriter reveal (5/9ch, shadow)", single, avg); });
     }
 
-    bench::with_logger([] {
-        bench::log_printf(gba::log::level::info, "");
-        bench::log_printf(gba::log::level::info, "=== benchmark complete ===");
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "=== benchmark complete ===");
     });
 
-    bench::exit(0);
+    gba::benchmark::exit(0);
 }
