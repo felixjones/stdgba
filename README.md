@@ -63,6 +63,7 @@ Current development is validated against ARM GNU Toolchain (`arm-none-eabi`) and
 ## CI and documentation
 
 - CI (`.github/workflows/ci.yml`) builds test ELFs and runs them with `felixjones/github-mgba-rom-test`.
+- The Book (`book/`) contains detailed documentation and examples, built with `mdBook` and published to [felixjones.github.io/stdgba](https://felixjones.github.io/stdgba).
 
 ## License
 
