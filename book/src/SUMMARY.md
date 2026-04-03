@@ -39,7 +39,7 @@
 - [BIOS Functions](./advanced/bios.md)
 - [Save Data](./advanced/save.md)
 - [Memory Utilities](./utilities/memory.md)
-- [Functional Callbacks](./utilities/functional.md)
+- [Functional Types](./utilities/functional.md)
 - [Compression](./advanced/compression.md)
 - [String Formatting](./advanced/formatting.md)
 

@@ -105,6 +105,8 @@ namespace gba {
 
         const isr& operator=(const value_type& value) const noexcept;
 
+        const isr& operator=(std::nullptr_t) const noexcept = delete;
+
         explicit operator bool() const noexcept { return has_value(); }
 
         [[nodiscard]] bool has_value() const noexcept;

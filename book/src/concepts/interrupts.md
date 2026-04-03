@@ -51,6 +51,57 @@ gba::irq_handler = [](gba::irq irq) {
 
 The handler receives a `gba::irq` bitfield with named boolean fields for each interrupt source. stdgba's internal IRQ wrapper acknowledges `REG_IF` and the BIOS IRQ flag for you before calling the handler, so BIOS wait functions continue to work.
 
+### Multiple interrupt sources
+
+Because the handler receives the full `gba::irq` bitfield, a single callable
+can dispatch to different logic based on which flags are set:
+
+```cpp
+volatile int vblank_count = 0;
+volatile int timer2_count = 0;
+
+gba::irq_handler = [](gba::irq irq) {
+    if (irq.vblank) ++vblank_count;
+    if (irq.timer2) ++timer2_count;
+};
+
+gba::reg_dispstat = { .enable_irq_vblank = true };
+gba::reg_ie       = { .vblank = true, .timer2 = true };
+gba::reg_ime      = true;
+```
+
+### Querying the current handler
+
+```cpp
+// bool conversion -- true when a handler is installed
+if (gba::irq_handler) { /* handler is set */ }
+
+// has_value() is equivalent
+if (gba::irq_handler.has_value()) { /* handler is set */ }
+
+// Retrieve a const reference to the stored callable
+const gba::handler<gba::irq>& h = gba::irq_handler.value();
+```
+
+### Swapping handlers
+
+`swap` exchanges the stored callable with a local `gba::handler<gba::irq>`,
+useful for temporarily replacing a handler and then restoring it:
+
+```cpp
+gba::handler<gba::irq> my_handler = [](gba::irq irq) {
+    if (irq.timer0) { /* ... */ }
+};
+
+// Swap in; old handler is now in my_handler
+gba::irq_handler.swap(my_handler);
+
+// ... do work ...
+
+// Restore the original
+gba::irq_handler.swap(my_handler);
+```
+
 ## Uninstalling the dispatcher
 
 To uninstall the stdgba user handler and restore the built-in empty acknowledgement stub, use either of these:
@@ -59,25 +110,11 @@ To uninstall the stdgba user handler and restore the built-in empty acknowledgem
 gba::irq_handler = gba::nullisr;
 // or
 gba::irq_handler.reset();
+// or
+gba::irq_handler = {};
 ```
 
 This removes the current callable, but still leaves a valid low-level IRQ stub installed so BIOS wait functions remain usable.
-
-## Installing a low-level custom handler
-
-For advanced use, you can replace the IRQ vector directly instead of going through `gba::irq_handler`.
-
-The BIOS IRQ function pointer lives at `0x3007FFC`, so a raw handler can be installed with a register write:
-
-```cpp
-#include <gba/peripherals>
-
-extern "C" void my_raw_irq();
-
-gba::registral<void(*)()>{0x3007FFC} = my_raw_irq;
-```
-
-This bypasses the stdgba dispatcher entirely. Use it only when you need complete control over IRQ entry/exit.
 
 ### What a raw handler must do itself
 
