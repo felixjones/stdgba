@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(stdgba LANGUAGES C CXX ASM VERSION 2026.2.0)
+project(stdgba LANGUAGES C CXX ASM VERSION 2026.1.0)
 
 add_library(stdgba INTERFACE
         include/gba/angle
