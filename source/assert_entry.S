@@ -9,6 +9,8 @@
 @
 @===============================================================================
 
+#ifndef NDEBUG
+
     .section .text._stdgba_assert, "ax", %progbits
     .arm
     .align 2
@@ -73,3 +75,5 @@ __assert_func:
 
     .ltorg
     .size __assert_func, . - __assert_func
+
+#endif

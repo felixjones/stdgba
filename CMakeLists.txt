@@ -34,7 +34,7 @@ target_include_directories(stdgba INTERFACE include)
 target_compile_features(stdgba INTERFACE cxx_std_23)
 target_sources(stdgba INTERFACE
         source/assert.cpp
-        source/assert_entry.s
+        source/assert_entry.S
         source/div.s
         source/ldiv.s
         source/lmul.s
