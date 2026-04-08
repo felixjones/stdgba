@@ -140,6 +140,28 @@ namespace gba::codegen::bits {
         return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | magnitude;
     }
 
+    constexpr std::uint32_t ldrb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
+        require(offset >= -4095 && offset <= 4095, "ldrb_imm: offset must fit signed 12 bits");
+        const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
+        const auto base = offset < 0 ? 0xE5500000u : 0xE5D00000u;
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | magnitude;
+    }
+
+    constexpr std::uint32_t strb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
+        require(offset >= -4095 && offset <= 4095, "strb_imm: offset must fit signed 12 bits");
+        const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
+        const auto base = offset < 0 ? 0xE5400000u : 0xE5C00000u;
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | magnitude;
+    }
+
+    constexpr std::uint32_t ldrb_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
+        return 0xE7D00000u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | reg_bits(rm);
+    }
+
+    constexpr std::uint32_t strb_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
+        return 0xE7C00000u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | reg_bits(rm);
+    }
+
     constexpr std::uint32_t ldrh_imm(const arm_reg rd, const arm_reg rn, const int offset) {
         require(offset >= -255 && offset <= 255, "ldrh_imm: offset must fit signed 8 bits");
         const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);

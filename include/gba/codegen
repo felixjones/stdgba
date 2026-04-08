@@ -44,14 +44,18 @@
 /// ### Conditional branches  (via `b_if(arm_cond, target_index)`)
 /// Use `arm_cond::{eq,ne,cs,cc,mi,pl,vs,vc,hi,ls,ge,lt,gt,le,al}`.
 ///
-/// ### Memory -- word/byte
-/// - `ldr_imm(rd, rn, offset)`, `str_imm(rd, rn, offset)` -- signed12 offset
+/// ### Memory -- word/byte (immediate offset)
+/// - `ldr_imm(rd, rn, offset)`, `str_imm(rd, rn, offset)` -- word, signed12 offset
+/// - `ldrb_imm(rd, rn, offset)`, `strb_imm(rd, rn, offset)` -- unsigned byte, signed12 offset
 ///
-/// ### Memory -- halfword / signed-byte
-/// - `ldrh_imm(rd, rn, offset)`, `strh_imm(rd, rn, offset)`  -- unsigned halfword
-/// - `ldrh_reg(rd, rn, rm)`, `strh_reg(rd, rn, rm)`           -- register offset
-/// - `ldrsb_imm(rd, rn, offset)`, `ldrsb_reg(rd, rn, rm)`     -- signed byte
-/// - `ldrsh_imm(rd, rn, offset)`, `ldrsh_reg(rd, rn, rm)`     -- signed halfword
+/// ### Memory -- byte/halfword (register offset)
+/// - `ldrb_reg(rd, rn, rm)`, `strb_reg(rd, rn, rm)` -- unsigned byte
+/// - `ldrh_reg(rd, rn, rm)`, `strh_reg(rd, rn, rm)` -- unsigned halfword
+///
+/// ### Memory -- halfword / signed-byte (immediate offset)
+/// - `ldrh_imm(rd, rn, offset)`, `strh_imm(rd, rn, offset)` -- unsigned halfword
+/// - `ldrsb_imm(rd, rn, offset)`, `ldrsb_reg(rd, rn, rm)` -- signed byte
+/// - `ldrsh_imm(rd, rn, offset)`, `ldrsh_reg(rd, rn, rm)` -- signed halfword
 ///
 /// ### Multi-register
 /// - `push(reg_list)`, `pop(reg_list)`  -- STMDB SP! / LDMIA SP!
@@ -71,7 +75,9 @@
 ///
 /// ## Patch slots (runtime parameterization)
 ///
-/// - `imm_slot(n)` -- 8-bit immediate slot for `mov_imm`, `add_imm`, `sub_imm`
+/// - `imm_slot(n)` -- 8-bit immediate slot for `mov_imm`, `add_imm`, `sub_imm`,
+///                    `orr_imm`, `and_imm`, `eor_imm`, `bic_imm`, `mvn_imm`,
+///                    `rsb_imm`, `cmp_imm`, `tst_imm`
 /// - `s12_slot(n)` -- signed-12 offset slot for `ldr_imm`, `str_imm`
 /// - `b_slot(n)`   -- branch offset slot for `b_to`
 /// - `instr_slot(n)` -- full 32-bit instruction replacement slot
@@ -93,13 +99,38 @@
 /// Generated leaf functions receive call-time arguments in `r0`..`r3` and
 /// return in `r0` under the standard ARM AAPCS convention.
 ///
-/// Runtime patching is performed through a single API:
-/// - `apply_patches<Signature>(block, destination, destination_words, args...)`
-///   which patches installed code in place and returns a raw typed function pointer.
-/// - `apply_patches<Signature>(block, destination, destination_words, patch_args, arg_count)`
-///   which reuses a caller-provided packed argument array.
-/// - `apply_word_patches(block, destination, destination_words, value_for_patch)`
-///   which directly writes full-word/literal slots from a callback without building a temporary array.
+/// Runtime patching is performed through two APIs:
+///
+/// ### `block_patcher<block>` (preferred — zero overhead)
+///
+/// A zero-overhead patcher generated from the block value as a non-type template
+/// parameter.  All patch metadata (word index, base word, kind, arg index) is a
+/// compile-time constant, so the optimizer sees a straight-line sequence of stores
+/// with no dispatch, no loop, and no ROM metadata loads.
+///
+/// - `block_patcher<block>{}(destination, args...)` — apply patches in place
+/// - `block_patcher<block>{}.entry<Signature>(destination, args...)` — patch + return typed fn ptr
+///
+/// Example:
+/// @code{.cpp}
+/// static constexpr auto tpl = arm_macro([](auto& b) {
+///     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
+/// });
+/// constexpr block_patcher<tpl> patch{};
+///
+/// std::memcpy(code, tpl.data(), tpl.size_bytes());
+/// patch(code, 42u);                          // zero-overhead store sequence
+/// auto fn = patch.entry<int()>(code, 42u);   // patch + typed fn ptr
+/// @endcode
+///
+/// ### `apply_patches<Signature>(block, destination, words, args...)` (compatibility)
+///
+/// Generic runtime dispatch path. Still useful when the block is not available
+/// as a constexpr at the call site, or as a fallback for dynamic patch counts.
+///
+/// - `apply_patches<Signature>(block, destination, words, args...)` — variadic args
+/// - `apply_patches<Signature>(block, destination, words, packed_args, count)` — pre-packed array
+/// - `apply_word_patches(block, destination, words, value_fn)` — callback for word/literal slots
 ///
 /// ## Example usage
 /// @code{.cpp}

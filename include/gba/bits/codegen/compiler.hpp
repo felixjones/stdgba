@@ -113,6 +113,10 @@ namespace gba::codegen {
     using bits::ror_reg;
     using bits::ldrh_reg;
     using bits::strh_reg;
+    using bits::ldrb_imm;
+    using bits::strb_imm;
+    using bits::ldrb_reg;
+    using bits::strb_reg;
     using bits::ldrsb_imm;
     using bits::ldrsh_imm;
     using bits::ldrsb_reg;
@@ -333,12 +337,17 @@ namespace gba::codegen {
             return *this;
         }
 
-        consteval arm_macro_builder& cmp_reg(const arm_reg rn, const arm_reg rm) {
-            push(bits::cmp_reg(rn, rm));
-            return *this;
-        }
+         consteval arm_macro_builder& cmp_reg(const arm_reg rn, const arm_reg rm) {
+             push(bits::cmp_reg(rn, rm));
+             return *this;
+         }
 
-        consteval arm_macro_builder& str_imm(const arm_reg rd, const arm_reg rn, const s12_arg arg) {
+         consteval arm_macro_builder& cmp_imm(const arm_reg rn, const imm_arg arg) {
+             push_with_patch(bits::cmp_imm(rn, 0), patch_kind::imm8, arg.position);
+             return *this;
+         }
+
+         consteval arm_macro_builder& str_imm(const arm_reg rd, const arm_reg rn, const s12_arg arg) {
             push_with_patch(bits::str_imm(rd, rn, 0), patch_kind::signed12, arg.position);
             return *this;
         }
@@ -393,67 +402,102 @@ namespace gba::codegen {
 
          // ---- Bitwise ----
 
-         consteval arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
-                                              const std::uint32_t imm) {
-             push(bits::orr_imm(rd, rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
+                                               const std::uint32_t imm) {
+              push(bits::orr_imm(rd, rn, imm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
-                                              const std::uint32_t imm) {
-             push(bits::and_imm(rd, rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
+                                               const imm_arg arg) {
+              push_with_patch(bits::orr_imm(rd, rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
 
-         consteval arm_macro_builder& and_reg(const arm_reg rd, const arm_reg rn,
-                                              const arm_reg rm) {
-             push(bits::and_reg(rd, rn, rm));
-             return *this;
-         }
+          consteval arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
+                                               const std::uint32_t imm) {
+              push(bits::and_imm(rd, rn, imm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
-                                              const std::uint32_t imm) {
-             push(bits::eor_imm(rd, rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
+                                               const imm_arg arg) {
+              push_with_patch(bits::and_imm(rd, rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
 
-         consteval arm_macro_builder& eor_reg(const arm_reg rd, const arm_reg rn,
-                                              const arm_reg rm) {
-             push(bits::eor_reg(rd, rn, rm));
-             return *this;
-         }
+          consteval arm_macro_builder& and_reg(const arm_reg rd, const arm_reg rn,
+                                               const arm_reg rm) {
+              push(bits::and_reg(rd, rn, rm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
-                                              const std::uint32_t imm) {
-             push(bits::bic_imm(rd, rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
+                                               const std::uint32_t imm) {
+              push(bits::eor_imm(rd, rn, imm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& bic_reg(const arm_reg rd, const arm_reg rn,
-                                              const arm_reg rm) {
-             push(bits::bic_reg(rd, rn, rm));
-             return *this;
-         }
+          consteval arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
+                                               const imm_arg arg) {
+              push_with_patch(bits::eor_imm(rd, rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
 
-         consteval arm_macro_builder& mvn_imm(const arm_reg rd, const std::uint32_t imm) {
-             push(bits::mvn_imm(rd, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& eor_reg(const arm_reg rd, const arm_reg rn,
+                                               const arm_reg rm) {
+              push(bits::eor_reg(rd, rn, rm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& mvn_reg(const arm_reg rd, const arm_reg rm) {
-             push(bits::mvn_reg(rd, rm));
-             return *this;
-         }
+          consteval arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
+                                               const std::uint32_t imm) {
+              push(bits::bic_imm(rd, rn, imm));
+              return *this;
+          }
+
+          consteval arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
+                                               const imm_arg arg) {
+              push_with_patch(bits::bic_imm(rd, rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
+
+          consteval arm_macro_builder& bic_reg(const arm_reg rd, const arm_reg rn,
+                                               const arm_reg rm) {
+              push(bits::bic_reg(rd, rn, rm));
+              return *this;
+          }
+
+          consteval arm_macro_builder& mvn_imm(const arm_reg rd, const std::uint32_t imm) {
+              push(bits::mvn_imm(rd, imm));
+              return *this;
+          }
+
+          consteval arm_macro_builder& mvn_imm(const arm_reg rd, const imm_arg arg) {
+              push_with_patch(bits::mvn_imm(rd, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
+
+          consteval arm_macro_builder& mvn_reg(const arm_reg rd, const arm_reg rm) {
+              push(bits::mvn_reg(rd, rm));
+              return *this;
+          }
 
          // ---- Additional arithmetic ----
 
-         consteval arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn,
-                                              const std::uint32_t imm) {
-             push(bits::rsb_imm(rd, rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn,
+                                               const std::uint32_t imm) {
+              push(bits::rsb_imm(rd, rn, imm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& rsb_reg(const arm_reg rd, const arm_reg rn,
+          consteval arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn,
+                                               const imm_arg arg) {
+              push_with_patch(bits::rsb_imm(rd, rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
+
+          consteval arm_macro_builder& rsb_reg(const arm_reg rd, const arm_reg rn,
                                               const arm_reg rm) {
              push(bits::rsb_reg(rd, rn, rm));
              return *this;
@@ -515,10 +559,32 @@ namespace gba::codegen {
              return *this;
          }
 
-         // ---- Halfword / signed-byte memory ----
+          // ---- Byte memory ----
 
-         consteval arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn,
-                                               const arm_reg rm) {
+          consteval arm_macro_builder& ldrb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
+              push(bits::ldrb_imm(rd, rn, offset));
+              return *this;
+          }
+
+          consteval arm_macro_builder& strb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
+              push(bits::strb_imm(rd, rn, offset));
+              return *this;
+          }
+
+          consteval arm_macro_builder& ldrb_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
+              push(bits::ldrb_reg(rd, rn, rm));
+              return *this;
+          }
+
+          consteval arm_macro_builder& strb_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
+              push(bits::strb_reg(rd, rn, rm));
+              return *this;
+          }
+
+          // ---- Halfword / signed-byte memory ----
+
+          consteval arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn,
+                                                const arm_reg rm) {
              push(bits::ldrh_reg(rd, rn, rm));
              return *this;
          }
@@ -565,12 +631,17 @@ namespace gba::codegen {
              return *this;
          }
 
-         consteval arm_macro_builder& tst_imm(const arm_reg rn, const std::uint32_t imm) {
-             push(bits::tst_imm(rn, imm));
-             return *this;
-         }
+          consteval arm_macro_builder& tst_imm(const arm_reg rn, const std::uint32_t imm) {
+              push(bits::tst_imm(rn, imm));
+              return *this;
+          }
 
-         consteval arm_macro_builder& tst_reg(const arm_reg rn, const arm_reg rm) {
+          consteval arm_macro_builder& tst_imm(const arm_reg rn, const imm_arg arg) {
+              push_with_patch(bits::tst_imm(rn, 0), patch_kind::imm8, arg.position);
+              return *this;
+          }
+
+          consteval arm_macro_builder& tst_reg(const arm_reg rn, const arm_reg rm) {
              push(bits::tst_reg(rn, rm));
              return *this;
          }
@@ -839,13 +910,20 @@ namespace gba::codegen {
                 return *this;
             }
 
-            consteval counting_arm_macro_builder& cmp_reg(const arm_reg rn, const arm_reg rm) {
-                (void)::gba::codegen::bits::cmp_reg(rn, rm);
-                ++m_count;
-                return *this;
-            }
+             consteval counting_arm_macro_builder& cmp_reg(const arm_reg rn, const arm_reg rm) {
+                 (void)::gba::codegen::bits::cmp_reg(rn, rm);
+                 ++m_count;
+                 return *this;
+             }
 
-            consteval counting_arm_macro_builder& str_imm(const arm_reg rd, const arm_reg rn, const s12_arg arg) {
+             consteval counting_arm_macro_builder& cmp_imm(const arm_reg rn, const imm_arg arg) {
+                 (void)::gba::codegen::bits::cmp_imm(rn, 0);
+                 track_arg(arg.position);
+                 ++m_count;
+                 return *this;
+             }
+
+             consteval counting_arm_macro_builder& str_imm(const arm_reg rd, const arm_reg rn, const s12_arg arg) {
                 (void)::gba::codegen::bits::str_imm(rd, rn, 0);
                 track_arg(arg.position);
                 ++m_count;
@@ -911,63 +989,103 @@ namespace gba::codegen {
 
              // ---- Bitwise ----
 
-             consteval counting_arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
-                                                           const std::uint32_t imm) {
-                 (void)::gba::codegen::bits::orr_imm(rd, rn, imm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
+                                                            const std::uint32_t imm) {
+                  (void)::gba::codegen::bits::orr_imm(rd, rn, imm);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
-                                                           const std::uint32_t imm) {
-                 (void)::gba::codegen::bits::and_imm(rd, rn, imm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn,
+                                                            const imm_arg arg) {
+                  (void)::gba::codegen::bits::orr_imm(rd, rn, 0);
+                  track_arg(arg.position);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& and_reg(const arm_reg rd, const arm_reg rn,
-                                                           const arm_reg rm) {
-                 (void)::gba::codegen::bits::and_reg(rd, rn, rm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
+                                                            const std::uint32_t imm) {
+                  (void)::gba::codegen::bits::and_imm(rd, rn, imm);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
-                                                           const std::uint32_t imm) {
-                 (void)::gba::codegen::bits::eor_imm(rd, rn, imm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& and_imm(const arm_reg rd, const arm_reg rn,
+                                                            const imm_arg arg) {
+                  (void)::gba::codegen::bits::and_imm(rd, rn, 0);
+                  track_arg(arg.position);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& eor_reg(const arm_reg rd, const arm_reg rn,
-                                                           const arm_reg rm) {
-                 (void)::gba::codegen::bits::eor_reg(rd, rn, rm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& and_reg(const arm_reg rd, const arm_reg rn,
+                                                            const arm_reg rm) {
+                  (void)::gba::codegen::bits::and_reg(rd, rn, rm);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
-                                                           const std::uint32_t imm) {
-                 (void)::gba::codegen::bits::bic_imm(rd, rn, imm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
+                                                            const std::uint32_t imm) {
+                  (void)::gba::codegen::bits::eor_imm(rd, rn, imm);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& bic_reg(const arm_reg rd, const arm_reg rn,
-                                                           const arm_reg rm) {
-                 (void)::gba::codegen::bits::bic_reg(rd, rn, rm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& eor_imm(const arm_reg rd, const arm_reg rn,
+                                                            const imm_arg arg) {
+                  (void)::gba::codegen::bits::eor_imm(rd, rn, 0);
+                  track_arg(arg.position);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& mvn_imm(const arm_reg rd,
-                                                           const std::uint32_t imm) {
-                 (void)::gba::codegen::bits::mvn_imm(rd, imm);
-                 ++m_count;
-                 return *this;
-             }
+              consteval counting_arm_macro_builder& eor_reg(const arm_reg rd, const arm_reg rn,
+                                                            const arm_reg rm) {
+                  (void)::gba::codegen::bits::eor_reg(rd, rn, rm);
+                  ++m_count;
+                  return *this;
+              }
 
-             consteval counting_arm_macro_builder& mvn_reg(const arm_reg rd, const arm_reg rm) {
+              consteval counting_arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
+                                                            const std::uint32_t imm) {
+                  (void)::gba::codegen::bits::bic_imm(rd, rn, imm);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& bic_imm(const arm_reg rd, const arm_reg rn,
+                                                            const imm_arg arg) {
+                  (void)::gba::codegen::bits::bic_imm(rd, rn, 0);
+                  track_arg(arg.position);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& bic_reg(const arm_reg rd, const arm_reg rn,
+                                                            const arm_reg rm) {
+                  (void)::gba::codegen::bits::bic_reg(rd, rn, rm);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& mvn_imm(const arm_reg rd,
+                                                            const std::uint32_t imm) {
+                  (void)::gba::codegen::bits::mvn_imm(rd, imm);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& mvn_imm(const arm_reg rd,
+                                                            const imm_arg arg) {
+                  (void)::gba::codegen::bits::mvn_imm(rd, 0);
+                  track_arg(arg.position);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& mvn_reg(const arm_reg rd, const arm_reg rm) {
                  (void)::gba::codegen::bits::mvn_reg(rd, rm);
                  ++m_count;
                  return *this;
@@ -976,8 +1094,16 @@ namespace gba::codegen {
              // ---- Additional arithmetic ----
 
              consteval counting_arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn,
-                                                           const std::uint32_t imm) {
+                                                            const std::uint32_t imm) {
                  (void)::gba::codegen::bits::rsb_imm(rd, rn, imm);
+                 ++m_count;
+                 return *this;
+             }
+
+             consteval counting_arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn,
+                                                           const imm_arg arg) {
+                 (void)::gba::codegen::bits::rsb_imm(rd, rn, 0);
+                 track_arg(arg.position);
                  ++m_count;
                  return *this;
              }
@@ -1054,9 +1180,39 @@ namespace gba::codegen {
                  return *this;
              }
 
-             // ---- Halfword / signed-byte memory ----
+              // ---- Byte memory ----
 
-             consteval counting_arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn,
+              consteval counting_arm_macro_builder& ldrb_imm(const arm_reg rd, const arm_reg rn,
+                                                             const int offset) {
+                  (void)::gba::codegen::bits::ldrb_imm(rd, rn, offset);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& strb_imm(const arm_reg rd, const arm_reg rn,
+                                                             const int offset) {
+                  (void)::gba::codegen::bits::strb_imm(rd, rn, offset);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& ldrb_reg(const arm_reg rd, const arm_reg rn,
+                                                             const arm_reg rm) {
+                  (void)::gba::codegen::bits::ldrb_reg(rd, rn, rm);
+                  ++m_count;
+                  return *this;
+              }
+
+              consteval counting_arm_macro_builder& strb_reg(const arm_reg rd, const arm_reg rn,
+                                                             const arm_reg rm) {
+                  (void)::gba::codegen::bits::strb_reg(rd, rn, rm);
+                  ++m_count;
+                  return *this;
+              }
+
+              // ---- Halfword / signed-byte memory ----
+
+              consteval counting_arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn,
                                                             const arm_reg rm) {
                  (void)::gba::codegen::bits::ldrh_reg(rd, rn, rm);
                  ++m_count;
@@ -1114,8 +1270,16 @@ namespace gba::codegen {
              }
 
              consteval counting_arm_macro_builder& tst_imm(const arm_reg rn,
-                                                           const std::uint32_t imm) {
+                                                            const std::uint32_t imm) {
                  (void)::gba::codegen::bits::tst_imm(rn, imm);
+                 ++m_count;
+                 return *this;
+             }
+
+             consteval counting_arm_macro_builder& tst_imm(const arm_reg rn,
+                                                           const imm_arg arg) {
+                 (void)::gba::codegen::bits::tst_imm(rn, 0);
+                 track_arg(arg.position);
                  ++m_count;
                  return *this;
              }
@@ -1248,5 +1412,114 @@ namespace gba::codegen {
         fn(builder);
         return builder.compile();
     }
+
+    /// @brief Zero-overhead compile-time patcher for a `compiled_block`.
+    ///
+    /// Parameterised on the block value as a non-type template argument, so every
+    /// piece of patch metadata (word index, base word, patch kind, arg index) is a
+    /// compile-time constant.  `operator()` expands into a straight-line sequence of
+    /// stores — no loop, no dispatch table, no ROM metadata loads.
+    ///
+    /// Usage:
+    /// @code{.cpp}
+    /// static constexpr auto tpl = arm_macro([](auto& b) {
+    ///     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
+    /// });
+    ///
+    /// constexpr block_patcher<tpl> patch{};
+    ///
+    /// // Apply patches (in-place, zero overhead):
+    /// patch(code, 42u);
+    ///
+    /// // Apply and get a typed function pointer:
+    /// auto fn = patch.entry<int()>(code, 42u);
+    /// @endcode
+    template<auto Block>
+    struct block_patcher {
+    private:
+        // Apply a single patch slot I, with all metadata as compile-time constants.
+        template<std::size_t I>
+        [[gnu::always_inline]] static void apply_slot(std::uint32_t* dest,
+                                                       const std::uint32_t* vals) noexcept {
+            constexpr std::size_t   wi   = Block.patches[I].word_index;
+            constexpr std::uint32_t bw   = Block.patches[I].base_word;
+            constexpr patch_kind    kind = Block.patches[I].kind;
+            constexpr std::size_t   ai   = Block.patches[I].arg_index;
+            const auto value = vals[ai];
+
+            if constexpr (kind == patch_kind::imm8) {
+                bits::require(value <= 0xFFu, "block_patcher: imm8 value out of range");
+                dest[wi] = bw | value;
+            } else if constexpr (kind == patch_kind::signed12) {
+                const auto sv = static_cast<std::int32_t>(value);
+                if (sv < 0) {
+                    bits::require(sv >= -4095, "block_patcher: signed12 value out of range");
+                    dest[wi] = bw | static_cast<std::uint32_t>(-sv);
+                } else {
+                    bits::require(sv <= 4095, "block_patcher: signed12 value out of range");
+                    dest[wi] = bw | 0x00800000u | static_cast<std::uint32_t>(sv);
+                }
+            } else if constexpr (kind == patch_kind::branch_offset) {
+                const auto sv = static_cast<std::int32_t>(value);
+                bits::require(sv >= -0x00800000 && sv <= 0x007FFFFF,
+                              "block_patcher: branch offset out of range");
+                dest[wi] = bw | (value & 0x00FFFFFFu);
+            } else {
+                // instruction / word32: write full word directly
+                dest[wi] = value;
+            }
+        }
+
+        // Fold-expand over all patch indices.
+        template<std::size_t... Is>
+        [[gnu::always_inline]] static void apply_all(std::uint32_t* dest,
+                                                      const std::uint32_t* vals,
+                                                      std::index_sequence<Is...>) noexcept {
+            (apply_slot<Is>(dest, vals), ...);
+        }
+
+        template<typename T>
+        [[nodiscard]] static constexpr bool is_patch_arg_convertible = [] {
+            if constexpr (requires(const std::remove_reference_t<T>& v) { v.get(); }) {
+                using got_t = decltype(std::declval<const std::remove_reference_t<T>&>().get());
+                return std::is_convertible_v<got_t, std::uint32_t>;
+            } else {
+                return std::is_convertible_v<T, std::uint32_t>;
+            }
+        }();
+
+        template<typename T>
+        [[nodiscard]] static constexpr std::uint32_t normalize_patch_arg(T&& arg) {
+            if constexpr (requires(const std::remove_reference_t<T>& v) { v.get(); }) {
+                return static_cast<std::uint32_t>(arg.get());
+            } else {
+                return static_cast<std::uint32_t>(std::forward<T>(arg));
+            }
+        }
+
+    public:
+        /// @brief Apply all patches to `dest`. Args are runtime; all patch
+        ///        metadata is resolved at compile time.
+        template<typename... Args>
+        [[gnu::always_inline]] void operator()(std::uint32_t* dest, Args&&... args) const noexcept {
+            static_assert((is_patch_arg_convertible<Args> && ...),
+                          "block_patcher: args must be convertible to uint32_t or provide get() -> uint32_t");
+            static_assert(sizeof...(Args) >= Block.arg_count,
+                          "block_patcher: too few patch arguments");
+            const std::array<std::uint32_t, sizeof...(Args)> vals{
+                normalize_patch_arg(std::forward<Args>(args))...
+            };
+            apply_all(dest, vals.data(), std::make_index_sequence<Block.patch_count>{});
+        }
+
+        /// @brief Apply patches and return a typed function pointer to `dest`.
+        ///        Suitable for use as a tail-call target after patching.
+        template<typename Signature, typename... Args>
+        [[gnu::always_inline]] std::add_pointer_t<Signature>
+        entry(std::uint32_t* dest, Args&&... args) const noexcept {
+            (*this)(dest, std::forward<Args>(args)...);
+            return reinterpret_cast<std::add_pointer_t<Signature>>(dest);
+        }
+    };
 
 } // namespace gba::codegen
