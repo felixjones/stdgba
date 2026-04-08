@@ -110,6 +110,7 @@
 ///
 /// - `block_patcher<block>{}(destination, args...)` — apply patches in place
 /// - `block_patcher<block>{}.entry<Signature>(destination, args...)` — patch + return typed fn ptr
+/// - `block_patcher<block>{}.typed<Signature>()` — return a typed patcher whose `operator()` returns a fn ptr
 ///
 /// Example:
 /// @code{.cpp}
@@ -121,6 +122,33 @@
 /// std::memcpy(code, tpl.data(), tpl.size_bytes());
 /// patch(code, 42u);                          // zero-overhead store sequence
 /// auto fn = patch.entry<int()>(code, 42u);   // patch + typed fn ptr
+///
+/// // Typed patcher variant — operator() returns int(*)() directly:
+/// constexpr auto tpatch = block_patcher<tpl>{}.typed<int()>();
+/// auto fn2 = tpatch(code, 99u);              // returns int(*)()
+/// @endcode
+///
+/// ### `compiled_block::patcher()` / `compiled_block::patcher<Signature>()`
+///
+/// Convenience patcher obtained directly from the block without repeating the
+/// block as an NTTP.  Stores patch metadata as runtime fields but is still
+/// constexpr-constructible, so it can be stored as `constexpr auto`.
+///
+/// - `block.patcher()(destination, args...)` — apply patches in place (untyped)
+/// - `block.patcher<Signature>()(destination, args...)` — patch + return typed fn ptr
+/// - `block.patcher()(destination, "name"_arg = v)` — named-arg patching
+///
+/// Example:
+/// @code{.cpp}
+/// static constexpr auto tpl = arm_macro([](auto& b) {
+///     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
+/// });
+/// constexpr auto patch  = tpl.patcher();          // untyped
+/// constexpr auto tpatch = tpl.patcher<int()>();   // typed
+///
+/// std::memcpy(code, tpl.data(), tpl.size_bytes());
+/// patch(code, 42u);                   // apply patches only
+/// auto fn = tpatch(code, 42u);        // apply patches + return int(*)()
 /// @endcode
 ///
 /// ### `apply_patches<Signature>(block, destination, words, args...)` (compatibility)
@@ -169,6 +197,7 @@
 #include <type_traits>
 #include <utility>
 
+#include <gba/args>
 #include <gba/bits/codegen/compiler.hpp>
 
 /// @cond INTERNAL

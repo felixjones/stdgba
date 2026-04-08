@@ -52,7 +52,7 @@
 # Advanced
 
 - [EWRAM & IWRAM Overlays](./advanced/overlays.md)
-- [Runtime ARM Codegen](./advanced/runtime-codegen.md)
+- [ARM Codegen](./advanced/codegen.md)
 - [Green Low Bit (`grn_lo`)](./advanced/green-low-bit.md)
 - [Undocumented Namespace](./advanced/undocumented.md)
 

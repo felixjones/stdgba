@@ -6,6 +6,7 @@
 namespace {
 
     using namespace gba::codegen;
+    using namespace gba::literals;
 
     static constexpr auto block = [] {
         auto b = arm_macro_builder<4>{};
@@ -41,6 +42,16 @@ namespace {
          .add_imm(arm_reg::r1, arm_reg::r1, imm_slot(1))
          .bx(arm_reg::lr);
     });
+
+    static constexpr auto named_reuse_block = arm_macro([](auto& b) {
+        b.mov_imm(arm_reg::r0, "x"_arg)
+         .add_imm(arm_reg::r0, arm_reg::r0, "x"_arg)
+         .bx(arm_reg::lr);
+    });
+
+    static_assert(named_reuse_block.count == 3);
+    static_assert(named_reuse_block.patch_count == 2);
+    static_assert(named_reuse_block.arg_count == 1);
 
     static_assert(patched_block.count == 3);
     static_assert(patched_block.patch_count == 2);
@@ -443,6 +454,63 @@ int main() {
         gba::test.eq(code[0], 0xE3A00005u);
         gba::test.eq(code[1], 0xE2811009u);
     });
+
+          gba::test("compiled_block::patcher supports shared named args (\"x\"_arg)", [] {
+            alignas(4) std::uint32_t code[4] = {};
+            std::memcpy(code, named_reuse_block.data(), named_reuse_block.size_bytes());
+
+            const auto patcher = named_reuse_block.patcher();
+            patcher(code, "x"_arg = 7u);
+
+            // mov r0, #7; add r0, r0, #7
+            gba::test.eq(code[0], 0xE3A00007u);
+            gba::test.eq(code[1], 0xE2800007u);
+
+            auto fn = reinterpret_cast<int (*)()>(code);
+            gba::test.eq(fn(), 14);
+          });
+
+          gba::test("compiled_block::patcher<Sig>() returns typed patcher whose op() returns fn ptr", [] {
+            alignas(4) std::uint32_t code[4] = {};
+            std::memcpy(code, return_imm_block.data(), return_imm_block.size_bytes());
+
+            constexpr auto typed_patch = return_imm_block.patcher<int()>();
+            const auto fn = typed_patch(code, 99u);  // returns int(*)() directly
+
+            gba::test.is_true(fn != nullptr);
+            gba::test.eq(fn(), 99);
+          });
+
+          gba::test("compiled_block::patcher<Sig>() typed patcher re-patch produces new fn ptr", [] {
+            alignas(4) std::uint32_t code[4] = {};
+            std::memcpy(code, return_imm_block.data(), return_imm_block.size_bytes());
+
+            constexpr auto typed_patch = return_imm_block.patcher<int()>();
+            const auto fn42 = typed_patch(code, 42u);
+            gba::test.eq(fn42(), 42);
+            const auto fn77 = typed_patch(code, 77u);
+            gba::test.eq(fn77(), 77);
+          });
+
+          gba::test("compiled_block::patcher<Sig>() typed patcher supports named args", [] {
+            alignas(4) std::uint32_t code[4] = {};
+            std::memcpy(code, named_reuse_block.data(), named_reuse_block.size_bytes());
+
+            constexpr auto typed_patch = named_reuse_block.patcher<int()>();
+            const auto fn = typed_patch(code, "x"_arg = 5u);  // returns int(*)() directly
+            gba::test.eq(fn(), 10);  // 5 + 5
+          });
+
+          gba::test("block_patcher<Block>::typed<Sig>() returns typed patcher whose op() returns fn ptr", [] {
+            alignas(4) std::uint32_t code[4] = {};
+            std::memcpy(code, return_imm_block.data(), return_imm_block.size_bytes());
+
+            constexpr auto typed_patch = block_patcher<return_imm_block>{}.typed<int()>();
+            const auto fn = typed_patch(code, 55u);  // returns int(*)() directly
+
+            gba::test.is_true(fn != nullptr);
+            gba::test.eq(fn(), 55);
+          });
 
     gba::test("arm_macro supports runtime signed12 patch slots", [] {
         alignas(4) std::uint32_t code[4] = {};

@@ -1,0 +1,26 @@
+/// @file gba/args
+/// @brief Named argument binder helpers.
+///
+/// This header provides the generic `"name"_arg` literal used to bind named
+/// arguments across APIs (formatting, codegen, and future subsystems).
+///
+/// @code{.cpp}
+/// #include <gba/args>
+/// using namespace gba::literals;
+///
+/// auto hp = "hp"_arg = 42;
+/// @endcode
+#pragma once
+
+#include <gba/bits/format/args.hpp>
+
+namespace gba::literals {
+	/// @brief Create a named argument binder.
+	///
+	/// The returned type is `gba::format::arg_binder<Name>`, which can be bound
+	/// to a value via `operator=` or `operator()`, producing a `bound_arg`.
+	template<format::fixed_string Name>
+	consteval auto operator""_arg() {
+		return format::arg_binder<Name>{};
+	}
+} // namespace gba::literals

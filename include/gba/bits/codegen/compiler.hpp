@@ -4,6 +4,10 @@
 
 #include <gba/bits/codegen/encoder.hpp>
 
+// Shared named-argument binder/value helpers ("name"_arg) live in the format layer.
+// We depend only on binder/value types (no format parsing).
+#include <gba/bits/format/args.hpp>
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -180,6 +184,17 @@ namespace gba::codegen {
         std::uint32_t base_word{};
     };
 
+      template<std::size_t Capacity>
+      struct compiled_block;
+
+      namespace bits {
+        template<std::size_t PatchCount, std::size_t ArgCount>
+        struct block_patcher;
+
+        template<std::size_t PatchCount, std::size_t ArgCount, std::size_t Capacity>
+        consteval block_patcher<PatchCount, ArgCount> make_block_patcher(const compiled_block<Capacity>& block);
+      } // namespace bits
+
     template<std::size_t Capacity>
     struct compiled_block {
         std::array<arm_word, Capacity> words{};
@@ -188,6 +203,7 @@ namespace gba::codegen {
         std::size_t patch_count{};
         std::size_t arg_count{};
         std::uint8_t patch_kind_mask{};
+        std::array<std::uint32_t, 32> arg_hashes{}; // 0 for positional, hash for named
 
         /// Pointer to the first instruction word.
         [[nodiscard]] constexpr const arm_word* data() const noexcept { return words.data(); }
@@ -228,6 +244,36 @@ namespace gba::codegen {
             bits::require(patch_index < patch_count, "compiled_block: patch index out of bounds");
             return patches[patch_index].kind;
         }
+
+            /// @brief Create an untyped patcher object for this block.
+            ///
+            /// The returned type is opaque (store as `auto`). It supports both:
+            /// - positional patching: `patcher(dest, 1u, 2u, ...)`
+            /// - named patching using the shared format literal: `patcher(dest, "x"_arg = 7u)`
+            ///
+            /// Use `patcher<Signature>()` to get a typed patcher whose `operator()`
+            /// returns a function pointer of type `Signature*` directly.
+            consteval auto patcher() const noexcept {
+                      return bits::make_block_patcher<Capacity, Capacity>(*this);
+            }
+
+            /// @brief Create a typed patcher object for this block.
+            ///
+            /// The call operator of the returned patcher applies all patches and then
+            /// returns a raw function pointer of type `std::add_pointer_t<Signature>`:
+            /// @code{.cpp}
+            /// static constexpr auto tpl = arm_macro([](auto& b) {
+            ///     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
+            /// });
+            /// constexpr auto patch = tpl.patcher<int()>();
+            ///
+            /// std::memcpy(code, tpl.data(), tpl.size_bytes());
+            /// auto fn = patch(code, 42u);  // returns int(*)(), applies patches
+            /// @endcode
+            template<typename Signature>
+            consteval auto patcher() const noexcept {
+                      return bits::make_block_patcher<Capacity, Capacity>(*this).template typed<Signature>();
+            }
     };
 
     template<std::size_t Capacity>
@@ -262,6 +308,13 @@ namespace gba::codegen {
             return *this;
         }
 
+            template<::gba::format::fixed_string Name>
+            consteval arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::format::arg_binder<Name>) {
+              const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+              push_with_patch(bits::mov_imm(rd, 0), patch_kind::imm8, idx);
+              return *this;
+            }
+
         consteval arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
             push(bits::add_imm(rd, rn, imm));
             return *this;
@@ -282,6 +335,13 @@ namespace gba::codegen {
             return *this;
         }
 
+            template<::gba::format::fixed_string Name>
+            consteval arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn, const ::gba::format::arg_binder<Name>) {
+              const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+              push_with_patch(bits::add_imm(rd, rn, 0), patch_kind::imm8, idx);
+              return *this;
+            }
+
         consteval arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
             push(bits::sub_imm(rd, rn, imm));
             return *this;
@@ -296,6 +356,13 @@ namespace gba::codegen {
             push_with_patch(bits::sub_imm(rd, rn, 0), patch_kind::imm8, arg.position);
             return *this;
         }
+
+            template<::gba::format::fixed_string Name>
+            consteval arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn, const ::gba::format::arg_binder<Name>) {
+              const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+              push_with_patch(bits::sub_imm(rd, rn, 0), patch_kind::imm8, idx);
+              return *this;
+            }
 
         consteval arm_macro_builder& ldr_imm(const arm_reg rd, const arm_reg rn, const int offset) {
             push(bits::ldr_imm(rd, rn, offset));
@@ -723,7 +790,7 @@ namespace gba::codegen {
          [[nodiscard]] consteval std::size_t mark() const noexcept { return m_count; }
 
          [[nodiscard]] consteval compiled_block<Capacity> compile() const noexcept {
-             return {m_words, m_count, m_patches, m_patchCount, m_argCount, m_patchKindMask};
+                return {m_words, m_count, m_patches, m_patchCount, m_argCount, m_patchKindMask, m_argHashes};
          }
 
      private:
@@ -733,6 +800,10 @@ namespace gba::codegen {
         std::size_t m_patchCount{};
         std::size_t m_argCount{};
         std::uint8_t m_patchKindMask{};
+            std::array<std::uint32_t, 32> m_argHashes{};
+            std::array<std::uint32_t, 32> m_namedHashes{};
+            std::uint8_t m_namedBase{0xFFu};
+            std::uint8_t m_namedCount{};
 
           [[nodiscard]] static consteval std::uint32_t patch_base(const std::uint32_t word, const patch_kind kind) {
               switch (kind) {
@@ -753,10 +824,42 @@ namespace gba::codegen {
             m_words[m_count++] = arm_word{word};
         }
 
+            consteval std::uint8_t named_arg_index(const std::uint32_t hash) {
+              bits::require(hash != 0u, "arm_macro_builder: named arg hash must be nonzero");
+
+              if (m_namedBase == 0xFFu) {
+                // Start named args after the highest positional arg used so far.
+                bits::require(m_argCount <= 32u, "arm_macro_builder: too many patch args");
+                m_namedBase = static_cast<std::uint8_t>(m_argCount);
+              }
+
+              for (std::uint8_t i = 0; i < m_namedCount; ++i) {
+                if (m_namedHashes[i] == hash) {
+                  return static_cast<std::uint8_t>(m_namedBase + i);
+                }
+              }
+
+              bits::require(m_namedCount < 32u, "arm_macro_builder: too many named args");
+              const auto idx = static_cast<std::uint8_t>(m_namedBase + m_namedCount);
+              bits::require(idx <= 31u, "arm_macro_builder: too many patch args (max 32)");
+
+              m_namedHashes[m_namedCount++] = hash;
+              m_argHashes[idx] = hash;
+              if (static_cast<std::size_t>(idx + 1u) > m_argCount) {
+                m_argCount = static_cast<std::size_t>(idx + 1u);
+              }
+              return idx;
+            }
+
         consteval void push_with_patch(const std::uint32_t word, const patch_kind kind, const std::uint8_t argIndex) {
             bits::require(m_patchCount < Capacity, "arm_macro_builder: patch capacity exceeded");
             bits::require(argIndex <= 31, "arm_macro_builder: patch arg out of range (0-31)");
             bits::require(m_count < Capacity, "arm_macro_builder: instruction capacity exceeded");
+
+              // Positional args have arg_hash = 0.
+              if (m_argHashes[argIndex] == 0u) {
+                m_argHashes[argIndex] = 0u;
+              }
 
             m_patches[m_patchCount++] = {
                 static_cast<std::uint8_t>(m_count),
@@ -815,6 +918,13 @@ namespace gba::codegen {
                 return *this;
             }
 
+                  template<::gba::format::fixed_string Name>
+                  consteval counting_arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::format::arg_binder<Name>) {
+                    (void)::gba::codegen::bits::mov_imm(rd, 0);
+                    ++m_count;
+                    return *this;
+                  }
+
             consteval counting_arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
                 (void)::gba::codegen::bits::add_imm(rd, rn, imm);
                 ++m_count;
@@ -840,6 +950,13 @@ namespace gba::codegen {
                 return *this;
             }
 
+                  template<::gba::format::fixed_string Name>
+                  consteval counting_arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn, const ::gba::format::arg_binder<Name>) {
+                    (void)::gba::codegen::bits::add_imm(rd, rn, 0);
+                    ++m_count;
+                    return *this;
+                  }
+
             consteval counting_arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
                 (void)::gba::codegen::bits::sub_imm(rd, rn, imm);
                 ++m_count;
@@ -858,6 +975,13 @@ namespace gba::codegen {
                 ++m_count;
                 return *this;
             }
+
+                  template<::gba::format::fixed_string Name>
+                  consteval counting_arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn, const ::gba::format::arg_binder<Name>) {
+                    (void)::gba::codegen::bits::sub_imm(rd, rn, 0);
+                    ++m_count;
+                    return *this;
+                  }
 
             consteval counting_arm_macro_builder& ldr_imm(const arm_reg rd, const arm_reg rn, const int offset) {
                 (void)::gba::codegen::bits::ldr_imm(rd, rn, offset);
@@ -1413,6 +1537,205 @@ namespace gba::codegen {
         return builder.compile();
     }
 
+      namespace bits {
+        template<std::size_t PatchCount, std::size_t ArgCount>
+        struct block_patcher {
+          std::array<patch_slot, PatchCount> patches{};
+          std::array<std::uint32_t, ArgCount> arg_hashes{};
+          /// Actual number of patch slots in use (≤ PatchCount).
+          std::size_t actual_patches{PatchCount};
+          /// Actual number of arg slots in use (≤ ArgCount).
+          std::size_t actual_args{ArgCount};
+
+        private:
+          template<typename T>
+          [[nodiscard]] static constexpr bool is_named_arg() noexcept {
+            return requires {
+              std::remove_reference_t<T>::hash;
+            } && requires(const std::remove_reference_t<T>& v) {
+              v.get();
+            };
+          }
+
+          template<typename T>
+          [[nodiscard]] static constexpr bool is_patch_arg_convertible() noexcept {
+            if constexpr (requires(const std::remove_reference_t<T>& v) { v.get(); }) {
+              using got_t = decltype(std::declval<const std::remove_reference_t<T>&>().get());
+              return std::is_convertible_v<got_t, std::uint32_t>;
+            } else {
+              return std::is_convertible_v<T, std::uint32_t>;
+            }
+          }
+
+          template<typename T>
+          [[nodiscard]] static constexpr std::uint32_t normalize_arg(T&& arg) noexcept {
+            if constexpr (requires(const std::remove_reference_t<T>& v) { v.get(); }) {
+              return static_cast<std::uint32_t>(arg.get());
+            } else {
+              return static_cast<std::uint32_t>(std::forward<T>(arg));
+            }
+          }
+
+          [[nodiscard]] constexpr std::size_t find_named_index(const std::uint32_t hash) const noexcept {
+            for (std::size_t i = 0; i < actual_args; ++i) {
+              if (arg_hashes[i] == hash) return i;
+            }
+            return static_cast<std::size_t>(-1);
+          }
+
+          [[nodiscard]] constexpr std::size_t positional_needed() const noexcept {
+            std::size_t n = 0;
+            for (std::size_t i = 0; i < actual_args; ++i) {
+              if (arg_hashes[i] == 0u) ++n;
+            }
+            return n;
+          }
+
+          template<typename... Ts>
+          [[nodiscard]] static consteval bool no_duplicate_named() {
+            // Compile-time duplicate detection: for each named arg type, count how many
+            // other arg types share the same hash.  Uses if constexpr so that ::hash is
+            // only accessed when the type actually satisfies is_named_arg<T>.
+            bool ok = true;
+            auto check_one = [&]<typename T>() {
+              if constexpr (is_named_arg<T>()) {
+                constexpr auto h = static_cast<std::uint32_t>(std::remove_reference_t<T>::hash);
+                std::size_t n = 0;
+                auto count_h = [&]<typename U>() {
+                  if constexpr (is_named_arg<U>()) {
+                    if constexpr (static_cast<std::uint32_t>(std::remove_reference_t<U>::hash) == h) {
+                      ++n;
+                    }
+                  }
+                };
+                (count_h.template operator()<Ts>(), ...);
+                if (n > 1) ok = false;
+              }
+            };
+            (check_one.template operator()<Ts>(), ...);
+            return ok;
+          }
+
+        public:
+          /// @brief A typed variant whose `operator()` returns a function pointer of type
+          ///        `std::add_pointer_t<Signature>` after applying all patches.
+          template<typename Signature>
+          struct typed_result {
+              block_patcher<PatchCount, ArgCount> inner;
+
+              template<typename... InnerArgs>
+              [[gnu::always_inline]] std::add_pointer_t<Signature>
+              operator()(std::uint32_t* dest, InnerArgs&&... args) const noexcept {
+                  return inner.template entry<Signature>(dest, std::forward<InnerArgs>(args)...);
+              }
+          };
+
+          /// @brief Return a typed patcher whose `operator()` returns
+          ///        `std::add_pointer_t<Signature>` after applying patches.
+          template<typename Signature>
+          [[nodiscard]] constexpr typed_result<Signature> typed() const noexcept {
+              return {*this};
+          }
+
+          template<typename... Args>
+          [[gnu::always_inline]] void operator()(std::uint32_t* dest, Args&&... args) const noexcept {
+            static_assert((is_patch_arg_convertible<Args>() && ...),
+                    "patcher: args must be convertible to uint32_t or provide get() -> uint32_t");
+            static_assert(no_duplicate_named<Args...>(), "patcher: duplicate named arg provided");
+
+            std::array<std::uint32_t, ArgCount> vals{};
+            std::array<bool, ArgCount> filled{};
+            std::size_t pos_cursor = 0;
+
+            auto bind_positional = [&](const std::uint32_t value) {
+              while (pos_cursor < actual_args && arg_hashes[pos_cursor] != 0u) {
+                ++pos_cursor;
+              }
+              bits::require(pos_cursor < actual_args, "patcher: too many positional args");
+              vals[pos_cursor] = value;
+              filled[pos_cursor] = true;
+              ++pos_cursor;
+            };
+
+            auto bind_one = [&](auto&& a) {
+              using arg_t = std::remove_reference_t<decltype(a)>;
+              if constexpr (is_named_arg<arg_t>()) {
+                constexpr auto h = static_cast<std::uint32_t>(arg_t::hash);
+                const auto idx = find_named_index(h);
+                bits::require(idx != static_cast<std::size_t>(-1), "patcher: unknown named arg provided");
+                vals[idx] = normalize_arg(std::forward<decltype(a)>(a));
+                filled[idx] = true;
+              } else {
+                bind_positional(normalize_arg(std::forward<decltype(a)>(a)));
+              }
+            };
+
+            (bind_one(std::forward<Args>(args)), ...);
+
+            // Validate all args were provided.
+            for (std::size_t i = 0; i < actual_args; ++i) {
+              bits::require(filled[i], "patcher: missing patch argument");
+            }
+
+            // Apply patches (fully unrolled).
+            for (std::size_t i = 0; i < actual_patches; ++i) {
+              const auto& p = patches[i];
+              const auto value = vals[p.arg_index];
+              switch (p.kind) {
+                case patch_kind::imm8:
+                  bits::require(value <= 0xFFu, "patcher: imm8 value out of range");
+                  dest[p.word_index] = p.base_word | value;
+                  break;
+                case patch_kind::signed12: {
+                  const auto sv = static_cast<std::int32_t>(value);
+                  if (sv < 0) {
+                    bits::require(sv >= -4095, "patcher: signed12 value out of range");
+                    dest[p.word_index] = p.base_word | static_cast<std::uint32_t>(-sv);
+                  } else {
+                    bits::require(sv <= 4095, "patcher: signed12 value out of range");
+                    dest[p.word_index] = p.base_word | 0x00800000u | static_cast<std::uint32_t>(sv);
+                  }
+                  break;
+                }
+                case patch_kind::branch_offset: {
+                  const auto sv = static_cast<std::int32_t>(value);
+                  bits::require(sv >= -0x00800000 && sv <= 0x007FFFFF,
+                          "patcher: branch offset out of range");
+                  dest[p.word_index] = p.base_word | (value & 0x00FFFFFFu);
+                  break;
+                }
+                case patch_kind::instruction:
+                  dest[p.word_index] = value;
+                  break;
+              }
+            }
+          }
+
+          template<typename Signature, typename... Args>
+          [[gnu::always_inline]] std::add_pointer_t<Signature>
+          entry(std::uint32_t* dest, Args&&... args) const noexcept {
+            (*this)(dest, std::forward<Args>(args)...);
+            return reinterpret_cast<std::add_pointer_t<Signature>>(dest);
+          }
+        };
+
+        template<std::size_t PatchCount, std::size_t ArgCount, std::size_t Capacity>
+        consteval block_patcher<PatchCount, ArgCount> make_block_patcher(const compiled_block<Capacity>& block) {
+          block_patcher<PatchCount, ArgCount> p{};
+          p.actual_patches = block.patch_count;
+          p.actual_args    = block.arg_count;
+          const auto n_patches = block.patch_count < PatchCount ? block.patch_count : PatchCount;
+          for (std::size_t i = 0; i < n_patches; ++i) {
+            p.patches[i] = block.patches[i];
+          }
+          const auto n_args = block.arg_count < ArgCount ? block.arg_count : ArgCount;
+          for (std::size_t i = 0; i < n_args; ++i) {
+            p.arg_hashes[i] = block.arg_hashes[i];
+          }
+          return p;
+        }
+      } // namespace bits
+
     /// @brief Zero-overhead compile-time patcher for a `compiled_block`.
     ///
     /// Parameterised on the block value as a non-type template argument, so every
@@ -1498,6 +1821,34 @@ namespace gba::codegen {
         }
 
     public:
+        /// @brief A typed variant whose `operator()` returns a function pointer of type
+        ///        `std::add_pointer_t<Signature>` after applying all patches.
+        ///
+        /// Obtain via `block_patcher<Block>{}.typed<Signature>()` or, for zero-overhead
+        /// NTT usage, store as `constexpr auto patch = block_patcher<tpl>{}.typed<int()>()`.
+        template<typename Signature>
+        struct typed_result {
+            template<typename... InnerArgs>
+            [[gnu::always_inline]] std::add_pointer_t<Signature>
+            operator()(std::uint32_t* dest, InnerArgs&&... args) const noexcept {
+                return block_patcher<Block>{}.template entry<Signature>(dest, std::forward<InnerArgs>(args)...);
+            }
+        };
+
+        /// @brief Return a typed patcher whose `operator()` returns
+        ///        `std::add_pointer_t<Signature>` after applying all patches.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// static constexpr auto tpl = arm_macro([](auto& b) { ... });
+        /// constexpr auto patch = block_patcher<tpl>{}.typed<int()>();
+        /// auto fn = patch(code, 42u);   // returns int(*)()
+        /// @endcode
+        template<typename Signature>
+        [[nodiscard]] static constexpr typed_result<Signature> typed() noexcept {
+            return {};
+        }
+
         /// @brief Apply all patches to `dest`. Args are runtime; all patch
         ///        metadata is resolved at compile time.
         template<typename... Args>
