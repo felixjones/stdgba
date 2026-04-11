@@ -1802,7 +1802,7 @@ namespace gba::codegen {
         }
 
         template<typename T>
-        [[nodiscard]] static constexpr bool is_patch_arg_convertible = [] {
+        static constexpr bool is_patch_arg_convertible = [] static {
             if constexpr (requires(const std::remove_reference_t<T>& v) { v.get(); }) {
                 using got_t = decltype(std::declval<const std::remove_reference_t<T>&>().get());
                 return std::is_convertible_v<got_t, std::uint32_t>;
