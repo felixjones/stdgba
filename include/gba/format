@@ -101,6 +101,8 @@
 /// @see gba::format::make_arg
 #pragma once
 
+#include <gba/args>
+
 #include <gba/bits/format/compiled_format.hpp>
 
 namespace gba::format {
@@ -119,10 +121,5 @@ namespace gba::literals {
 	template<format::fixed_string Fmt>
 	consteval auto operator""_fmt() {
 		return format::compiled_format<Fmt>{};
-	}
-
-	template<format::fixed_string Name>
-	consteval auto operator""_arg() {
-		return format::arg_binder<Name>{};
 	}
 } // namespace gba::literals
