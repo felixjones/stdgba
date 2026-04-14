@@ -25,11 +25,16 @@ namespace gba::text {
             const auto nibble = static_cast<unsigned char>(config.start_index + local_idx);
             const auto role = config.decode_role(nibble, plane);
 
+            if (config.profile == bitplane_profile::one_plane_full_color &&
+                role > static_cast<unsigned char>(bitplane_role::shadow)) {
+                continue;
+            }
+
             gba::color color{};
             switch (role) {
                 case static_cast<unsigned char>(bitplane_role::background): color = theme.background; break;
                 case static_cast<unsigned char>(bitplane_role::foreground): color = theme.foreground; break;
-                case static_cast<unsigned char>(bitplane_role::shadow): color = theme.shadow; break;
+                case static_cast<unsigned char>(bitplane_role::shadow):     color = theme.shadow;     break;
                 default: color = theme.background; break;
             }
 
@@ -46,5 +51,6 @@ namespace gba::text {
             set_palette_for_plane(config, plane, theme);
         }
     }
+
 
 } // namespace gba::text

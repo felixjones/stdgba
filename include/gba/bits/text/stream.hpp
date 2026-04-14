@@ -27,13 +27,21 @@ namespace gba::text {
             std::size_t width = 0;
             bool emitted = false;
 
-            while (*p != '\0' && !is_break_char(*p, policy)) {
+            while (*p != '\0') {
+                if (is_color_escape_prefix(*p)) {
+                    const char next = *(p + 1);
+                    if (next == '\0') break;
+                    if (decode_color_escape_nibble(next) != 0) {
+                        p += 2;
+                        continue;
+                    }
+                }
+
+                if (is_break_char(*p, policy)) break;
+                if (emitted) width += m_metrics.letter_spacing_px;
                 width += glyph_advance(*p);
                 ++p;
                 emitted = true;
-                if (*p != '\0' && !is_break_char(*p, policy)) {
-                    width += m_metrics.letter_spacing_px;
-                }
             }
 
             if (!emitted && *p == '\t') return m_metrics.tab_width_px;
@@ -54,6 +62,7 @@ namespace gba::text {
         const char* m_text{};
         const Font& m_font;
         stream_metrics m_metrics{};
+
 
         [[nodiscard]]
         constexpr std::size_t glyph_advance(char ch) const {
@@ -83,6 +92,12 @@ namespace gba::text {
             bool prev_non_break = false;
 
             while (auto ch = lookahead.next()) {
+                if (is_color_escape_prefix(*ch)) {
+                    if (auto code = lookahead.next(); code && decode_color_escape_nibble(*code) != 0) {
+                        continue;
+                    }
+                    break;
+                }
                 if (is_break_char(*ch, policy)) break;
                 if (prev_non_break) width += m_metrics.letter_spacing_px;
                 width += glyph_advance(*ch);

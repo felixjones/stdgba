@@ -14,12 +14,6 @@ namespace gba::text {
     static constexpr unsigned short no_tile = 0xFFFFu;
     static constexpr unsigned char no_plane = 255u;
 
-    struct glyph_style {
-        bool draw_shadow = false;
-        int shadow_dx = 1;
-        int shadow_dy = 1;
-    };
-
     struct draw_metrics {
         unsigned short letter_spacing_px = 0;
         unsigned short line_spacing_px = 0;
@@ -48,9 +42,10 @@ namespace gba::text {
     class draw_cursor {
     public:
         constexpr draw_cursor(Layer& layer, const Font& font, Stream stream, int start_x, int start_y,
-                              draw_metrics metrics, glyph_style style)
+                              draw_metrics metrics)
             : m_layer(&layer), m_font(&font), m_stream(static_cast<Stream&&>(stream)), m_startX(start_x),
-              m_cursorX(start_x), m_baselineY(start_y + font.ascent), m_metrics(metrics), m_style(style) {}
+              m_cursorX(start_x), m_baselineY(start_y + font.ascent), m_metrics(metrics),
+              m_full_color(layer_uses_full_color(layer)) {}
 
         /// @brief Draw the next character. Returns true if a character was drawn.
         bool next() {
@@ -74,6 +69,14 @@ namespace gba::text {
                 m_prevBreak = true;
                 ++m_emitted;
                 return true;
+            }
+
+            if (m_full_color && is_color_escape_prefix(*ch)) {
+                if (auto code = m_stream.next()) {
+                    const auto nibble = decode_color_escape_nibble(*code);
+                    if (nibble != 0) m_foreground_nibble = nibble;
+                }
+                return next();
             }
 
             const bool breakChar = is_break_char(*ch, m_metrics.break_chars);
@@ -100,8 +103,8 @@ namespace gba::text {
                 return true;
             }
 
-            const auto advance = m_layer->draw_char(*m_font, static_cast<unsigned char>(*ch), m_cursorX, m_baselineY,
-                                                    m_style);
+            const auto advance = m_layer->draw_char(*m_font, static_cast<unsigned char>(*ch), m_cursorX,
+                                                    m_baselineY, m_foreground_nibble);
             m_cursorX += static_cast<int>(advance + m_metrics.letter_spacing_px);
             m_prevBreak = breakChar;
             ++m_emitted;
@@ -139,6 +142,14 @@ namespace gba::text {
                     continue;
                 }
 
+                if (m_full_color && is_color_escape_prefix(*ch)) {
+                    if (auto code = m_stream.next()) {
+                        const auto nibble = decode_color_escape_nibble(*code);
+                        if (nibble != 0) m_foreground_nibble = nibble;
+                    }
+                    continue;
+                }
+
                 const bool breakChar = is_break_char(*ch, m_metrics.break_chars);
                 if (!breakChar && m_prevBreak && m_cursorX != m_startX) {
                     const auto wordWidth = static_cast<int>(m_stream.until_break_px(m_metrics.break_chars));
@@ -164,7 +175,7 @@ namespace gba::text {
                 }
 
                 const auto advance = m_layer->draw_char(*m_font, static_cast<unsigned char>(*ch), m_cursorX,
-                                                        m_baselineY, m_style);
+                                                        m_baselineY, m_foreground_nibble);
                 m_cursorX += static_cast<int>(advance + m_metrics.letter_spacing_px);
                 m_prevBreak = breakChar;
                 ++m_emitted;
@@ -179,6 +190,14 @@ namespace gba::text {
         [[nodiscard]] bool done() const { return m_done; }
 
     private:
+        [[nodiscard]]
+        static constexpr bool layer_uses_full_color(const Layer& layer) {
+            if constexpr (requires { layer.uses_full_color(); }) {
+                return layer.uses_full_color();
+            }
+            return false;
+        }
+
         Layer* m_layer;
         const Font* m_font;
         Stream m_stream;
@@ -186,7 +205,8 @@ namespace gba::text {
         int m_cursorX;
         int m_baselineY;
         draw_metrics m_metrics;
-        glyph_style m_style;
+        bool m_full_color = false;
+        unsigned char m_foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground);
         std::size_t m_emitted = 0;
         bool m_done = false;
         bool m_prevBreak = true;
@@ -221,6 +241,8 @@ namespace gba::text {
         ///
         /// Uses a single background tile allocated at the time of clear().
         /// Plane allocations fill the current VRAM tile before requesting new tiles.
+        /// Profiles with fewer active planes can therefore share one 4bpp tile across
+        /// multiple cells; `one_plane_full_color` uses one tile per allocated cell.
         ///
         /// @param screenblock Screenblock index (0-31).
         /// @param config Bitplane encoding/palette config.
@@ -270,29 +292,35 @@ namespace gba::text {
         }
 
         /// @brief Draw a single character using bitplane rendering.
+        ///
+        /// Supports plain glyph rendering plus optional compile-time decoration masks.
+        /// Fonts produced by `gba::text::with_shadow()` / `gba::text::with_outline()`
+        /// provide a separate decoration bitmap that is rendered with the shadow role.
         template<typename Font>
         unsigned short draw_char(const Font& font, unsigned int encoding, int pen_x, int baseline_y,
-                                 const glyph_style& style = {}) {
+                                 unsigned char foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground)) {
             const auto& g = font.glyph_or_default(encoding);
 
             const int glyph_x = pen_x + g.x_offset;
             const int glyph_y = baseline_y - static_cast<int>(g.height) - g.y_offset;
 
-            if (style.draw_shadow) {
-                draw_glyph_bitmap(font, g, glyph_x + style.shadow_dx, glyph_y + style.shadow_dy,
-                                  static_cast<unsigned char>(bitplane_role::shadow));
-            }
-            draw_glyph_bitmap(font, g, glyph_x, glyph_y, static_cast<unsigned char>(bitplane_role::foreground));
+            const auto shadow_role = static_cast<unsigned char>(bitplane_role::shadow);
+            const auto fg_role = uses_full_color() ? foreground_nibble
+                                                   : static_cast<unsigned char>(bitplane_role::foreground);
+
+            draw_glyph_decoration_if_present(font, g, glyph_x, glyph_y, shadow_role);
+            draw_glyph_bitmap(font, g, glyph_x, glyph_y, fg_role);
             return g.dwidth;
         }
 
         /// @brief Draw a stream of characters with text layout.
         template<typename Font, typename Stream>
         std::size_t draw_stream(const Font& font, Stream& stream, int start_x, int start_y, draw_metrics metrics,
-                                glyph_style style = {},
                                 std::size_t max_chars = std::numeric_limits<std::size_t>::max()) {
             int cursor_x = start_x;
             int baseline_y = start_y + font.ascent;
+            const auto full_color = uses_full_color();
+            auto current_foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground);
             std::size_t emitted = 0;
             bool prev_break = true;
 
@@ -310,6 +338,14 @@ namespace gba::text {
                 if (*ch == '\r') {
                     prev_break = true;
                     ++emitted;
+                    continue;
+                }
+
+                if (full_color && is_color_escape_prefix(*ch)) {
+                    if (auto code = stream.next()) {
+                        const auto nibble = decode_color_escape_nibble(*code);
+                        if (nibble != 0) current_foreground_nibble = nibble;
+                    }
                     continue;
                 }
 
@@ -337,7 +373,8 @@ namespace gba::text {
                     continue;
                 }
 
-                const auto advance = draw_char(font, static_cast<unsigned char>(*ch), cursor_x, baseline_y, style);
+                const auto advance =
+                    draw_char(font, static_cast<unsigned char>(*ch), cursor_x, baseline_y, current_foreground_nibble);
                 cursor_x += static_cast<int>(advance + metrics.letter_spacing_px);
                 prev_break = breakChar;
                 ++emitted;
@@ -348,11 +385,15 @@ namespace gba::text {
 
         /// @brief Create an incremental drawing cursor.
         template<typename Font, typename Stream>
-        auto make_cursor(const Font& font, Stream stream, int start_x, int start_y, draw_metrics metrics,
-                         glyph_style style = {}) {
+        auto make_cursor(const Font& font, Stream stream, int start_x, int start_y, draw_metrics metrics) {
             using layer_type = bg4_text_layer<WidthTiles, HeightTiles, Allocator>;
-            return draw_cursor<layer_type, Font, Stream>{*this,   font, static_cast<Stream&&>(stream), start_x, start_y,
-                                                         metrics, style};
+            return draw_cursor<layer_type, Font, Stream>{*this, font, static_cast<Stream&&>(stream), start_x, start_y,
+                                                         metrics};
+        }
+
+        [[nodiscard]]
+        constexpr bool uses_full_color() const noexcept {
+            return m_config.profile == bitplane_profile::one_plane_full_color;
         }
 
     private:
@@ -390,8 +431,10 @@ namespace gba::text {
 
         void draw_pixel(int x, int y, unsigned char role) {
             if (x < 0 || y < 0) return;
-            const auto tx = static_cast<unsigned short>(x / 8);
-            const auto ty = static_cast<unsigned short>(y / 8);
+            const auto ux = static_cast<unsigned int>(x);
+            const auto uy = static_cast<unsigned int>(y);
+            const auto tx = static_cast<unsigned short>(ux >> 3u);
+            const auto ty = static_cast<unsigned short>(uy >> 3u);
             if (tx >= WidthTiles || ty >= HeightTiles) return;
 
             // Allocate cell if needed
@@ -413,8 +456,8 @@ namespace gba::text {
             auto* tiles = gba::memory_map(gba::mem_tile_4bpp);
             auto& tile_data = tiles[vram_tile >> 9][vram_tile & 511u];
 
-            const int lx = x % 8;
-            const int ly = y % 8;
+            const auto lx = static_cast<int>(ux & 7u);
+            const auto ly = static_cast<int>(uy & 7u);
             const auto old_nibble = get_tile_pixel(tile_data, lx, ly);
 
             // Decode all plane roles
@@ -472,6 +515,40 @@ namespace gba::text {
                 }
             }
         }
+
+        template<typename Font, typename Glyph>
+        void draw_glyph_decoration_if_present(const Font& font, const Glyph& glyph, int glyph_x, int glyph_y,
+                                              unsigned char role) {
+            if constexpr (requires { font.decoration_view_for(glyph); }) {
+                const auto view = font.decoration_view_for(glyph);
+                if (view.empty()) return;
+
+                const int start_x = view.x_offset;
+                const int start_y = view.y_offset;
+                const int end_x = start_x + static_cast<int>(view.width);
+
+                for (int y = 0; y < view.height; ++y) {
+                    const auto row = view.data + static_cast<std::size_t>(start_y + y) * view.byte_width;
+                    const int row_y = glyph_y + start_y + y;
+                    const int start_byte = start_x / 8;
+                    const int end_byte = (end_x - 1) / 8;
+
+                    for (int byte_index = start_byte; byte_index <= end_byte; ++byte_index) {
+                        const auto bits = row[byte_index];
+                        if (bits == 0u) continue;
+
+                        for (int bit = 0; bit < 8; ++bit) {
+                            if (((bits >> bit) & 1u) == 0u) continue;
+                            const int x = byte_index * 8 + bit;
+                            if (x < start_x || x >= end_x) continue;
+                            draw_pixel(glyph_x + x, row_y, role);
+                        }
+                    }
+                }
+            }
+        }
+
+
     };
 
 } // namespace gba::text

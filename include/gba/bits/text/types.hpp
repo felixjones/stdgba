@@ -10,6 +10,8 @@
 
 namespace gba::text {
 
+    inline constexpr char color_escape_prefix = '\x1B';
+
     enum class break_policy : unsigned char {
         whitespace,
         whitespace_and_hyphen,
@@ -21,10 +23,48 @@ namespace gba::text {
         break_policy break_chars = break_policy::whitespace;
     };
 
+    /// @brief Encode a one_plane_full_color foreground change as an inline text command.
+    ///
+    /// The returned two-byte sequence is `ESC` followed by an uppercase hexadecimal
+    /// nibble character (`'1'..'9'`, `'A'..'F'`). When consumed by the renderer in
+    /// `one_plane_full_color` mode it changes the foreground nibble for subsequent
+    /// glyphs without affecting wrapping or visible-character counts.
+    [[nodiscard]]
+    consteval std::array<char, 2> color_escape(unsigned char nibble) {
+        if (nibble == 0 || nibble > 15) throw "text: one_plane_full_color nibble must be in range [1, 15]";
+        const auto digit = static_cast<char>(nibble < 10 ? ('0' + nibble) : ('A' + (nibble - 10)));
+        return {color_escape_prefix, digit};
+    }
+
+    [[nodiscard]]
+    constexpr bool is_color_escape_prefix(char c) noexcept {
+        return c == color_escape_prefix;
+    }
+
+    [[nodiscard]]
+    constexpr unsigned char decode_color_escape_nibble(char c) noexcept {
+        if (c >= '1' && c <= '9') return static_cast<unsigned char>(c - '0');
+        if (c >= 'A' && c <= 'F') return static_cast<unsigned char>(10 + (c - 'A'));
+        if (c >= 'a' && c <= 'f') return static_cast<unsigned char>(10 + (c - 'a'));
+        return 0;
+    }
+
     enum class bitplane_profile : unsigned char {
         two_plane_binary,
         two_plane_three_color,
         three_plane_binary,
+        /// @brief 1 plane, up to 15 colors + transparent background.
+        ///
+        /// Uses exactly one full palette bank.  start_index must be 0 so that
+        /// nibble 0 (all-background) maps to palette index 0, which the GBA
+        /// hardware treats as transparent in 4bpp tile mode.
+        ///
+        /// Nibble values map directly to palette entries:
+        ///   0 = transparent, 1 = foreground, 2 = shadow, 3-15 = free.
+        ///
+        /// Unlike the two-plane profiles no VRAM tile sharing occurs; each
+        /// 8x8 cell requires its own unique VRAM tile.
+        one_plane_full_color,
     };
 
     // Forward declaration for bitplane_config validation helpers.
@@ -49,7 +89,8 @@ namespace gba::text {
         switch (profile) {
             case bitplane_profile::two_plane_binary:
             case bitplane_profile::two_plane_three_color: return 2;
-            case bitplane_profile::three_plane_binary: return 3;
+            case bitplane_profile::three_plane_binary:    return 3;
+            case bitplane_profile::one_plane_full_color:  return 1;
         }
         return 0;
     }
@@ -59,8 +100,9 @@ namespace gba::text {
     constexpr unsigned char profile_role_count(bitplane_profile profile) noexcept {
         switch (profile) {
             case bitplane_profile::two_plane_binary:
-            case bitplane_profile::three_plane_binary: return 2;    // bg, fg only
-            case bitplane_profile::two_plane_three_color: return 3; // bg, fg, shadow
+            case bitplane_profile::three_plane_binary:    return 2;  // bg, fg only
+            case bitplane_profile::two_plane_three_color: return 3;  // bg, fg, shadow
+            case bitplane_profile::one_plane_full_color:  return 16; // nibble = role index directly
         }
         return 0;
     }
@@ -219,9 +261,10 @@ namespace gba::text {
     [[nodiscard]]
     constexpr unsigned short required_entries(bitplane_profile profile) noexcept {
         switch (profile) {
-            case bitplane_profile::two_plane_binary: return 4;
-            case bitplane_profile::two_plane_three_color: return 9;
-            case bitplane_profile::three_plane_binary: return 8;
+            case bitplane_profile::two_plane_binary:       return 4;
+            case bitplane_profile::two_plane_three_color:  return 9;
+            case bitplane_profile::three_plane_binary:     return 8;
+            case bitplane_profile::one_plane_full_color:   return 16;
         }
         return 0;
     }

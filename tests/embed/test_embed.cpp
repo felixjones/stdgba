@@ -123,6 +123,188 @@ static constexpr auto make_test_tga_gray() {
     return data;
 }
 
+// -- PNG test helpers --
+
+// Helper: write a 4-byte big-endian unsigned int at a position
+static consteval void png_put_u32(unsigned char* d, unsigned int v) {
+    d[0] = static_cast<unsigned char>((v >> 24) & 0xFF);
+    d[1] = static_cast<unsigned char>((v >> 16) & 0xFF);
+    d[2] = static_cast<unsigned char>((v >> 8) & 0xFF);
+    d[3] = static_cast<unsigned char>(v & 0xFF);
+}
+
+// Build a minimal valid PNG file. Scanline data is embedded via stored deflate block.
+// All parameters are templated to keep everything consteval-friendly.
+template<std::size_t OutSize, std::size_t ScanLen, std::size_t PlteLen = 0, std::size_t TrnsLen = 0>
+static consteval auto make_png_impl(unsigned int w, unsigned int h, unsigned int color_type,
+                                    const std::array<unsigned char, ScanLen>& scanlines,
+                                    const std::array<unsigned char, PlteLen>& plte = {},
+                                    unsigned int plte_entries = 0,
+                                    const std::array<unsigned char, TrnsLen>& trns = {},
+                                    unsigned int trns_len = 0) {
+    std::array<unsigned char, OutSize> data{};
+    std::size_t pos = 0;
+
+    // Signature
+    constexpr unsigned char sig[8] = {137, 80, 78, 71, 13, 10, 26, 10};
+    for (int i = 0; i < 8; ++i) data[pos++] = sig[i];
+
+    // IHDR chunk (13 bytes data)
+    png_put_u32(data.data() + pos, 13);
+    pos += 4;
+    data[pos++] = 'I'; data[pos++] = 'H'; data[pos++] = 'D'; data[pos++] = 'R';
+    png_put_u32(data.data() + pos, w); pos += 4;
+    png_put_u32(data.data() + pos, h); pos += 4;
+    data[pos++] = 8; // bit depth
+    data[pos++] = static_cast<unsigned char>(color_type);
+    data[pos++] = 0; // compression
+    data[pos++] = 0; // filter
+    data[pos++] = 0; // interlace
+    pos += 4; // CRC placeholder
+
+    // PLTE chunk (for indexed)
+    if constexpr (PlteLen > 0) {
+        if (plte_entries > 0) {
+            auto plen = plte_entries * 3;
+            png_put_u32(data.data() + pos, plen); pos += 4;
+            data[pos++] = 'P'; data[pos++] = 'L'; data[pos++] = 'T'; data[pos++] = 'E';
+            for (unsigned int i = 0; i < plen; ++i) data[pos++] = plte[i];
+            pos += 4; // CRC
+        }
+    }
+
+    // tRNS chunk
+    if constexpr (TrnsLen > 0) {
+        if (trns_len > 0) {
+            png_put_u32(data.data() + pos, trns_len); pos += 4;
+            data[pos++] = 't'; data[pos++] = 'R'; data[pos++] = 'N'; data[pos++] = 'S';
+            for (unsigned int i = 0; i < trns_len; ++i) data[pos++] = trns[i];
+            pos += 4; // CRC
+        }
+    }
+
+    // IDAT chunk: zlib header + stored deflate block wrapping scanlines
+    // zlib: CMF=0x78, FLG=0x01
+    // stored block: BFINAL=1(bit0), BTYPE=00(bits1-2) -> byte=0x01
+    auto scan_len = static_cast<unsigned int>(ScanLen);
+    auto idat_payload_len = 2 + 1 + 4 + scan_len + 4; // zlib(2) + bfinal(1) + len+nlen(4) + data + adler(4)
+    png_put_u32(data.data() + pos, static_cast<unsigned int>(idat_payload_len)); pos += 4;
+    data[pos++] = 'I'; data[pos++] = 'D'; data[pos++] = 'A'; data[pos++] = 'T';
+    // zlib header
+    data[pos++] = 0x78;
+    data[pos++] = 0x01;
+    // stored block
+    data[pos++] = 0x01; // BFINAL=1, BTYPE=00
+    data[pos++] = static_cast<unsigned char>(scan_len & 0xFF);
+    data[pos++] = static_cast<unsigned char>((scan_len >> 8) & 0xFF);
+    data[pos++] = static_cast<unsigned char>(~scan_len & 0xFF);
+    data[pos++] = static_cast<unsigned char>((~scan_len >> 8) & 0xFF);
+    for (std::size_t i = 0; i < ScanLen; ++i) data[pos++] = scanlines[i];
+    // Adler32 placeholder
+    data[pos++] = 0; data[pos++] = 0; data[pos++] = 0; data[pos++] = 1;
+    pos += 4; // CRC
+
+    // IEND chunk
+    png_put_u32(data.data() + pos, 0); pos += 4;
+    data[pos++] = 'I'; data[pos++] = 'E'; data[pos++] = 'N'; data[pos++] = 'D';
+    pos += 4; // CRC
+
+    return data;
+}
+
+// Hand-crafted 8x8 PNG (RGB, no filter, red top / blue bottom)
+static consteval auto make_test_png_rgb() {
+    // 8x8 RGB: each scanline = filter(1) + 8*3 = 25 bytes, total = 200
+    std::array<unsigned char, 8 * 25> scanlines{};
+    for (int y = 0; y < 8; ++y) {
+        scanlines[y * 25] = 0; // filter: None
+        for (int x = 0; x < 8; ++x) {
+            auto off = y * 25 + 1 + x * 3;
+            if (y < 4) {
+                scanlines[off] = 255; // R
+            } else {
+                scanlines[off + 2] = 255; // B
+            }
+        }
+    }
+    return make_png_impl<512>(8, 8, 2, scanlines);
+}
+
+// Hand-crafted 8x8 PNG (RGBA, alpha transparency: top=red opaque, bottom=transparent)
+static consteval auto make_test_png_rgba() {
+    // 8x8 RGBA: each scanline = filter(1) + 8*4 = 33 bytes, total = 264
+    std::array<unsigned char, 8 * 33> scanlines{};
+    for (int y = 0; y < 8; ++y) {
+        scanlines[y * 33] = 0; // filter: None
+        for (int x = 0; x < 8; ++x) {
+            auto off = y * 33 + 1 + x * 4;
+            if (y < 4) {
+                scanlines[off] = 255;     // R
+                scanlines[off + 3] = 255; // A (opaque)
+            } else {
+                scanlines[off + 2] = 255; // B
+                scanlines[off + 3] = 0;   // A (transparent)
+            }
+        }
+    }
+    return make_png_impl<600>(8, 8, 6, scanlines);
+}
+
+// Hand-crafted 8x8 PNG (indexed, 2-color palette: red and blue)
+static consteval auto make_test_png_indexed() {
+    std::array<unsigned char, 6> plte = {255, 0, 0, 0, 0, 255}; // red, blue
+    std::array<unsigned char, 8 * 9> scanlines{};
+    for (int y = 0; y < 8; ++y) {
+        scanlines[y * 9] = 0; // filter: None
+        for (int x = 0; x < 8; ++x) {
+            scanlines[y * 9 + 1 + x] = (y < 4) ? 0 : 1; // palette index
+        }
+    }
+    return make_png_impl<400>(8, 8, 3, scanlines, plte, 2);
+}
+
+// Hand-crafted 8x8 PNG (indexed with tRNS: index 0 = transparent)
+static consteval auto make_test_png_indexed_trns() {
+    std::array<unsigned char, 9> plte = {255, 0, 0, 0, 255, 0, 0, 0, 255}; // red, green, blue
+    std::array<unsigned char, 3> trns = {0, 255, 255}; // index 0 = transparent
+    std::array<unsigned char, 8 * 9> scanlines{};
+    for (int y = 0; y < 8; ++y) {
+        scanlines[y * 9] = 0;
+        for (int x = 0; x < 8; ++x) {
+            if (y < 4)
+                scanlines[y * 9 + 1 + x] = 0; // transparent
+            else
+                scanlines[y * 9 + 1 + x] = 1; // green (opaque)
+        }
+    }
+    return make_png_impl<400>(8, 8, 3, scanlines, plte, 3, trns, 3);
+}
+
+// Hand-crafted 8x8 PNG (RGB, Sub filter on all rows, solid red)
+static consteval auto make_test_png_sub_filter() {
+    std::array<unsigned char, 8 * 25> scanlines{};
+    for (int y = 0; y < 8; ++y) {
+        scanlines[y * 25] = 1; // filter: Sub
+        // First pixel: Sub(255,0,0) = (255,0,0)
+        scanlines[y * 25 + 1] = 255;
+        scanlines[y * 25 + 2] = 0;
+        scanlines[y * 25 + 3] = 0;
+        // Remaining: difference = 0 (same color)
+    }
+    return make_png_impl<512>(8, 8, 2, scanlines);
+}
+
+// Hand-crafted 8x8 PNG (RGB, Up filter: all rows same solid green)
+static consteval auto make_test_png_up_filter() {
+    std::array<unsigned char, 8 * 25> scanlines{};
+    // Row 0: filter None, solid green
+    scanlines[0] = 0;
+    for (int x = 0; x < 8; ++x) scanlines[1 + x * 3 + 1] = 255;
+    // Rows 1-7: filter Up, all zeros
+    for (int y = 1; y < 8; ++y) scanlines[y * 25] = 2;
+    return make_png_impl<512>(8, 8, 2, scanlines);
+}
+
 static constexpr auto make_test_bdf() {
     constexpr char source[] = R"(STARTFONT 2.1
 FONT test
@@ -345,6 +527,79 @@ int main() {
         constexpr auto obj = result.obj_aff(2);
         gba::test.eq(static_cast<unsigned>(obj.depth) & 1, 1u); // depth_8bpp
         gba::test.eq(obj.tile_index, 2u);
+    }
+
+    // PNG RGB: basic parsing
+    {
+        constexpr auto result = gba::embed::bitmap15([] { return make_test_png_rgb(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        gba::test.eq(result.data[0].red, 31u);   // red pixel
+        gba::test.eq(result.data[0].green, 0u);
+        gba::test.eq(result.data[0].blue, 0u);
+        gba::test.eq(result.data[4 * 8].red, 0u); // blue pixel
+        gba::test.eq(result.data[4 * 8].green, 0u);
+        gba::test.eq(result.data[4 * 8].blue, 31u);
+    }
+
+    // PNG RGBA: alpha transparency
+    {
+        constexpr auto result = gba::embed::indexed4([] { return make_test_png_rgba(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        gba::test.eq(result.palette[0].red, 0u);  // transparent
+        gba::test.eq(result.palette[1].red, 31u);  // red (opaque)
+    }
+
+    // PNG indexed: PLTE palette
+    {
+        constexpr auto result = gba::embed::indexed4([] { return make_test_png_indexed(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        gba::test.eq(result.palette[1].red, 31u);  // red
+        gba::test.eq(result.palette[2].blue, 31u);  // blue
+    }
+
+    // PNG indexed with tRNS: transparent palette entry
+    {
+        constexpr auto result = gba::embed::indexed4([] { return make_test_png_indexed_trns(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        // Index 0 is transparent, so palette[0] = transparent marker
+        // The visible color should be green (from PLTE index 1)
+        gba::test.eq(result.palette[1].green, 31u);
+    }
+
+    // PNG RGB with Sub filter
+    {
+        constexpr auto result = gba::embed::bitmap15([] { return make_test_png_sub_filter(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        // All pixels should be solid red after Sub filter reconstruction
+        gba::test.eq(result.data[0].red, 31u);
+        gba::test.eq(result.data[0].green, 0u);
+        gba::test.eq(result.data[7].red, 31u);
+        gba::test.eq(result.data[63].red, 31u);
+    }
+
+    // PNG RGB with Up filter
+    {
+        constexpr auto result = gba::embed::bitmap15([] { return make_test_png_up_filter(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        // All pixels should be solid green
+        gba::test.eq(result.data[0].green, 31u);
+        gba::test.eq(result.data[0].red, 0u);
+        gba::test.eq(result.data[63].green, 31u);
+    }
+
+    // PNG indexed8: basic parsing
+    {
+        constexpr auto result = gba::embed::indexed8([] { return make_test_png_indexed(); });
+        gba::test.eq(result.width, 8u);
+        gba::test.eq(result.height, 8u);
+        gba::test.eq(result.palette.size(), 3u);
+        gba::test.eq(result.tiles.size(), 1u);
     }
 
     // bdf: parse glyph metadata and pack 1bpp rows for BitUnPack

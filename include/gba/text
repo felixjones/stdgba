@@ -2,6 +2,7 @@
 /// @brief Streaming text helpers for proportional fonts and bitplane palettes.
 #pragma once
 
+#include <gba/bits/text/font_variants.hpp>
 #include <gba/bits/text/palette.hpp>
 #include <gba/bits/text/render_bg4.hpp>
 #include <gba/bits/text/stream.hpp>

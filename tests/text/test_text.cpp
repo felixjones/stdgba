@@ -53,8 +53,12 @@ ENDFONT
     return data;
 }
 
+static constexpr auto text_test_font = gba::embed::bdf([] { return make_test_bdf_for_text(); });
+static constexpr auto text_test_font_shadowed = gba::text::with_shadow<1, 1>(text_test_font);
+static constexpr auto text_test_font_outlined = gba::text::with_outline<1>(text_test_font);
+
 int main() {
-    static constexpr auto font = gba::embed::bdf([] { return make_test_bdf_for_text(); });
+    static constexpr auto font = text_test_font;
 
     {
         gba::text::stream_metrics metrics{};
@@ -97,7 +101,7 @@ int main() {
             std::size_t count = 0;
 
             unsigned short draw_char(const font_type& f, unsigned int enc, int pen_x, int baseline_y,
-                                     const gba::text::glyph_style&) {
+                                     unsigned char = 1) {
                 if (count < calls.size()) calls[count] = {.x = pen_x, .baseline_y = baseline_y, .encoding = enc};
                 ++count;
                 return f.glyph_or_default(enc).dwidth;
@@ -112,9 +116,7 @@ int main() {
         gba::text::draw_metrics drawMetrics{};
         drawMetrics.wrap_width_px = 10; // narrower than the token
 
-        gba::text::glyph_style style{};
-        gba::text::draw_cursor<mock_layer, decltype(font), decltype(s)> cursor{layer, font,        s,    0,
-                                                                               0,     drawMetrics, style};
+        gba::text::draw_cursor<mock_layer, decltype(font), decltype(s)> cursor{layer, font, s, 0, 0, drawMetrics};
 
         while (cursor.next()) {}
 
@@ -141,7 +143,7 @@ int main() {
             std::size_t count = 0;
 
             unsigned short draw_char(const font_type& f, unsigned int, int pen_x, int baseline_y,
-                                     const gba::text::glyph_style&) {
+                                     unsigned char = 1) {
                 if (count < calls.size()) calls[count] = {.x = pen_x, .baseline_y = baseline_y};
                 ++count;
                 return f.glyph_or_default('A').dwidth;
@@ -155,9 +157,7 @@ int main() {
         gba::text::draw_metrics drawMetrics{};
         drawMetrics.wrap_width_px = 20;
 
-        gba::text::glyph_style style{};
-        gba::text::draw_cursor<mock_layer, decltype(font), decltype(s)> cursor{layer, font,        s,    0,
-                                                                               0,     drawMetrics, style};
+        gba::text::draw_cursor<mock_layer, decltype(font), decltype(s)> cursor{layer, font, s, 0, 0, drawMetrics};
 
         while (cursor.next()) {}
 
@@ -206,6 +206,23 @@ int main() {
         gba::test.eq(s.until_break_px(), 4u);
     }
 
+    // stream: one_plane_full_color inline color commands do not affect measured width.
+    {
+        constexpr auto esc = gba::text::color_escape(4);
+        gba::test.eq(static_cast<unsigned int>(static_cast<unsigned char>(esc[0])),
+                     static_cast<unsigned int>(static_cast<unsigned char>(gba::text::color_escape_prefix)));
+        gba::test.eq(esc[1], '4');
+
+        gba::text::stream_metrics metrics{};
+        metrics.letter_spacing_px = 1;
+
+        auto s = gba::text::stream("A" "\x1B" "4" "i", font, metrics);
+        gba::test.eq(s.until_break_px(), 14u); // A(9) + 1 + i(4)
+
+        auto trailing = gba::text::stream("A" "\x1B" "4", font, metrics);
+        gba::test.eq(trailing.until_break_px(), 9u);
+    }
+
     {
         constexpr auto cfg = gba::text::bitplane_config{
             .profile = gba::text::bitplane_profile::two_plane_binary,
@@ -252,6 +269,29 @@ int main() {
             .start_index = 1,
         };
         gba::test.is_false(gba::text::valid_config(missing_plane2));
+
+        constexpr auto full_color = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::one_plane_full_color,
+            .palbank_0 = 4,
+            .start_index = 0,
+        };
+        gba::test.eq(gba::text::required_entries(full_color.profile), 16u);
+        gba::test.is_true(gba::text::valid_config(full_color));
+
+        constexpr auto full_color_bad_start = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::one_plane_full_color,
+            .palbank_0 = 4,
+            .start_index = 1,
+        };
+        gba::test.is_false(gba::text::valid_config(full_color_bad_start));
+
+        constexpr auto full_color_extra_bank = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::one_plane_full_color,
+            .palbank_0 = 4,
+            .palbank_1 = 5,
+            .start_index = 0,
+        };
+        gba::test.is_false(gba::text::valid_config(full_color_extra_bank));
     }
 
     // Test bitplane encoding/decoding
@@ -284,6 +324,48 @@ int main() {
         // Test decoding: nibble 4 should decode to plane0=bg(0), plane1=fg(1)
         gba::test.eq(cfg.decode_role(4, 0), 0u); // plane 0 is background
         gba::test.eq(cfg.decode_role(4, 1), 1u); // plane 1 is foreground
+    }
+
+    // draw_cursor: inline color commands change subsequent one_plane_full_color glyph nibble and are not emitted.
+    {
+        using font_type = decltype(font);
+        struct mock_layer {
+            struct draw_call {
+                unsigned int encoding{};
+                unsigned char foreground_nibble{};
+            };
+
+            std::array<draw_call, 8> calls{};
+            std::size_t count = 0;
+
+            unsigned short draw_char(const font_type& f, unsigned int enc, int, int,
+                                     unsigned char foreground_nibble = 1) {
+                if (count < calls.size()) calls[count] = {.encoding = enc, .foreground_nibble = foreground_nibble};
+                ++count;
+                return f.glyph_or_default(enc).dwidth;
+            }
+
+            [[nodiscard]]
+            constexpr bool uses_full_color() const noexcept {
+                return true;
+            }
+        };
+
+        mock_layer layer{};
+        gba::text::stream_metrics streamMetrics{};
+        auto s = gba::text::stream("A" "\x1B" "4" "A", font, streamMetrics);
+
+        gba::text::draw_metrics drawMetrics{};
+        gba::text::draw_cursor<mock_layer, decltype(font), decltype(s)> cursor{layer, font, s, 0, 0, drawMetrics};
+
+        while (cursor.next()) {}
+
+        gba::test.eq(layer.count, 2u);
+        gba::test.eq(layer.calls[0].encoding, static_cast<unsigned int>('A'));
+        gba::test.eq(layer.calls[0].foreground_nibble, 1u);
+        gba::test.eq(layer.calls[1].encoding, static_cast<unsigned int>('A'));
+        gba::test.eq(layer.calls[1].foreground_nibble, 4u);
+        gba::test.eq(cursor.emitted(), 2u);
     }
 
     // bg4_text_layer: region origin (start_tile_x/y) confines screen-entry writes.
@@ -325,6 +407,100 @@ int main() {
             gba::test.eq(se.tile_index, 1u);
             gba::test.eq(se.palette_index, 1u);
         }
+    }
+
+    // bg4_text_layer runtime path: one_plane_full_color inline ESC color changes and decorated-font shading.
+    {
+        using namespace gba::literals;
+
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::one_plane_full_color,
+            .palbank_0 = 1,
+            .start_index = 0,
+        };
+
+        gba::text::set_theme(cfg, {
+                                    .background = gba::color{},
+                                    .foreground = "white"_clr,
+                                    .shadow = "#102040"_clr,
+                                });
+
+        gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 1024};
+        auto layer = gba::text::bg4_text_layer<4, 2>{31, cfg, alloc};
+
+        auto s = gba::text::stream("A" "\x1B" "4" "A", font);
+        gba::text::draw_metrics metrics{};
+        const auto emitted = layer.draw_stream(font, s, 0, 0, metrics);
+        gba::test.eq(emitted, 2u);
+
+        const auto se0 = gba::mem_se[31][1 * 32 + 0].value();
+        const auto se1 = gba::mem_se[31][1 * 32 + 1].value();
+        gba::test.eq(se0.palette_index, 1u);
+        gba::test.eq(se1.palette_index, 1u);
+
+        auto* tiles = gba::memory_map(gba::mem_tile_4bpp);
+        const auto& t0 = tiles[se0.tile_index >> 9][se0.tile_index & 511u];
+        const auto& t1 = tiles[se1.tile_index >> 9][se1.tile_index & 511u];
+
+        const auto nibble_at = [](const gba::tile4bpp& tile, unsigned int x, unsigned int y) {
+            return static_cast<unsigned int>((tile[y] >> (x * 4)) & 0xFu);
+        };
+
+        const auto tile_has_nibble = [&](const gba::tile4bpp& tile, unsigned int nibble) {
+            for (unsigned int y = 0; y < 8; ++y) {
+                for (unsigned int x = 0; x < 8; ++x) {
+                    if (nibble_at(tile, x, y) == nibble) return true;
+                }
+            }
+            return false;
+        };
+
+         // First glyph uses default foreground nibble 1, second glyph uses nibble 4.
+         gba::test.is_true(tile_has_nibble(t0, 1u));
+         gba::test.is_true(tile_has_nibble(t1, 4u));
+
+         // Pre-baked shadow variant keeps separate decoration/foreground masks so the
+         // renderer still uses the shadow role palette for the decoration pass.
+         auto layer_shadow = gba::text::bg4_text_layer<4, 4>{31, cfg, gba::text::linear_tile_allocator{.next_tile = 20, .end_tile = 1024}, 0, 0};
+         layer_shadow.draw_char(text_test_font_shadowed, 'A', 4, 8, 4);
+
+         const auto region_has_nibble = [&](unsigned short screenblock, unsigned short start_x, unsigned short start_y,
+                                            unsigned int nibble) {
+             for (unsigned int cell_y = 0; cell_y < 4; ++cell_y) {
+                 for (unsigned int cell_x = 0; cell_x < 4; ++cell_x) {
+                     const auto se = gba::mem_se[screenblock][(start_y + cell_y) * 32 + (start_x + cell_x)].value();
+                     if (se.tile_index == 0u) continue;
+                     const auto& tile = tiles[se.tile_index >> 9][se.tile_index & 511u];
+                     if (tile_has_nibble(tile, nibble)) return true;
+                 }
+             }
+             return false;
+         };
+
+         gba::test.is_true(region_has_nibble(31u, 0u, 0u, 4u)); // foreground nibble
+         gba::test.is_true(text_test_font_shadowed.glyph_or_default('A').decoration_width > 0);
+         gba::test.is_true(text_test_font_shadowed.glyph_or_default('A').decoration_height > 0);
+
+         const auto& outline_glyph = text_test_font_outlined.glyph_or_default('A');
+         const auto& plain_glyph = font.glyph_or_default('A');
+         gba::test.eq(outline_glyph.width, static_cast<unsigned short>(plain_glyph.width + 2));
+         gba::test.eq(outline_glyph.height, static_cast<unsigned short>(plain_glyph.height + 2));
+         gba::test.is_true(text_test_font_outlined.decoration_bitmap_data(outline_glyph)[0] != 0u);
+
+         const auto& shadow_glyph = text_test_font_shadowed.glyph_or_default('A');
+         const auto shadow_bitmap_bytes = static_cast<std::size_t>(shadow_glyph.bitmap_byte_width) * shadow_glyph.height;
+         const auto* shadow_fg = text_test_font_shadowed.bitmap_data(shadow_glyph);
+         const auto* shadow_deco = text_test_font_shadowed.decoration_bitmap_data(shadow_glyph);
+         for (std::size_t i = 0; i < shadow_bitmap_bytes; ++i) {
+             gba::test.eq(static_cast<unsigned int>(shadow_fg[i] & shadow_deco[i]), 0u);
+         }
+
+         const auto outline_bitmap_bytes = static_cast<std::size_t>(outline_glyph.bitmap_byte_width) * outline_glyph.height;
+         const auto* outline_fg = text_test_font_outlined.bitmap_data(outline_glyph);
+         const auto* outline_deco = text_test_font_outlined.decoration_bitmap_data(outline_glyph);
+         for (std::size_t i = 0; i < outline_bitmap_bytes; ++i) {
+             gba::test.eq(static_cast<unsigned int>(outline_fg[i] & outline_deco[i]), 0u);
+         }
     }
 
     return gba::test.finish();

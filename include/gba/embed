@@ -63,6 +63,7 @@
 #define GBA_EMBED
 
 #include <gba/bits/embed/bdf.hpp>
+#include <gba/bits/embed/image.hpp>
 #include <gba/bits/flipbook.hpp>
 #include <gba/sprite>
 #include <gba/video>
@@ -90,278 +91,6 @@ namespace gba::embed {
         identity, ///< Deduplicate exact matches only
         flip,     ///< Deduplicate exact matches and horizontal/vertical flips
     };
-
-    namespace bits {
-
-        consteval gba::color to_gba_color(unsigned char r, unsigned char g, unsigned char b) {
-            return {.red = static_cast<unsigned short>(r >> 3),
-                    .green = static_cast<unsigned short>(g >> 3),
-                    .blue = static_cast<unsigned short>(b >> 3),
-                    .grn_lo = static_cast<unsigned short>((g >> 2) & 1)};
-        }
-
-        consteval bool color_eq(gba::color a, gba::color b) {
-            return a.red == b.red && a.green == b.green && a.blue == b.blue && a.grn_lo == b.grn_lo;
-        }
-
-        consteval bool is_ws(unsigned char c) {
-            return c == ' ' || c == '\t' || c == '\n' || c == '\r';
-        }
-
-        consteval unsigned int parse_uint(const unsigned char* d, std::size_t size, std::size_t& pos) {
-            while (pos < size && is_ws(d[pos])) ++pos;
-            if (pos < size && d[pos] == '#')
-                while (pos < size && d[pos] != '\n') ++pos;
-            if (pos < size && is_ws(d[pos])) ++pos;
-            unsigned int v = 0;
-            while (pos < size && d[pos] >= '0' && d[pos] <= '9') v = v * 10 + (d[pos++] - '0');
-            return v;
-        }
-
-        struct image_header {
-            unsigned int width;
-            unsigned int height;
-            std::size_t pixel_offset; // PPM only: offset to raw RGB data
-            bool is_tga;
-            // TGA fields
-            unsigned int tga_image_type;
-            unsigned int tga_bpp;
-            bool tga_origin_top;
-            unsigned int tga_cmap_offset;
-            unsigned int tga_cmap_length;
-            unsigned int tga_cmap_bpp;
-        };
-
-        template<std::size_t Size>
-        consteval image_header parse_header(const std::array<unsigned char, Size>& data) {
-            if (Size >= 2 && data[0] == 'P' && data[1] == '6') {
-                std::size_t pos = 2;
-                auto w = parse_uint(data.data(), Size, pos);
-                auto h = parse_uint(data.data(), Size, pos);
-                auto maxval = parse_uint(data.data(), Size, pos);
-                if (w == 0 || h == 0) throw "PPM: invalid dimensions";
-                if (maxval != 255) throw "PPM: only maxval 255 supported";
-                if (pos < Size && is_ws(data[pos])) ++pos;
-                return {w, h, pos, false, 0, 24, false, 0, 0, 0};
-            }
-            if (Size >= 18) {
-                unsigned int id_length = data[0];
-                unsigned int cmap_type = data[1];
-                unsigned int image_type = data[2];
-                unsigned int cmap_origin = data[3] | (data[4] << 8);
-                unsigned int cmap_length = data[5] | (data[6] << 8);
-                unsigned int cmap_bpp = data[7];
-                unsigned int w = data[12] | (data[13] << 8);
-                unsigned int h = data[14] | (data[15] << 8);
-                unsigned int bpp = data[16];
-                bool top = (data[17] & 0x20) != 0;
-
-                if (w == 0 || h == 0) throw "TGA: invalid dimensions";
-
-                // Validate image type
-                bool is_cmap = (image_type == 1 || image_type == 9);
-                bool is_true = (image_type == 2 || image_type == 10);
-                bool is_gray = (image_type == 3 || image_type == 11);
-                if (!is_cmap && !is_true && !is_gray) throw "TGA: unsupported image type";
-
-                if (is_cmap && cmap_type != 1) throw "TGA: color-mapped image requires color map";
-                if (is_true && bpp != 15 && bpp != 16 && bpp != 24 && bpp != 32)
-                    throw "TGA: unsupported true-color bit depth";
-                if (is_gray && bpp != 8) throw "TGA: grayscale must be 8bpp";
-                if (is_cmap && bpp != 8 && bpp != 16) throw "TGA: color-mapped index must be 8 or 16 bpp";
-
-                std::size_t pixel_offset = 18 + id_length;
-                unsigned int cmap_off = 0;
-                if (cmap_type == 1) {
-                    cmap_off = pixel_offset;
-                    pixel_offset += cmap_length * ((cmap_bpp + 7) / 8);
-                }
-
-                return {w, h, pixel_offset, true, image_type, bpp, top, cmap_off, cmap_length, cmap_bpp};
-            }
-            throw "embed: unrecognized image format";
-        }
-
-        // Decode a single TGA color from raw bytes at offset i
-        template<std::size_t Size>
-        consteval gba::color tga_decode_color(const std::array<unsigned char, Size>& data, std::size_t i,
-                                              unsigned int bpp) {
-            if (bpp == 32 || bpp == 24) return to_gba_color(data[i + 2], data[i + 1], data[i]);
-            if (bpp == 16 || bpp == 15) {
-                unsigned int v = data[i] | (data[i + 1] << 8);
-                return {.red = static_cast<unsigned short>(v & 0x1F),
-                        .green = static_cast<unsigned short>((v >> 5) & 0x1F),
-                        .blue = static_cast<unsigned short>((v >> 10) & 0x1F),
-                        .grn_lo = 0};
-            }
-            // 8bpp grayscale
-            auto g = data[i];
-            return to_gba_color(g, g, g);
-        }
-
-        template<std::size_t Size>
-        consteval bool tga_decode_alpha(const std::array<unsigned char, Size>& data, std::size_t i, unsigned int bpp) {
-            if (bpp == 32) return data[i + 3] < 128;
-            if (bpp == 16) return (data[i + 1] & 0x80) == 0; // bit 15 = alpha (0 = transparent)
-            return false;
-        }
-
-        // Decode full TGA image into caller-provided pixel/transparency buffers
-        template<std::size_t Size>
-        consteval void tga_decode_all(const std::array<unsigned char, Size>& data, const image_header& hdr,
-                                      gba::color* pixels, bool* transparent) {
-            auto total = hdr.width * hdr.height;
-
-            bool is_rle = (hdr.tga_image_type >= 9);
-            bool is_cmap = (hdr.tga_image_type == 1 || hdr.tga_image_type == 9);
-            bool has_alpha = (hdr.tga_bpp == 32) || (hdr.tga_bpp == 16 && !is_cmap);
-            unsigned int cmap_entry_bytes = (hdr.tga_cmap_bpp + 7) / 8;
-            unsigned int pixel_bytes = (hdr.tga_bpp + 7) / 8;
-
-            std::size_t pos = hdr.pixel_offset;
-            unsigned int pixel_idx = 0;
-
-            auto decode_one = [&](std::size_t src) {
-                if (pixel_idx >= total) return;
-                unsigned int actual_y = hdr.tga_origin_top ? (pixel_idx / hdr.width)
-                                                           : (hdr.height - 1 - pixel_idx / hdr.width);
-                unsigned int actual_x = pixel_idx % hdr.width;
-                auto di = actual_y * hdr.width + actual_x;
-
-                if (is_cmap) {
-                    unsigned int ci = data[src];
-                    if (pixel_bytes == 2) ci = data[src] | (data[src + 1] << 8);
-                    auto cmap_pos = hdr.tga_cmap_offset + ci * cmap_entry_bytes;
-                    pixels[di] = tga_decode_color(data, cmap_pos, hdr.tga_cmap_bpp);
-                    transparent[di] = (hdr.tga_cmap_bpp == 32 || hdr.tga_cmap_bpp == 16)
-                                          ? tga_decode_alpha(data, cmap_pos, hdr.tga_cmap_bpp)
-                                          : false;
-                } else {
-                    pixels[di] = tga_decode_color(data, src, hdr.tga_bpp);
-                    transparent[di] = has_alpha ? tga_decode_alpha(data, src, hdr.tga_bpp) : false;
-                }
-                ++pixel_idx;
-            };
-
-            if (is_rle) {
-                while (pixel_idx < total && pos < Size) {
-                    auto packet = data[pos++];
-                    auto count = (packet & 0x7F) + 1;
-                    if (packet & 0x80) {
-                        auto src = pos;
-                        pos += pixel_bytes;
-                        for (unsigned int j = 0; j < count; ++j) decode_one(src);
-                    } else {
-                        for (unsigned int j = 0; j < count; ++j) {
-                            decode_one(pos);
-                            pos += pixel_bytes;
-                        }
-                    }
-                }
-            } else {
-                for (unsigned int j = 0; j < total; ++j) {
-                    decode_one(pos);
-                    pos += pixel_bytes;
-                }
-            }
-        }
-
-        // PPM pixel access (direct, no decoding needed)
-        template<std::size_t Size>
-        consteval gba::color ppm_read_pixel(const std::array<unsigned char, Size>& data, const image_header& hdr,
-                                            unsigned int x, unsigned int y) {
-            auto i = hdr.pixel_offset + (y * hdr.width + x) * 3;
-            return to_gba_color(data[i], data[i + 1], data[i + 2]);
-        }
-
-        template<std::size_t MaxPixels>
-        struct indexed_workspace {
-            unsigned int width;
-            unsigned int height;
-            unsigned int palette_count;
-            gba::color palette[256];
-            unsigned char indices[MaxPixels];
-        };
-
-        template<std::size_t BufSize, std::size_t Size>
-        consteval auto build_indexed(const std::array<unsigned char, Size>& data, const image_header& hdr) {
-            indexed_workspace<BufSize> ws{};
-            ws.width = hdr.width;
-            ws.height = hdr.height;
-            ws.palette_count = 1; // index 0 = transparent
-            ws.palette[0] = {};
-
-            if (hdr.is_tga) {
-                gba::color pixels[BufSize]{};
-                bool transparent[BufSize]{};
-                tga_decode_all(data, hdr, pixels, transparent);
-                for (unsigned int y = 0; y < hdr.height; ++y) {
-                    for (unsigned int x = 0; x < hdr.width; ++x) {
-                        auto pi = y * hdr.width + x;
-                        if (transparent[pi]) {
-                            ws.indices[pi] = 0;
-                            continue;
-                        }
-                        auto c = pixels[pi];
-                        unsigned int idx = 0;
-                        for (unsigned int i = 1; i < ws.palette_count; ++i) {
-                            if (color_eq(ws.palette[i], c)) {
-                                idx = i;
-                                break;
-                            }
-                        }
-                        if (idx == 0) {
-                            idx = ws.palette_count++;
-                            if (idx >= 256) throw "embed: image has more than 256 unique colors";
-                            ws.palette[idx] = c;
-                        }
-                        ws.indices[pi] = static_cast<unsigned char>(idx);
-                    }
-                }
-            } else {
-                for (unsigned int y = 0; y < hdr.height; ++y) {
-                    for (unsigned int x = 0; x < hdr.width; ++x) {
-                        auto pi = y * hdr.width + x;
-                        auto c = ppm_read_pixel(data, hdr, x, y);
-                        unsigned int idx = 0;
-                        for (unsigned int i = 1; i < ws.palette_count; ++i) {
-                            if (color_eq(ws.palette[i], c)) {
-                                idx = i;
-                                break;
-                            }
-                        }
-                        if (idx == 0) {
-                            idx = ws.palette_count++;
-                            if (idx >= 256) throw "embed: image has more than 256 unique colors";
-                            ws.palette[idx] = c;
-                        }
-                        ws.indices[pi] = static_cast<unsigned char>(idx);
-                    }
-                }
-            }
-            return ws;
-        }
-
-        consteval unsigned int flip_nibbles(unsigned int word) {
-            unsigned int out = 0;
-            for (int c = 0; c < 8; ++c) out |= ((word >> (c * 4)) & 0xF) << ((7 - c) * 4);
-            return out;
-        }
-
-        /// @brief Convert tile coordinates to GBA screenblock-order map index.
-        ///
-        /// The GBA stores wide/tall backgrounds as consecutive 32x32 screenblocks.
-        /// For a 512x256 background (64x32 tiles), the layout is:
-        ///   SB0 (columns 0-31), SB1 (columns 32-63)
-        /// Each screenblock is 1024 entries in row-major order.
-        consteval unsigned int sb_index(unsigned int tx, unsigned int ty, unsigned int map_w) {
-            const auto sb_cols = (map_w + 31) / 32;
-            const auto sb_x = tx / 32;
-            const auto sb_y = ty / 32;
-            return (sb_y * sb_cols + sb_x) * 1024 + (ty % 32) * 32 + (tx % 32);
-        }
-
-    } // namespace bits
 
     /// @brief Flat 15-bit color bitmap result (Mode 3).
     /// @tparam Width Image width in pixels.
@@ -474,7 +203,12 @@ namespace gba::embed {
                 unsigned int width, height;
                 gba::color data[buf_size];
             } r{hdr.width, hdr.height, {}};
-            if (hdr.is_tga) {
+            if (hdr.is_png) {
+                bool transparent[buf_size]{};
+                bits::png_decode_all(raw, hdr.width, hdr.height, hdr.png_color_type, r.data, transparent);
+                for (unsigned int i = 0; i < hdr.width * hdr.height; ++i)
+                    if (transparent[i]) r.data[i] = {};
+            } else if (hdr.is_tga) {
                 bool transparent[buf_size]{};
                 bits::tga_decode_all(raw, hdr, r.data, transparent);
                 for (unsigned int i = 0; i < hdr.width * hdr.height; ++i)
@@ -1060,7 +794,9 @@ namespace gba::embed {
             // Decode all pixels
             gba::color pixels[buf_size]{};
             bool transparent[buf_size]{};
-            if (hdr.is_tga) {
+            if (hdr.is_png) {
+                bits::png_decode_all(raw, hdr.width, hdr.height, hdr.png_color_type, pixels, transparent);
+            } else if (hdr.is_tga) {
                 bits::tga_decode_all(raw, hdr, pixels, transparent);
             } else {
                 for (unsigned int y = 0; y < hdr.height; ++y)

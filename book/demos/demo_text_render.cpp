@@ -13,11 +13,11 @@
 int main() {
     using namespace gba::literals;
 
-    static constexpr auto font = gba::embed::bdf([] {
+    static constexpr auto font = gba::text::with_shadow<1, 1>(gba::embed::bdf([] {
         return std::to_array<unsigned char>({
 #embed "9x18.bdf"
         });
-    });
+    }));
     static constexpr auto fmt = "The frame is: {value}"_fmt;
 
     gba::irq_handler = {};
@@ -43,8 +43,6 @@ int main() {
                                  });
     gba::pal_bg_mem[0] = "#304060"_clr;
 
-    const auto style = gba::text::glyph_style{.draw_shadow = true};
-
     unsigned int frame = 0;
 
     gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -61,7 +59,7 @@ int main() {
     auto make_cursor = [&] {
         auto gen = fmt.generator("value"_arg = [&] { return frame; });
         auto s = gba::text::stream(gen, font, streamMetrics);
-        return layer.make_cursor(font, s, 0, 0, drawMetrics, style);
+        return layer.make_cursor(font, s, 0, 0, drawMetrics);
     };
 
     auto cursor = make_cursor();

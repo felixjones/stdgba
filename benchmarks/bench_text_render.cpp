@@ -5,12 +5,13 @@
 ///   1. draw_stream with a plain C-string stream (short text).
 ///   2. draw_stream with a plain C-string stream (long text with wrapping).
 ///   3. draw_stream with a format_generator stream (typewriter mode).
-///   4. draw_stream with shadow enabled vs disabled.
-///   5. draw_char for a single glyph.
+///   4. draw_stream with glyph effects (plain vs shadow).
+///   5. draw_char for a single glyph with various effects.
 ///   6. Layer clear cost.
 ///
 /// Uses an embedded BDF font compiled at consteval time.
 /// Run in mgba-headless to see output.
+/// NOTE: Outline effect removed pending font-baking implementation.
 
 #include <gba/bios>
 #include <gba/embed>
@@ -259,6 +260,10 @@ ENDFONT
 
 static constexpr auto font = gba::embed::bdf([] { return make_bench_bdf(); });
 
+// Pre-bake shadow into the font at compile time (1px right, 1px down)
+static constexpr auto font_with_shadow = gba::text::with_shadow<1, 1>(font);
+static constexpr auto font_with_outline = gba::text::with_outline<1>(font);
+
 // -- Shared format strings ----------------------------------------------------
 
 static constexpr auto fmt_hp = "HP: {hp}/{max}"_fmt;
@@ -272,16 +277,6 @@ static constexpr gba::text::draw_metrics default_metrics{
     .line_spacing_px = 2,
     .wrap_width_px = 220,
     .break_chars = gba::text::break_policy::whitespace,
-};
-
-static constexpr gba::text::glyph_style style_no_shadow{
-    .draw_shadow = false,
-};
-
-static constexpr gba::text::glyph_style style_shadow{
-    .draw_shadow = true,
-    .shadow_dx = 1,
-    .shadow_dy = 1,
 };
 
 static constexpr gba::text::stream_metrics stream_cfg{
@@ -300,7 +295,7 @@ namespace {
 
     // Re-create the layer each call to measure the full allocation + draw cost.
 
-    // 1. Short C-string, no shadow
+    // 1. Short C-string, plain font
     [[gnu::noinline]]
     void draw_cstr_short() {
         gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -313,7 +308,7 @@ namespace {
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
         auto s = gba::text::stream("HP: 42/99", font, stream_cfg);
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_no_shadow);
+        auto n = layer.draw_stream(font, s, 8, 16, default_metrics);
         sink_int = static_cast<int>(n);
     }
 
@@ -330,7 +325,7 @@ namespace {
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
         auto s = gba::text::stream("HP: 42/99 HP: 42/99 HP: 42/99", font, stream_cfg);
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_no_shadow);
+        auto n = layer.draw_stream(font, s, 8, 16, default_metrics);
         sink_int = static_cast<int>(n);
     }
 
@@ -351,11 +346,11 @@ namespace {
 
         auto gen = fmt_hp.generator(hp_arg = hp, max_arg = mx);
         auto s = gba::text::stream(gen, font, stream_cfg);
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_no_shadow);
+        auto n = layer.draw_stream(font, s, 8, 16, default_metrics);
         sink_int = static_cast<int>(n);
     }
 
-    // 4a. Short text WITHOUT shadow
+    // 4a. Short text with plain font
     [[gnu::noinline]]
     void draw_no_shadow() {
         gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -368,11 +363,11 @@ namespace {
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
         auto s = gba::text::stream("HP: 42/99", font, stream_cfg);
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_no_shadow);
+        auto n = layer.draw_stream(font, s, 8, 16, default_metrics);
         sink_int = static_cast<int>(n);
     }
 
-    // 4b. Short text WITH drop shadow
+    // 4b. Short text with shadow variant (via pre-baked font)
     [[gnu::noinline]]
     void draw_with_shadow() {
         gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -384,12 +379,29 @@ namespace {
         };
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
-        auto s = gba::text::stream("HP: 42/99", font, stream_cfg);
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_shadow);
+        auto s = gba::text::stream("HP: 42/99", font_with_shadow, stream_cfg);
+        auto n = layer.draw_stream(font_with_shadow, s, 8, 16, default_metrics);
         sink_int = static_cast<int>(n);
     }
 
-    // 5. Single glyph via draw_char
+    // 4c. Short text with outline variant (via pre-baked font)
+    [[gnu::noinline]]
+    void draw_with_outline() {
+        gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
+        constexpr auto config = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
+            .palbank_0 = 0,
+            .palbank_1 = 1,
+            .start_index = 1,
+        };
+        gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
+
+        auto s = gba::text::stream("HP: 42/99", font_with_outline, stream_cfg);
+        auto n = layer.draw_stream(font_with_outline, s, 8, 16, default_metrics);
+        sink_int = static_cast<int>(n);
+    }
+
+    // 5a. Single glyph via draw_char (no effect)
     [[gnu::noinline]]
     void draw_single_char() {
         gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -401,7 +413,39 @@ namespace {
         };
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
-        auto advance = layer.draw_char(font, static_cast<unsigned int>('H'), 8, 24, style_no_shadow);
+        auto advance = layer.draw_char(font, static_cast<unsigned int>('H'), 8, 24);
+        sink_int = advance;
+    }
+
+    // 5b. Single glyph via draw_char (shadow variant via pre-baked font)
+    [[gnu::noinline]]
+    void draw_single_char_shadow() {
+        gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
+        constexpr auto config = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
+            .palbank_0 = 0,
+            .palbank_1 = 1,
+            .start_index = 1,
+        };
+        gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
+
+        auto advance = layer.draw_char(font_with_shadow, static_cast<unsigned int>('H'), 8, 24);
+        sink_int = advance;
+    }
+
+    // 5c. Single glyph via draw_char (outline variant via pre-baked font)
+    [[gnu::noinline]]
+    void draw_single_char_outline() {
+        gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
+        constexpr auto config = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
+            .palbank_0 = 0,
+            .palbank_1 = 1,
+            .start_index = 1,
+        };
+        gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
+
+        auto advance = layer.draw_char(font_with_outline, static_cast<unsigned int>('H'), 8, 24);
         sink_int = advance;
     }
 
@@ -421,7 +465,7 @@ namespace {
         sink_int = 0;
     }
 
-    // 7. Typewriter reveal (max_chars limited)
+    // 7. Typewriter reveal (max_chars limited) with pre-baked shadow
     [[gnu::noinline]]
     void draw_typewriter_reveal() {
         gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
@@ -433,9 +477,9 @@ namespace {
         };
         gba::text::bg4_text_layer<32, 32, gba::text::linear_tile_allocator> layer{31, config, alloc};
 
-        auto s = gba::text::stream("HP: 42/99", font, stream_cfg);
+        auto s = gba::text::stream("HP: 42/99", font_with_shadow, stream_cfg);
         // Reveal only first 5 characters (simulates typewriter mid-animation)
-        auto n = layer.draw_stream(font, s, 8, 16, default_metrics, style_shadow, 5);
+        auto n = layer.draw_stream(font_with_shadow, s, 8, 16, default_metrics, 5);
         sink_int = static_cast<int>(n);
     }
 
@@ -477,11 +521,11 @@ int main() {
                    "single"_arg = "single", "avg"_arg = "avg");
     });
 
-    // -- Short C-string, no shadow --------------------------------------------
+    // -- Short C-string, plain font -------------------------------------------
     {
         auto single = gba::benchmark::measure(draw_cstr_short);
         auto avg = gba::benchmark::measure_avg(iters, draw_cstr_short);
-        gba::benchmark::with_logger([&] { log_row("cstr short (9ch, no shadow)", single, avg); });
+        gba::benchmark::with_logger([&] { log_row("cstr short (9ch, plain)", single, avg); });
     }
 
     // -- Longer C-string with wrapping ----------------------------------------
@@ -498,22 +542,37 @@ int main() {
         gba::benchmark::with_logger([&] { log_row("format stream \"HP: {hp}/{max}\"", single, avg); });
     }
 
-    // -- Shadow comparison ----------------------------------------------------
-    {
-        auto avg_no = gba::benchmark::measure_avg(iters, draw_no_shadow);
-        auto avg_yes = gba::benchmark::measure_avg(iters, draw_with_shadow);
-        gba::benchmark::with_logger([&] {
-            log_row("shadow off (9ch)", 0u, avg_no);
-            log_row("shadow on  (9ch)", 0u, avg_yes);
-        });
-    }
+     // -- Font variant comparison ----------------------------------------------
+     {
+         auto avg_no = gba::benchmark::measure_avg(iters, draw_no_shadow);
+         auto avg_yes = gba::benchmark::measure_avg(iters, draw_with_shadow);
+         auto avg_outline = gba::benchmark::measure_avg(iters, draw_with_outline);
+         gba::benchmark::with_logger([&] {
+             log_row("variant none    (9ch)", 0u, avg_no);
+             log_row("variant shadow  (9ch)", 0u, avg_yes);
+             log_row("variant outline (9ch)", 0u, avg_outline);
+         });
+     }
 
-    // -- Single glyph ---------------------------------------------------------
-    {
-        auto single = gba::benchmark::measure(draw_single_char);
-        auto avg = gba::benchmark::measure_avg(iters, draw_single_char);
-        gba::benchmark::with_logger([&] { log_row("single draw_char ('H')", single, avg); });
-    }
+     // -- Single glyph ---------------------------------------------------------
+     {
+         auto single = gba::benchmark::measure(draw_single_char);
+         auto avg = gba::benchmark::measure_avg(iters, draw_single_char);
+         gba::benchmark::with_logger([&] { log_row("single draw_char ('H', plain)", single, avg); });
+     }
+
+      {
+          auto single = gba::benchmark::measure(draw_single_char_shadow);
+          auto avg = gba::benchmark::measure_avg(iters, draw_single_char_shadow);
+          gba::benchmark::with_logger([&] { log_row("single draw_char ('H', shadow)", single, avg); });
+      }
+
+      {
+          auto single = gba::benchmark::measure(draw_single_char_outline);
+          auto avg = gba::benchmark::measure_avg(iters, draw_single_char_outline);
+          gba::benchmark::with_logger([&] { log_row("single draw_char ('H', outline)", single, avg); });
+      }
+
 
     // -- Layer clear ----------------------------------------------------------
     {

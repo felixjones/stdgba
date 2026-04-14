@@ -6,6 +6,7 @@ add_library(stdgba INTERFACE
         include/gba/angle
         include/gba/benchmark
         include/gba/bios
+        include/gba/codegen
         include/gba/color
         include/gba/compress
         include/gba/dma
@@ -35,6 +36,7 @@ target_compile_features(stdgba INTERFACE cxx_std_23)
 target_sources(stdgba INTERFACE
         source/assert.cpp
         source/assert_entry.S
+        source/codegen_patches.s
         source/div.s
         source/ldiv.s
         source/lmul.s
