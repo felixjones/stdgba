@@ -67,7 +67,7 @@ namespace gba::embed::bits {
                 auto c = pixels[pi];
                 unsigned int idx = 0;
                 for (unsigned int i = 1; i < ws.palette_count; ++i) {
-                    if (color_eq(ws.palette[i], c)) {
+                    if (ws.palette[i] == c) {
                         idx = i;
                         break;
                     }

@@ -11,15 +11,11 @@
 namespace gba::embed::bits {
 
     consteval gba::color to_gba_color(unsigned char r, unsigned char g, unsigned char b) {
-        return {.red = static_cast<unsigned short>(r >> 3),
-                .green = static_cast<unsigned short>(g >> 3),
-                .blue = static_cast<unsigned short>(b >> 3),
-                .grn_lo = static_cast<unsigned short>((g >> 2) & 1)};
+        return gba::bits::from_rgb((static_cast<unsigned int>(r) << 16) |
+                                   (static_cast<unsigned int>(g) << 8)  |
+                                    static_cast<unsigned int>(b));
     }
 
-    consteval bool color_eq(gba::color a, gba::color b) {
-        return a.red == b.red && a.green == b.green && a.blue == b.blue && a.grn_lo == b.grn_lo;
-    }
 
     consteval bool is_ws(unsigned char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r';

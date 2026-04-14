@@ -19,6 +19,8 @@ namespace gba {
         unsigned short green  : 5;
         unsigned short blue   : 5;
         unsigned short grn_lo : 1;
+
+        [[nodiscard]] friend constexpr bool operator==(color, color) = default;
     };
     static_assert(sizeof(color) == 2);
     static_assert(alignof(color) == 2);

@@ -293,7 +293,7 @@ namespace gba::embed {
 
             auto find_in_bank = [&](unsigned int bank, gba::color c) {
                 for (unsigned int i = 1; i < bank_used[bank]; ++i) {
-                    if (bits::color_eq(bank_palette[bank][i], c)) {
+                    if (bank_palette[bank][i] == c) {
                         return i;
                     }
                 }
@@ -811,7 +811,7 @@ namespace gba::embed {
                 auto c = pixels[i];
                 bool found = false;
                 for (unsigned int j = 1; j < r.pal_count; ++j) {
-                    if (bits::color_eq(r.palette[j], c)) {
+                    if (r.palette[j] == c) {
                         found = true;
                         break;
                     }
@@ -831,7 +831,7 @@ namespace gba::embed {
                 }
                 auto c = pixels[i];
                 for (unsigned int j = 1; j < r.pal_count; ++j) {
-                    if (bits::color_eq(r.palette[j], c)) {
+                    if (r.palette[j] == c) {
                         indices[i] = static_cast<unsigned char>(j);
                         break;
                     }
