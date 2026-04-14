@@ -6,25 +6,36 @@ to fill in runtime values without re-copying.
 
 ## Quick start
 
+The main power of codegen is **patching**: compile the ARM instruction sequence once,
+then replace runtime values (like loop counts, thresholds, or offsets) without re-copying.
+
 ```cpp
 #include <gba/codegen>
 #include <cstring>
 using namespace gba::codegen;
 
-// 1. Define the template — capacity inferred, encoding validated at compile time
-static constexpr auto add_fn = arm_macro([](auto& b) {
-    b.add_reg(arm_reg::r0, arm_reg::r0, arm_reg::r1)
+// 1. Define a template with a patched constant
+static constexpr auto add_const = arm_macro([](auto& b) {
+    b.add_imm(arm_reg::r0, arm_reg::r0, imm_slot(0))  // r0 = r0 + (patched value)
      .bx(arm_reg::lr);
 });
 
 // 2. Install into executable RAM (once)
-alignas(4) std::uint32_t code[add_fn.size()] = {};
-std::memcpy(code, add_fn.data(), add_fn.size_bytes());
+alignas(4) std::uint32_t code[add_const.size()] = {};
+std::memcpy(code, add_const.data(), add_const.size_bytes());
 
-// 3. Call — AAPCS: args in r0/r1, return in r0
-auto fn = reinterpret_cast<int (*)(int, int)>(code);
-int result = fn(30, 12);  // 42
+// 3. Patch and call - reuse the same code buffer with different constants
+constexpr block_patcher<add_const> patch{};
+
+auto add_10 = patch.entry<int(int)>(code, 10u);
+int result = add_10(5);  // 15 = 5 + 10
+
+auto add_100 = patch.entry<int(int)>(code, 100u);
+result = add_100(5);  // 105 = 5 + 100
 ```
+
+The `imm_slot(0)` marks a placeholder that is filled in at patch time.
+No re-copy needed - the same code buffer switches from adding 10 to adding 100.
 
 ---
 
@@ -40,7 +51,7 @@ static constexpr auto tpl = arm_macro([](auto& b) {
 ```
 
 `arm_macro` infers the required capacity automatically.
-All instruction encodings are validated at `consteval` time — invalid operands are
+All instruction encodings are validated at `consteval` time - invalid operands are
 compile errors, not runtime surprises.
 
 ### `arm_macro_builder<N>` (explicit capacity)
@@ -56,7 +67,7 @@ constexpr auto tpl = [] {
 }();
 ```
 
-`b.mark()` returns the current word index — useful for computing forward branch targets
+`b.mark()` returns the current word index - useful for computing forward branch targets
 before emitting the branch instruction.
 
 ### `compiled_block<N>` accessors
@@ -78,9 +89,9 @@ after install.  They accept a slot index `n` (0–31) that maps to a call-site a
 | Slot | Instruction(s) | Value |
 |------|----------------|-------|
 | `imm_slot(n)` | `mov_imm`, `add_imm`, `sub_imm`, `orr_imm`, `and_imm`, `eor_imm`, `bic_imm`, `mvn_imm`, `rsb_imm`, `cmp_imm`, `tst_imm` | 0–255 |
-| `s12_slot(n)` | `ldr_imm`, `str_imm` | −4095 … +4095 |
+| `s12_slot(n)` | `ldr_imm`, `str_imm` | -4095 ... +4095 |
 | `b_slot(n)` | `b_to`, `b_if` | 24-bit signed word offset |
-| `instr_slot(n)` | `instruction(…)` / `word(…)` / `literal_word(…)` | Any 32-bit word |
+| `instr_slot(n)` | `instruction(...)` / `word(...)` / `literal_word(...)` | Any 32-bit word |
 
 `word_slot` and `literal_slot` are aliases for `instr_slot`.
 
@@ -99,7 +110,7 @@ static constexpr auto tpl = arm_macro([](auto& b) {
 
 The preferred path uses `block_patcher<tpl>`: a zero-overhead patcher parameterised
 on the block value as a non-type template argument.  All patch metadata is a
-compile-time constant, so the compiler emits a straight-line sequence of stores —
+compile-time constant, so the compiler emits a straight-line sequence of stores --
 no loop, no dispatch table, no ROM reads.
 
 ### Preferred: `block_patcher<tpl>`
@@ -109,7 +120,7 @@ static constexpr auto tpl = arm_macro([](auto& b) {
     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
 });
 
-// Declare once as a constexpr object — zero runtime cost
+// Declare once as a constexpr object - zero runtime cost
 constexpr block_patcher<tpl> patch{};
 
 alignas(4) std::uint32_t code[tpl.size()] = {};
@@ -119,7 +130,7 @@ patch(code, 42u);                          // apply patches in place
 auto fn = patch.entry<int()>(code, 42u);  // patch + typed function pointer
 ```
 
-**Typed variant** — when you want `operator()` to return the function pointer:
+**Typed variant** - when you want `operator()` to return the function pointer:
 
 ```cpp
 constexpr auto fn_patch = block_patcher<tpl>{}.typed<int()>();
@@ -142,7 +153,7 @@ patch(code, 42u);                // apply patches only
 auto fn = tpatch(code, 42u);    // apply + return int(*)()
 ```
 
-**Named-argument patching** — order-independent, self-documenting:
+**Named-argument patching** - order-independent, self-documenting:
 
 ```cpp
 #include <gba/args>
@@ -156,18 +167,21 @@ static constexpr auto tpl = arm_macro([](auto& b) {
 
 constexpr auto patch = tpl.patcher();
 std::memcpy(code, tpl.data(), tpl.size_bytes());
-patch(code, "y"_arg = 12u, "x"_arg = 30u);  // 42 — order irrelevant
+patch(code, "y"_arg = 12u, "x"_arg = 30u);  // 42 - order irrelevant
 ```
 
-### Compatibility: `apply_patches<Sig>(...)`
+### Generic Runtime Dispatch: `apply_patches<Sig>(...)`
 
-Generic runtime dispatch.  Useful when the block is not available as a `constexpr`
-at the call site or when the argument array is pre-built.
+Generic runtime function for when the block is not available as a `constexpr` at the call site,
+or when patching arguments need to be packed into an array before application.
 
+Variadic form - arguments passed directly:
 ```cpp
 auto fn = apply_patches<int(int)>(tpl, code, tpl.size(), 42u);
+```
 
-// Pre-packed array form
+Packed array form - pre-assembled argument array:
+```cpp
 std::uint32_t args[] = {30u, 12u};
 auto fn = apply_patches_packed<int(int)>(tpl, code, tpl.size(), args, 2);
 ```
@@ -203,6 +217,34 @@ add_reg_instr(rd, rn, rm)   sub_reg_instr(rd, rn, rm)
 orr_reg_instr(rd, rn, rm)   and_reg_instr(rd, rn, rm)   eor_reg_instr(rd, rn, rm)
 lsl_imm_instr(rd, rm, shift)   lsr_imm_instr(rd, rm, shift)
 mul_instr(rd, rm, rs)
+```
+
+### Callback Patching: `apply_word_patches(...)`
+
+When instruction word patches are generated dynamically at runtime, use the callback-based
+`apply_word_patches` function instead of `apply_patches`.  This is useful for multi-operation
+switching or complex patch-value computation:
+
+```cpp
+static constexpr auto op_tpl = arm_macro([](auto& b) {
+    b.mov_imm(arm_reg::r2, imm_slot(0))
+     .instruction(instr_slot(1))        // replaced at runtime via callback
+     .bx(arm_reg::lr);
+});
+
+alignas(4) std::uint32_t code[op_tpl.size()] = {};
+std::memcpy(code, op_tpl.data(), op_tpl.size_bytes());
+
+// Use a callback to generate instruction words based on patch index
+apply_word_patches(op_tpl, code, op_tpl.size(), [](std::size_t patch_idx) -> std::uint32_t {
+    // patch_idx == 1 here (the instruction slot)
+    // Return the desired instruction word
+    if (some_condition) {
+        return add_reg_instr(arm_reg::r0, arm_reg::r0, arm_reg::r2);
+    } else {
+        return sub_reg_instr(arm_reg::r0, arm_reg::r0, arm_reg::r2);
+    }
+});
 ```
 
 ---
@@ -276,15 +318,15 @@ These set CPSR flags without writing a destination register.
 
 `cmp_imm` and `tst_imm` also accept `imm_slot(n)`.
 
-### Memory — word and byte
+### Memory - word and byte
 
 | Method | Access |
 |--------|--------|
-| `ldr_imm(rd, rn, offset)` / `str_imm(rd, rn, offset)` | 32-bit word, offset −4095…+4095; accepts `s12_slot` |
+| `ldr_imm(rd, rn, offset)` / `str_imm(rd, rn, offset)` | 32-bit word, offset -4095...+4095; accepts `s12_slot` |
 | `ldrb_imm(rd, rn, offset)` / `strb_imm(rd, rn, offset)` | Unsigned byte, immediate offset |
 | `ldrb_reg(rd, rn, rm)` / `strb_reg(rd, rn, rm)` | Unsigned byte, register offset |
 
-### Memory — halfword and signed forms
+### Memory - halfword and signed forms
 
 | Method | Access |
 |--------|--------|
@@ -312,7 +354,7 @@ Build a register bitmask with `reg_list(r0, r4, lr, ...)`.
 
 ```cpp
 b.push(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::lr));
-// … body …
+// ... body ...
 b.pop(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::pc));
 ```
 
@@ -334,7 +376,7 @@ b.pop(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::pc));
 | `b_if(cond, target)` | Conditional, by word index |
 | `b_if(cond, b_slot(n))` | Patchable conditional branch |
 | `bl_to(target)` | Branch with link |
-| `bx(rm)` | Branch exchange — use for function returns |
+| `bx(rm)` | Branch exchange - use for function returns |
 | `blx(rm)` | Branch exchange with link |
 
 `arm_cond` values:
@@ -342,7 +384,7 @@ b.pop(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::pc));
 
 #### Branching patterns
 
-`b_to` and `b_if` take a *target word index* — the index of the instruction you want
+`b_to` and `b_if` take a *target word index* - the index of the instruction you want
 to jump to.  Use `b.mark()` to read the current word index at any point during
 construction:
 
@@ -360,9 +402,9 @@ For forward branches, emit the branch first, then record where the target lands:
 ```cpp
 b.cmp_imm(arm_reg::r0, 100);
 const auto branch_instr = b.mark();      // index of the b_if we're about to emit
-b.b_if(arm_cond::ge, 0);                // target unknown yet — placeholder
+b.b_if(arm_cond::ge, 0);                // target unknown yet - placeholder
 b.add_imm(arm_reg::r0, arm_reg::r0, 5); // only reached when r0 < 100
-// … forward code goes here …
+// ... forward code goes here ...
 ```
 
 > **Note:** Forward branches where the target index is not yet known require
@@ -376,7 +418,7 @@ b.add_imm(arm_reg::r0, arm_reg::r0, 5); // only reached when r0 < 100
 ## AAPCS calling convention
 
 Generated leaf functions receive and return values through the standard ARM AAPCS
-convention used on GBA.  No special setup is needed — just cast the destination
+convention used on GBA.  No special setup is needed - just cast the destination
 pointer to the right type.
 
 | Role | Register |
@@ -387,31 +429,82 @@ pointer to the right type.
 | Argument 3 | `r3` |
 | Return value | `r0` |
 
-Register-form instructions (`add_reg`, `sub_reg`, `mul`, …) operate directly on
+Register-form instructions (`add_reg`, `sub_reg`, `mul`, ...) operate directly on
 call-time arguments without any patch slots.
 
 ---
 
 ## Examples
 
-### Function with two call-time arguments
+### Patched constant (simplest case)
+
+This is the Quick start pattern - add a call-time argument to a patched constant:
 
 ```cpp
-static constexpr auto add_args = arm_macro([](auto& b) {
+static constexpr auto add_const = arm_macro([](auto& b) {
+    b.add_imm(arm_reg::r0, arm_reg::r0, imm_slot(0))
+     .bx(arm_reg::lr);
+});
+
+alignas(4) std::uint32_t code[add_const.size()] = {};
+std::memcpy(code, add_const.data(), add_const.size_bytes());
+
+constexpr block_patcher<add_const> patch{};
+auto fn = patch.entry<int(int)>(code, 42u);
+int result = fn(8);  // 50 = 8 + 42
+```
+
+### Function with two call-time arguments
+
+Both arguments come through AAPCS registers; no patching needed:
+
+```cpp
+static constexpr auto add_fn = arm_macro([](auto& b) {
     b.add_reg(arm_reg::r0, arm_reg::r0, arm_reg::r1)
      .bx(arm_reg::lr);
 });
 
-alignas(4) std::uint32_t code[add_args.size()] = {};
-std::memcpy(code, add_args.data(), add_args.size_bytes());
+alignas(4) std::uint32_t code[add_fn.size()] = {};
+std::memcpy(code, add_fn.data(), add_fn.size_bytes());
 auto fn = reinterpret_cast<int (*)(int, int)>(code);
 int result = fn(30, 12);  // 42
+```
+
+### Loop with patched iteration count
+
+Count down from a patched limit:
+
+```cpp
+// int countdown_by_step(int start) - counts down with a patched step size
+static constexpr auto countdown_loop = arm_macro([](auto& b) {
+    b.mov_imm(arm_reg::r1, 0);                        // count = 0
+    const auto loop_start = b.mark();                 // loop top: index 1
+    b.sub_imm(arm_reg::r0, arm_reg::r0, imm_slot(0)); // start -= step_size (patched)
+    b.add_imm(arm_reg::r1, arm_reg::r1, 1);           // count++
+    b.cmp_imm(arm_reg::r0, 0);                        // if start <= 0, exit
+    b.b_if(arm_cond::gt, loop_start);                 // if start > 0, loop
+    b.mov_reg(arm_reg::r0, arm_reg::r1);              // return count
+    b.bx(arm_reg::lr);
+});
+
+alignas(4) std::uint32_t code[countdown_loop.size()] = {};
+std::memcpy(code, countdown_loop.data(), countdown_loop.size_bytes());
+
+constexpr block_patcher<countdown_loop> patch{};
+
+// Patch step size = 1
+auto count_by_1 = patch.entry<int(int)>(code, 1u);
+int loops_by_1 = count_by_1(10);  // 10 iterations: 10, 9, 8, ..., 1, 0
+
+// Re-patch: step size = 2 (no re-copy needed!)
+auto count_by_2 = patch.entry<int(int)>(code, 2u);
+int loops_by_2 = count_by_2(10);  // 5 iterations: 10, 8, 6, 4, 2, 0
 ```
 
 ### Mixed: call-time arguments and patch-time constant
 
 ```cpp
-// x * 4 + c  — x is a call-time argument, c is patched in
+// x * 4 + c  - x is a call-time argument, c is patched in
 static constexpr auto scale_add = arm_macro([](auto& b) {
     b.add_reg(arm_reg::r0, arm_reg::r0, arm_reg::r0) // *2
      .add_reg(arm_reg::r0, arm_reg::r0, arm_reg::r0) // *4
@@ -431,7 +524,7 @@ int r = fn(10);  // 42
 ### Callee-save register pattern
 
 ```cpp
-// int compute(int a, int b, int c)  —  (a * b) + (c << 2)
+// int compute(int a, int b, int c)  -  (a * b) + (c << 2)
 static constexpr auto compute = arm_macro([](auto& b) {
     b.push(reg_list(arm_reg::r4, arm_reg::lr));
     b.mul(arm_reg::r4, arm_reg::r0, arm_reg::r1); // r4 = a * b  (r4 != r0)
@@ -452,7 +545,7 @@ static constexpr auto count_loop = arm_macro([](auto& b) {
     b.b_if(arm_cond::ge, 5);               // exit if r0 >= limit; index 2
     b.add_imm(arm_reg::r0, arm_reg::r0, 1);// r0++; index 3
     b.add_imm(arm_reg::r2, arm_reg::r2, 1);// count++; index 4
-    b.b_to(1);                             // back to loop top; index 5 — exit
+    b.b_to(1);                             // back to loop top; index 5 - exit
     b.mov_reg(arm_reg::r0, arm_reg::r2);   // return count; index 6
     b.bx(arm_reg::lr);
 });
@@ -464,9 +557,9 @@ static constexpr auto count_loop = arm_macro([](auto& b) {
 // Returns value * 2 if below threshold, value + 10 otherwise
 static constexpr auto threshold_fn = arm_macro([](auto& b) {
     b.cmp_imm(arm_reg::r0, imm_slot(0));          // index 0
-    b.b_if(arm_cond::ge, 3);                       // index 1 — skip to else
+    b.b_if(arm_cond::ge, 3);                       // index 1 - skip to else
     b.add_reg(arm_reg::r0, arm_reg::r0, arm_reg::r0); // *2; index 2
-    b.b_to(4);                                     // index 3 — skip else
+    b.b_to(4);                                     // index 3 - skip else
     b.add_imm(arm_reg::r0, arm_reg::r0, 10);       // +10; index 4
     b.bx(arm_reg::lr);                             // index 5
 });

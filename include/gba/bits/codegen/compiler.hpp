@@ -1588,7 +1588,7 @@ namespace gba::codegen {
     /// @return `compiled_block<Capacity>` ready for materialization and patching
     /// @see compiled_block - The returned instruction block type
     /// @see apply_patches() - Apply runtime patch values
-    /// @see materialize_patched() - Combined copy + patch convenience
+    /// @see block_patcher - Zero-overhead compile-time patcher
     template<typename Fn>
     consteval auto arm_macro(Fn&& fn) {
         constexpr std::size_t capacity = bits::infer_macro_capacity(std::forward<Fn>(fn));
