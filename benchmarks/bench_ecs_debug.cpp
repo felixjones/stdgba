@@ -39,6 +39,7 @@ namespace {
     static constexpr gba::fixed<int, 8> vel_y{0.5};
 
     volatile int sink_acc = 0;
+    using cleanup = gba::ecs::group<health, sprite_id>;
 
     [[gnu::noinline]]
     void iter_movement(gba::ecs::registry<128, position, velocity, health, sprite_id>* reg) {
@@ -130,6 +131,59 @@ namespace {
                            "cycles"_arg = destroy_cyc,
                            "pct"_arg = (destroy_cyc * 100u) / vblank,
                            "cycpe"_arg = destroy_cyc / static_cast<unsigned int>(N));
+            });
+        }
+
+        // Remove path microbenchmark focused on debug-runtime overhead.
+        {
+            gba::ecs::registry<128, position, velocity, health, sprite_id> checked_reg;
+            gba::ecs::registry<128, position, velocity, health, sprite_id> unchecked_reg;
+            std::array<gba::ecs::entity_id, N> checked_entities{};
+            std::array<gba::ecs::entity_id, N> unchecked_entities{};
+
+            for (int i = 0; i < N; ++i) {
+                const auto ce = checked_reg.create();
+                checked_entities[i] = ce;
+                checked_reg.emplace<health>(ce, 100);
+                checked_reg.emplace<sprite_id>(ce, static_cast<std::uint8_t>(i & 0x7F));
+
+                const auto ue = unchecked_reg.create();
+                unchecked_entities[i] = ue;
+                unchecked_reg.emplace<health>(ue, 100);
+                unchecked_reg.emplace<sprite_id>(ue, static_cast<std::uint8_t>(i & 0x7F));
+            }
+
+            const auto checked_remove = gba::benchmark::measure([&] {
+                for (int i = 0; i < N; ++i) {
+                    checked_reg.remove<health>(checked_entities[i]);
+                    checked_reg.remove<sprite_id>(checked_entities[i]);
+                    checked_reg.emplace<health>(checked_entities[i], 100);
+                    checked_reg.emplace<sprite_id>(checked_entities[i], static_cast<std::uint8_t>(i & 0x7F));
+                }
+            });
+
+            const auto unchecked_remove = gba::benchmark::measure([&] {
+                for (int i = 0; i < N; ++i) {
+                    unchecked_reg.remove_unchecked<cleanup>(unchecked_entities[i]);
+                    unchecked_reg.emplace<health>(unchecked_entities[i], 100);
+                    unchecked_reg.emplace<sprite_id>(unchecked_entities[i], static_cast<std::uint8_t>(i & 0x7F));
+                }
+            });
+
+            const int diff = static_cast<int>(checked_remove) - static_cast<int>(unchecked_remove);
+            gba::benchmark::with_logger([&] {
+                gba::benchmark::log(gba::log::level::info, "  {operation:<30}  {cycles:>7}  {pct:>3}%  {cycpe:>6}"_fmt,
+                           "operation"_arg = "remove x2 checked",
+                           "cycles"_arg = checked_remove,
+                           "pct"_arg = (checked_remove * 100u) / vblank,
+                           "cycpe"_arg = checked_remove / static_cast<unsigned int>(N));
+                gba::benchmark::log(gba::log::level::info, "  {operation:<30}  {cycles:>7}  {pct:>3}%  {cycpe:>6}"_fmt,
+                           "operation"_arg = "remove_unchecked<cleanup>",
+                           "cycles"_arg = unchecked_remove,
+                           "pct"_arg = (unchecked_remove * 100u) / vblank,
+                           "cycpe"_arg = unchecked_remove / static_cast<unsigned int>(N));
+                gba::benchmark::log(gba::log::level::info, "  remove delta (checked - unchecked): {d}"_fmt,
+                           "d"_arg = diff);
             });
         }
     }

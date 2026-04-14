@@ -42,8 +42,32 @@
 /// // player is now invalid - generation mismatch detects use-after-destroy
 /// @endcode
 ///
-/// ## Power-of-Two Sizes
+/// ## Component Groups
 ///
+/// Component groups provide logical organization for related components without
+/// any runtime overhead - they are completely flattened at compile time.
+///
+/// @code{.cpp}
+/// // Group related components together
+/// using physics = gba::ecs::group<position, velocity>;
+/// using gameplay = gba::ecs::group<health, mana>;
+///
+/// // Single registry with groups instead of a long component list
+/// gba::ecs::registry<128, physics, gameplay> world;
+/// // Internally equivalent to:
+/// // gba::ecs::registry<128, position, velocity, health, mana>
+///
+/// // Use components through the registry as normal
+/// for (auto [pos, vel] : world.view<position, velocity>()) {
+///     pos.x += vel.vx;
+/// }
+///
+/// // You can also mix groups and individual components
+/// using player_data = gba::ecs::group<position, velocity>;
+/// gba::ecs::registry<128, player_data, health, score> world2;
+/// @endcode
+///
+
 /// All component types must have power-of-two sizes. This enables shift-based
 /// addressing in the component pools (critical for ARM7TDMI, which lacks a
 /// barrel-shifter MUL path for indexed loads). Use `gba::ecs::pad<N>` to
@@ -75,4 +99,5 @@
 #pragma once
 
 #include <gba/bits/ecs/entity.hpp>
+#include <gba/bits/ecs/group.hpp>
 #include <gba/bits/ecs/registry.hpp>

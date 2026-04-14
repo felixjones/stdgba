@@ -137,6 +137,78 @@ int main() {
         gba::test.expect.is_false(reg.all_of<hp_t>(e), "no hp after remove");
     });
 
+    gba::test("remove_unchecked by component reference", [] {
+        test_registry reg;
+        auto e = reg.create();
+        auto& hp = reg.emplace<hp_t>(e, 88);
+        gba::test.expect.is_true(reg.all_of<hp_t>(e), "has hp before ref remove_unchecked");
+        reg.remove_unchecked<hp_t>(hp);
+        gba::test.expect.is_false(reg.all_of<hp_t>(e), "no hp after ref remove_unchecked");
+    });
+
+    gba::test("remove_unchecked variadic by entity_id", [] {
+        test_registry reg;
+        auto e = reg.create();
+        reg.emplace<pos_t>(e, 1, 2);
+        reg.emplace<vel_t>(e, 3, 4);
+        reg.emplace<hp_t>(e, 55);
+
+        gba::test.expect.is_true(reg.all_of<pos_t, vel_t, hp_t>(e), "all components present before variadic remove");
+        reg.remove_unchecked<pos_t, hp_t>(e);
+        gba::test.expect.is_false(reg.all_of<pos_t>(e), "pos removed by variadic remove_unchecked");
+        gba::test.expect.is_true(reg.all_of<vel_t>(e), "vel kept after variadic remove_unchecked");
+        gba::test.expect.is_false(reg.all_of<hp_t>(e), "hp removed by variadic remove_unchecked");
+    });
+
+    gba::test("try_get optional access", [] {
+        test_registry reg;
+        auto e = reg.create();
+
+        gba::test.expect.is_true(reg.try_get<pos_t>(e) == nullptr, "missing component returns nullptr");
+
+        reg.emplace<pos_t>(e, 12, 34);
+        auto* p = reg.try_get<pos_t>(e);
+        gba::test.expect.is_true(p != nullptr, "present component returns pointer");
+        gba::test.expect.eq(p->x, 12, "pointer exposes value");
+
+        const auto& creg = reg;
+        auto* cp = creg.try_get<pos_t>(e);
+        gba::test.expect.is_true(cp != nullptr, "const try_get returns pointer");
+        gba::test.expect.eq(cp->y, 34, "const pointer exposes value");
+
+        reg.destroy(e);
+        gba::test.expect.is_true(reg.try_get<pos_t>(e) == nullptr, "invalid entity returns nullptr");
+    });
+
+    gba::test("with optional callback access", [] {
+        test_registry reg;
+        auto e = reg.create();
+        reg.emplace<pos_t>(e, 5, 6);
+
+        bool called = false;
+        const bool ok = reg.with<pos_t>(e, [&](pos_t& p) {
+            called = true;
+            p.x += 10;
+        });
+        gba::test.expect.is_true(ok, "with returns true when component exists");
+        gba::test.expect.is_true(called, "with invokes callback");
+        gba::test.expect.eq(reg.get<pos_t>(e).x, 15, "with can mutate component");
+
+        called = false;
+        const bool missing = reg.with<hp_t>(e, [&](hp_t&) { called = true; });
+        gba::test.expect.is_false(missing, "with returns false when component missing");
+        gba::test.expect.is_false(called, "with does not invoke callback when missing");
+
+        const auto& creg = reg;
+        bool const_called = false;
+        const bool const_ok = creg.with<pos_t>(e, [&](const pos_t& p) {
+            const_called = true;
+            gba::test.expect.eq(p.y, 6, "const with sees component value");
+        });
+        gba::test.expect.is_true(const_ok, "const with returns true when component exists");
+        gba::test.expect.is_true(const_called, "const with invokes callback");
+    });
+
     gba::test("all_of / any_of", [] {
         test_registry reg;
         auto e = reg.create();
