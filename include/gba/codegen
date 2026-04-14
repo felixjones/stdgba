@@ -188,8 +188,40 @@
 /// std::memcpy(code, scale_add.data(), scale_add.size_bytes());
 /// auto fn_c10 = apply_patches<int(int)>(scale_add, code, 8, 10u);  // 4x + 10
 /// auto fn_c5  = apply_patches<int(int)>(scale_add, code, 8, 5u);   // 4x + 5
+///
+/// // Callee-save pattern: preserve r4-r6 across computation
+/// static constexpr auto with_callee_save = arm_macro([](auto& b) {
+///     b.push(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::r6, arm_reg::lr))
+///      .mov_reg(arm_reg::r4, arm_reg::r0)                    // save arg0
+///      .add_reg(arm_reg::r5, arm_reg::r4, arm_reg::r1)       // r5 = r4 + arg1
+///      .mul(arm_reg::r6, arm_reg::r4, arm_reg::r5)           // r6 = r4 * r5
+///      .mov_reg(arm_reg::r0, arm_reg::r6)                    // return r6
+///      .pop(reg_list(arm_reg::r4, arm_reg::r5, arm_reg::r6, arm_reg::pc));
+/// });
+///
+/// // Conditional branching: check threshold and return different values
+/// static constexpr auto threshold_check = arm_macro([](auto& b) {
+///     const auto above_threshold = b.mark() + 3;
+///     b.cmp_imm(arm_reg::r0, imm_slot(0))                    // compare with threshold
+///      .b_if(arm_cond::ge, above_threshold)                  // if r0 >= threshold
+///      .mov_imm(arm_reg::r0, 0)                              // return 0
+///      .bx(arm_reg::lr)
+///      .mov_imm(arm_reg::r0, 1)                              // return 1 if >= threshold
+///      .bx(arm_reg::lr);
+/// });
+///
+/// // Patchable threshold with re-execution
+/// alignas(4) unsigned int threshold_code[8] = {};
+/// std::memcpy(threshold_code, threshold_check.data(), threshold_check.size_bytes());
+/// auto fn_t50  = apply_patches<int(int)>(threshold_check, threshold_code, 8, 50u);
+/// int below = fn_t50(30);  // 0 (30 < 50)
+/// auto fn_t20  = apply_patches<int(int)>(threshold_check, threshold_code, 8, 20u);
+/// int above = fn_t20(30);  // 1 (30 >= 20)
 /// @endcode
 #pragma once
+
+#include <gba/args>
+#include <gba/bits/codegen/compiler.hpp>
 
 #include <array>
 #include <cstddef>
@@ -197,357 +229,347 @@
 #include <type_traits>
 #include <utility>
 
-#include <gba/args>
-#include <gba/bits/codegen/compiler.hpp>
-
 /// @cond INTERNAL
 extern "C" {
 
-	/// Fast IWRAM imm8-only patch loop.
-	/// All patches must have kind == imm8. patch_count must be > 0.
-	/// Writes: destination[word_index] = base_word | args[arg_index]
-	/// Placed in IWRAM for single-cycle ARM instruction fetch.
-	void _stdgba_apply_patches_imm8(std::uint32_t* destination,
-									const void* patches,
-									std::uint32_t patch_count,
-									const std::uint32_t* args) noexcept;
+/// Fast IWRAM imm8-only patch loop.
+/// All patches must have kind == imm8. patch_count must be > 0.
+/// Writes: destination[word_index] = base_word | args[arg_index]
+/// Placed in IWRAM for single-cycle ARM instruction fetch.
+void _stdgba_apply_patches_imm8(std::uint32_t* destination, const void* patches, std::uint32_t patch_count,
+                                const std::uint32_t* args) noexcept;
 
-	/// General IWRAM patch loop handling all patch_kind values.
-	/// patch_count must be > 0.
-	/// Placed in IWRAM for single-cycle ARM instruction fetch.
-	void _stdgba_apply_patches_core(std::uint32_t* destination,
-									const void* patches,
-									std::uint32_t patch_count,
-									const std::uint32_t* args) noexcept;
+/// General IWRAM patch loop handling all patch_kind values.
+/// patch_count must be > 0.
+/// Placed in IWRAM for single-cycle ARM instruction fetch.
+void _stdgba_apply_patches_core(std::uint32_t* destination, const void* patches, std::uint32_t patch_count,
+                                const std::uint32_t* args) noexcept;
 
 } // extern "C"
 /// @endcond
 
 namespace gba::codegen {
-	static_assert(sizeof(patch_slot) == 8, "apply_patches assembly requires patch_slot to be 8 bytes");
-	static_assert(alignof(patch_slot) == alignof(std::uint32_t),
-				  "apply_patches assembly requires patch_slot to be word aligned");
-	static_assert(offsetof(patch_slot, word_index) == 0,
-				  "apply_patches assembly requires word_index at byte offset 0");
-	static_assert(offsetof(patch_slot, arg_index) == 1,
-				  "apply_patches assembly requires arg_index at byte offset 1");
-	static_assert(offsetof(patch_slot, kind) == 2,
-				  "apply_patches assembly requires kind at byte offset 2");
-	static_assert(offsetof(patch_slot, base_word) == 4,
-				  "apply_patches assembly requires base_word at byte offset 4");
+    static_assert(sizeof(patch_slot) == 8, "apply_patches assembly requires patch_slot to be 8 bytes");
+    static_assert(alignof(patch_slot) == alignof(std::uint32_t),
+                  "apply_patches assembly requires patch_slot to be word aligned");
+    static_assert(offsetof(patch_slot, word_index) == 0, "apply_patches assembly requires word_index at byte offset 0");
+    static_assert(offsetof(patch_slot, arg_index) == 1, "apply_patches assembly requires arg_index at byte offset 1");
+    static_assert(offsetof(patch_slot, kind) == 2, "apply_patches assembly requires kind at byte offset 2");
+    static_assert(offsetof(patch_slot, base_word) == 4, "apply_patches assembly requires base_word at byte offset 4");
 
-	namespace bits {
-		[[gnu::always_inline]] inline void apply_patch_imm8_fast(std::uint32_t* const destination,
-											 const patch_slot& patch,
-											 const std::uint32_t* const patch_args) {
-			const auto value = patch_args[patch.arg_index];
-			bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
-			destination[patch.word_index] = patch.base_word | value;
-		}
+    namespace bits {
+        [[gnu::always_inline]] inline void apply_patch_imm8_fast(std::uint32_t* const destination,
+                                                                 const patch_slot& patch,
+                                                                 const std::uint32_t* const patch_args) {
+            const auto value = patch_args[patch.arg_index];
+            bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
+            destination[patch.word_index] = patch.base_word | value;
+        }
 
-		[[gnu::always_inline]] inline void apply_patch_word_fast(std::uint32_t* const destination,
-											 const patch_slot& patch,
-											 const std::uint32_t value) {
-			destination[patch.word_index] = value;
-		}
+        [[gnu::always_inline]] inline void apply_patch_word_fast(std::uint32_t* const destination,
+                                                                 const patch_slot& patch, const std::uint32_t value) {
+            destination[patch.word_index] = value;
+        }
 
-		[[gnu::always_inline]] inline void apply_patch_inline(std::uint32_t* const destination,
-											 const std::size_t word_count,
-											 const patch_slot& patch,
-											 const std::uint32_t* const patch_args,
-											 const std::size_t arg_count) {
-			bits::require(static_cast<std::size_t>(patch.word_index) < word_count,
-						  "apply_patches: patch word index out of bounds");
-			bits::require(static_cast<std::size_t>(patch.arg_index) < arg_count,
-						  "apply_patches: patch arg index out of bounds");
+        [[gnu::always_inline]] inline void apply_patch_inline(std::uint32_t* const destination,
+                                                              const std::size_t word_count, const patch_slot& patch,
+                                                              const std::uint32_t* const patch_args,
+                                                              const std::size_t arg_count) {
+            bits::require(static_cast<std::size_t>(patch.word_index) < word_count,
+                          "apply_patches: patch word index out of bounds");
+            bits::require(static_cast<std::size_t>(patch.arg_index) < arg_count,
+                          "apply_patches: patch arg index out of bounds");
 
-			const auto value = patch_args[patch.arg_index];
+            const auto value = patch_args[patch.arg_index];
 
-			switch (patch.kind) {
-				case patch_kind::imm8:
-					bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
-					destination[patch.word_index] = patch.base_word | value;
-					break;
+            switch (patch.kind) {
+                case patch_kind::imm8:
+                    bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
+                    destination[patch.word_index] = patch.base_word | value;
+                    break;
 
-				case patch_kind::signed12: {
-					const auto signed_value = static_cast<std::int32_t>(value);
-					std::uint32_t magnitude{};
+                case patch_kind::signed12: {
+                    const auto signed_value = static_cast<std::int32_t>(value);
+                    std::uint32_t magnitude{};
 
-					if (signed_value < 0) {
-						bits::require(signed_value >= -4095, "apply_patches: signed12 patch value out of range");
-						magnitude = static_cast<std::uint32_t>(-signed_value);
-						destination[patch.word_index] = patch.base_word | magnitude;
-					} else {
-						bits::require(signed_value <= 4095, "apply_patches: signed12 patch value out of range");
-						magnitude = static_cast<std::uint32_t>(signed_value);
-						destination[patch.word_index] = patch.base_word | 0x00800000u | magnitude;
-					}
-					break;
-				}
+                    if (signed_value < 0) {
+                        bits::require(signed_value >= -4095, "apply_patches: signed12 patch value out of range");
+                        magnitude = static_cast<std::uint32_t>(-signed_value);
+                        destination[patch.word_index] = patch.base_word | magnitude;
+                    } else {
+                        bits::require(signed_value <= 4095, "apply_patches: signed12 patch value out of range");
+                        magnitude = static_cast<std::uint32_t>(signed_value);
+                        destination[patch.word_index] = patch.base_word | 0x00800000u | magnitude;
+                    }
+                    break;
+                }
 
-				case patch_kind::branch_offset: {
-					const auto signed_value = static_cast<std::int32_t>(value);
-					bits::require(signed_value >= -0x00800000 && signed_value <= 0x007FFFFF,
-							  "apply_patches: branch patch value out of range");
-					destination[patch.word_index] = patch.base_word | (value & 0x00FFFFFFu);
-					break;
-				}
+                case patch_kind::branch_offset: {
+                    const auto signed_value = static_cast<std::int32_t>(value);
+                    bits::require(signed_value >= -0x00800000 && signed_value <= 0x007FFFFF,
+                                  "apply_patches: branch patch value out of range");
+                    destination[patch.word_index] = patch.base_word | (value & 0x00FFFFFFu);
+                    break;
+                }
 
-				case patch_kind::instruction:
-					destination[patch.word_index] = value;
-					break;
-			}
-		}
+                case patch_kind::instruction: destination[patch.word_index] = value; break;
+            }
+        }
 
-		template<typename Signature, std::size_t Capacity>
-		[[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches_impl(
-				const compiled_block<Capacity>& block,
-				std::uint32_t* destination,
-				const std::size_t destination_words,
-				const std::uint32_t* const patch_args,
-				const std::size_t arg_count) {
-			bits::require(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0,
-						  "apply_patches: destination must be word aligned");
-			bits::require(destination_words >= block.count, "apply_patches: destination buffer too small");
-			bits::require(arg_count >= block.arg_count, "apply_patches: insufficient patch arguments");
+        template<typename Signature, std::size_t Capacity>
+        [[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches_impl(
+            const compiled_block<Capacity>& block, std::uint32_t* destination, const std::size_t destination_words,
+            const std::uint32_t* const patch_args, const std::size_t arg_count) {
+            bits::require(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0,
+                          "apply_patches: destination must be word aligned");
+            bits::require(destination_words >= block.count, "apply_patches: destination buffer too small");
+            bits::require(arg_count >= block.arg_count, "apply_patches: insufficient patch arguments");
 
-			if (block.patch_count == 1 && block.patches[0].kind == patch_kind::imm8) {
-				const auto& patch = block.patches[0];
-				bits::require(static_cast<std::size_t>(patch.word_index) < block.count,
-							  "apply_patches: patch word index out of bounds");
-				bits::require(static_cast<std::size_t>(patch.arg_index) < arg_count,
-							  "apply_patches: patch arg index out of bounds");
-				const auto value = patch_args[patch.arg_index];
-				bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
-				destination[patch.word_index] = patch.base_word | value;
-				return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
-			}
+            if (block.patch_count == 1 && block.patches[0].kind == patch_kind::imm8) {
+                const auto& patch = block.patches[0];
+                bits::require(static_cast<std::size_t>(patch.word_index) < block.count,
+                              "apply_patches: patch word index out of bounds");
+                bits::require(static_cast<std::size_t>(patch.arg_index) < arg_count,
+                              "apply_patches: patch arg index out of bounds");
+                const auto value = patch_args[patch.arg_index];
+                bits::require(value <= 0xFFu, "apply_patches: imm8 patch value out of range");
+                destination[patch.word_index] = patch.base_word | value;
+                return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
+            }
 
-			if (block.all_patches_imm8() && block.patch_count <= 8) {
-				switch (block.patch_count) {
-					case 8:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[6], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[7], patch_args);
-						break;
-					case 7:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[6], patch_args);
-						break;
-					case 6:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
-						break;
-					case 5:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
-						break;
-					case 4:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
-						break;
-					case 3:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
-						break;
-					case 2:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
-						break;
-					case 1:
-						bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
-						break;
-					case 0:
-						break;
-				}
-				return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
-			}
+            if (block.all_patches_imm8() && block.patch_count <= 8) {
+                switch (block.patch_count) {
+                    case 8:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[6], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[7], patch_args);
+                        break;
+                    case 7:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[6], patch_args);
+                        break;
+                    case 6:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[5], patch_args);
+                        break;
+                    case 5:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[4], patch_args);
+                        break;
+                    case 4:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[3], patch_args);
+                        break;
+                    case 3:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[2], patch_args);
+                        break;
+                    case 2:
+                        bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args);
+                        bits::apply_patch_imm8_fast(destination, block.patches[1], patch_args);
+                        break;
+                    case 1: bits::apply_patch_imm8_fast(destination, block.patches[0], patch_args); break;
+                    case 0: break;
+                }
+                return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
+            }
 
-			if (block.all_patches_word32() && block.patch_count <= 16) {
-				switch (block.patch_count) {
-					case 16:
-						bits::apply_patch_word_fast(destination, block.patches[15], patch_args[block.patches[15].arg_index]);
-						[[fallthrough]];
-					case 15:
-						bits::apply_patch_word_fast(destination, block.patches[14], patch_args[block.patches[14].arg_index]);
-						[[fallthrough]];
-					case 14:
-						bits::apply_patch_word_fast(destination, block.patches[13], patch_args[block.patches[13].arg_index]);
-						[[fallthrough]];
-					case 13:
-						bits::apply_patch_word_fast(destination, block.patches[12], patch_args[block.patches[12].arg_index]);
-						[[fallthrough]];
-					case 12:
-						bits::apply_patch_word_fast(destination, block.patches[11], patch_args[block.patches[11].arg_index]);
-						[[fallthrough]];
-					case 11:
-						bits::apply_patch_word_fast(destination, block.patches[10], patch_args[block.patches[10].arg_index]);
-						[[fallthrough]];
-					case 10:
-						bits::apply_patch_word_fast(destination, block.patches[9], patch_args[block.patches[9].arg_index]);
-						[[fallthrough]];
-					case 9:
-						bits::apply_patch_word_fast(destination, block.patches[8], patch_args[block.patches[8].arg_index]);
-						[[fallthrough]];
-					case 8:
-						bits::apply_patch_word_fast(destination, block.patches[7], patch_args[block.patches[7].arg_index]);
-						[[fallthrough]];
-					case 7:
-						bits::apply_patch_word_fast(destination, block.patches[6], patch_args[block.patches[6].arg_index]);
-						[[fallthrough]];
-					case 6:
-						bits::apply_patch_word_fast(destination, block.patches[5], patch_args[block.patches[5].arg_index]);
-						[[fallthrough]];
-					case 5:
-						bits::apply_patch_word_fast(destination, block.patches[4], patch_args[block.patches[4].arg_index]);
-						[[fallthrough]];
-					case 4:
-						bits::apply_patch_word_fast(destination, block.patches[3], patch_args[block.patches[3].arg_index]);
-						[[fallthrough]];
-					case 3:
-						bits::apply_patch_word_fast(destination, block.patches[2], patch_args[block.patches[2].arg_index]);
-						[[fallthrough]];
-					case 2:
-						bits::apply_patch_word_fast(destination, block.patches[1], patch_args[block.patches[1].arg_index]);
-						[[fallthrough]];
-					case 1:
-						bits::apply_patch_word_fast(destination, block.patches[0], patch_args[block.patches[0].arg_index]);
-						[[fallthrough]];
-					case 0:
-						break;
-				}
-				return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
-			}
+            if (block.all_patches_word32() && block.patch_count <= 16) {
+                switch (block.patch_count) {
+                    case 16:
+                        bits::apply_patch_word_fast(destination, block.patches[15],
+                                                    patch_args[block.patches[15].arg_index]);
+                        [[fallthrough]];
+                    case 15:
+                        bits::apply_patch_word_fast(destination, block.patches[14],
+                                                    patch_args[block.patches[14].arg_index]);
+                        [[fallthrough]];
+                    case 14:
+                        bits::apply_patch_word_fast(destination, block.patches[13],
+                                                    patch_args[block.patches[13].arg_index]);
+                        [[fallthrough]];
+                    case 13:
+                        bits::apply_patch_word_fast(destination, block.patches[12],
+                                                    patch_args[block.patches[12].arg_index]);
+                        [[fallthrough]];
+                    case 12:
+                        bits::apply_patch_word_fast(destination, block.patches[11],
+                                                    patch_args[block.patches[11].arg_index]);
+                        [[fallthrough]];
+                    case 11:
+                        bits::apply_patch_word_fast(destination, block.patches[10],
+                                                    patch_args[block.patches[10].arg_index]);
+                        [[fallthrough]];
+                    case 10:
+                        bits::apply_patch_word_fast(destination, block.patches[9],
+                                                    patch_args[block.patches[9].arg_index]);
+                        [[fallthrough]];
+                    case 9:
+                        bits::apply_patch_word_fast(destination, block.patches[8],
+                                                    patch_args[block.patches[8].arg_index]);
+                        [[fallthrough]];
+                    case 8:
+                        bits::apply_patch_word_fast(destination, block.patches[7],
+                                                    patch_args[block.patches[7].arg_index]);
+                        [[fallthrough]];
+                    case 7:
+                        bits::apply_patch_word_fast(destination, block.patches[6],
+                                                    patch_args[block.patches[6].arg_index]);
+                        [[fallthrough]];
+                    case 6:
+                        bits::apply_patch_word_fast(destination, block.patches[5],
+                                                    patch_args[block.patches[5].arg_index]);
+                        [[fallthrough]];
+                    case 5:
+                        bits::apply_patch_word_fast(destination, block.patches[4],
+                                                    patch_args[block.patches[4].arg_index]);
+                        [[fallthrough]];
+                    case 4:
+                        bits::apply_patch_word_fast(destination, block.patches[3],
+                                                    patch_args[block.patches[3].arg_index]);
+                        [[fallthrough]];
+                    case 3:
+                        bits::apply_patch_word_fast(destination, block.patches[2],
+                                                    patch_args[block.patches[2].arg_index]);
+                        [[fallthrough]];
+                    case 2:
+                        bits::apply_patch_word_fast(destination, block.patches[1],
+                                                    patch_args[block.patches[1].arg_index]);
+                        [[fallthrough]];
+                    case 1:
+                        bits::apply_patch_word_fast(destination, block.patches[0],
+                                                    patch_args[block.patches[0].arg_index]);
+                        [[fallthrough]];
+                    case 0: break;
+                }
+                return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
+            }
 
-			if (block.patch_count > 0 && block.patch_count <= 4) {
-				for (std::size_t i = 0; i < block.patch_count; ++i) {
-					bits::apply_patch_inline(destination, block.count, block.patches[i], patch_args, arg_count);
-				}
-				return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
-			}
+            if (block.patch_count > 0 && block.patch_count <= 4) {
+                for (std::size_t i = 0; i < block.patch_count; ++i) {
+                    bits::apply_patch_inline(destination, block.count, block.patches[i], patch_args, arg_count);
+                }
+                return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
+            }
 
-			if (block.patch_count > 0) {
-				if (block.all_patches_imm8()) {
-					_stdgba_apply_patches_imm8(destination, block.patches.data(),
-									  static_cast<std::uint32_t>(block.patch_count),
-									  patch_args);
-				} else {
-					_stdgba_apply_patches_core(destination, block.patches.data(),
-									   static_cast<std::uint32_t>(block.patch_count),
-									   patch_args);
-				}
-			}
+            if (block.patch_count > 0) {
+                if (block.all_patches_imm8()) {
+                    _stdgba_apply_patches_imm8(destination, block.patches.data(),
+                                               static_cast<std::uint32_t>(block.patch_count), patch_args);
+                } else {
+                    _stdgba_apply_patches_core(destination, block.patches.data(),
+                                               static_cast<std::uint32_t>(block.patch_count), patch_args);
+                }
+            }
 
-			return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
-		}
-	} // namespace bits
+            return reinterpret_cast<std::add_pointer_t<Signature>>(destination);
+        }
+    } // namespace bits
 
-	/// Apply runtime patch arguments to already-installed code and return a raw
-	/// typed function pointer to the patched instruction stream.
-	///
-	/// Callers own the initial copy/install step, typically via:
-	/// `std::memcpy(destination, block.data(), block.size_bytes())`.
-	///
-	/// The patch loop is implemented as an ARM assembly function placed in IWRAM,
-	/// making it suitable for calling from IWRAM HBlank ISR handlers with
-	/// single-cycle instruction fetch. For single imm8 patches the store is
-	/// inlined directly to avoid function-call overhead.
-	template<typename Signature, std::size_t Capacity>
-	[[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches(const compiled_block<Capacity>& block,
-												   std::uint32_t* destination,
-												   const std::size_t destination_words,
-												   const std::uint32_t* const patch_args,
-												   const std::size_t arg_count) {
-		return bits::apply_patches_impl<Signature>(block, destination, destination_words, patch_args, arg_count);
-	}
+    /// Apply runtime patch arguments to already-installed code and return a raw
+    /// typed function pointer to the patched instruction stream.
+    ///
+    /// Callers own the initial copy/install step, typically via:
+    /// `std::memcpy(destination, block.data(), block.size_bytes())`.
+    ///
+    /// The patch loop is implemented as an ARM assembly function placed in IWRAM,
+    /// making it suitable for calling from IWRAM HBlank ISR handlers with
+    /// single-cycle instruction fetch. For single imm8 patches the store is
+    /// inlined directly to avoid function-call overhead.
+    template<typename Signature, std::size_t Capacity>
+    [[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches(const compiled_block<Capacity>& block,
+                                                                              std::uint32_t* destination,
+                                                                              const std::size_t destination_words,
+                                                                              const std::uint32_t* const patch_args,
+                                                                              const std::size_t arg_count) {
+        return bits::apply_patches_impl<Signature>(block, destination, destination_words, patch_args, arg_count);
+    }
 
-	template<typename Signature, std::size_t Capacity>
-	[[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches_packed(const compiled_block<Capacity>& block,
-													  std::uint32_t* destination,
-													  const std::size_t destination_words,
-													  const std::uint32_t* const patch_args,
-													  const std::size_t arg_count) {
-		return bits::apply_patches_impl<Signature>(block, destination, destination_words, patch_args, arg_count);
-	}
+    template<typename Signature, std::size_t Capacity>
+    [[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches_packed(
+        const compiled_block<Capacity>& block, std::uint32_t* destination, const std::size_t destination_words,
+        const std::uint32_t* const patch_args, const std::size_t arg_count) {
+        return bits::apply_patches_impl<Signature>(block, destination, destination_words, patch_args, arg_count);
+    }
 
-	template<std::size_t Capacity, typename ValueFn>
-	[[gnu::always_inline]] inline void apply_word_patches(const compiled_block<Capacity>& block,
-											 std::uint32_t* destination,
-											 const std::size_t destination_words,
-											 ValueFn&& value_for_patch) {
-		static_assert(std::is_convertible_v<decltype(value_for_patch(std::size_t{})), std::uint32_t>,
-					  "apply_word_patches: callback must return a value convertible to uint32_t");
+    template<std::size_t Capacity, typename ValueFn>
+    [[gnu::always_inline]] inline void apply_word_patches(const compiled_block<Capacity>& block,
+                                                          std::uint32_t* destination,
+                                                          const std::size_t destination_words,
+                                                          ValueFn&& value_for_patch) {
+        static_assert(std::is_convertible_v<decltype(value_for_patch(std::size_t{})), std::uint32_t>,
+                      "apply_word_patches: callback must return a value convertible to uint32_t");
 
-		bits::require(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0,
-					  "apply_word_patches: destination must be word aligned");
-		bits::require(destination_words >= block.count, "apply_word_patches: destination buffer too small");
-		bits::require(block.all_patches_word32(), "apply_word_patches: block must contain only full-word patches");
+        bits::require(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0,
+                      "apply_word_patches: destination must be word aligned");
+        bits::require(destination_words >= block.count, "apply_word_patches: destination buffer too small");
+        bits::require(block.all_patches_word32(), "apply_word_patches: block must contain only full-word patches");
 
-		auto apply_one = [&](const std::size_t patch_index) {
-			bits::apply_patch_word_fast(destination, block.patches[patch_index],
-								   static_cast<std::uint32_t>(value_for_patch(patch_index)));
-		};
+        auto apply_one = [&](const std::size_t patch_index) {
+            bits::apply_patch_word_fast(destination, block.patches[patch_index],
+                                        static_cast<std::uint32_t>(value_for_patch(patch_index)));
+        };
 
-		if (block.patch_count <= 16) {
-			switch (block.patch_count) {
-				case 16: apply_one(15); [[fallthrough]];
-				case 15: apply_one(14); [[fallthrough]];
-				case 14: apply_one(13); [[fallthrough]];
-				case 13: apply_one(12); [[fallthrough]];
-				case 12: apply_one(11); [[fallthrough]];
-				case 11: apply_one(10); [[fallthrough]];
-				case 10: apply_one(9); [[fallthrough]];
-				case 9:  apply_one(8); [[fallthrough]];
-				case 8:  apply_one(7); [[fallthrough]];
-				case 7:  apply_one(6); [[fallthrough]];
-				case 6:  apply_one(5); [[fallthrough]];
-				case 5:  apply_one(4); [[fallthrough]];
-				case 4:  apply_one(3); [[fallthrough]];
-				case 3:  apply_one(2); [[fallthrough]];
-				case 2:  apply_one(1); [[fallthrough]];
-				case 1:  apply_one(0); [[fallthrough]];
-				case 0:  break;
-			}
-			return;
-		}
+        if (block.patch_count <= 16) {
+            switch (block.patch_count) {
+                case 16: apply_one(15); [[fallthrough]];
+                case 15: apply_one(14); [[fallthrough]];
+                case 14: apply_one(13); [[fallthrough]];
+                case 13: apply_one(12); [[fallthrough]];
+                case 12: apply_one(11); [[fallthrough]];
+                case 11: apply_one(10); [[fallthrough]];
+                case 10: apply_one(9); [[fallthrough]];
+                case 9: apply_one(8); [[fallthrough]];
+                case 8: apply_one(7); [[fallthrough]];
+                case 7: apply_one(6); [[fallthrough]];
+                case 6: apply_one(5); [[fallthrough]];
+                case 5: apply_one(4); [[fallthrough]];
+                case 4: apply_one(3); [[fallthrough]];
+                case 3: apply_one(2); [[fallthrough]];
+                case 2: apply_one(1); [[fallthrough]];
+                case 1: apply_one(0); [[fallthrough]];
+                case 0: break;
+            }
+            return;
+        }
 
-		for (std::size_t i = 0; i < block.patch_count; ++i) {
-			apply_one(i);
-		}
-	}
+        for (std::size_t i = 0; i < block.patch_count; ++i) {
+            apply_one(i);
+        }
+    }
 
-	template<typename Signature, std::size_t Capacity, typename... Args>
-	[[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches(const compiled_block<Capacity>& block,
-													   std::uint32_t* destination,
-													   const std::size_t destination_words,
-													   Args&&... args) {
-		static_assert((std::is_convertible_v<Args, std::uint32_t> && ...),
-					  "apply_patches: patch args must be convertible to uint32_t");
+    template<typename Signature, std::size_t Capacity, typename... Args>
+    [[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches(const compiled_block<Capacity>& block,
+                                                                              std::uint32_t* destination,
+                                                                              const std::size_t destination_words,
+                                                                              Args&&... args) {
+        static_assert((std::is_convertible_v<Args, std::uint32_t> && ...),
+                      "apply_patches: patch args must be convertible to uint32_t");
 
-		const auto values = std::array<std::uint32_t, sizeof...(Args)>{
-			static_cast<std::uint32_t>(std::forward<Args>(args))...,
-		};
-		return bits::apply_patches_impl<Signature>(block, destination, destination_words, values.data(), values.size());
-	}
+        const auto values = std::array<std::uint32_t, sizeof...(Args)>{
+            static_cast<std::uint32_t>(std::forward<Args>(args))...,
+        };
+        return bits::apply_patches_impl<Signature>(block, destination, destination_words, values.data(), values.size());
+    }
 
 } // namespace gba::codegen

@@ -11,21 +11,25 @@ The result structure returned by `gba::embed::indexed4_sheet<FrameW, FrameH>()` 
 ## Sheet result type summary
 
 ```cpp
-template<std::size_t FrameCount, std::size_t TileCount>
+template<unsigned int FrameW, unsigned int FrameH, unsigned int Cols, unsigned int Rows, std::size_t PaletteSize>
 struct sheet4_result {
-    std::array<gba::color, 16> palette;
-    std::array<unsigned int, TileCount> sprite;
+    static constexpr unsigned int frame_count = Cols * Rows;
+    static constexpr unsigned int tiles_per_frame = (FrameW / 8u) * (FrameH / 8u);
+    static constexpr std::size_t total_tiles = frame_count * tiles_per_frame;
+
+    std::array<gba::color, PaletteSize> palette;
+    gba::sprite4<FrameW, FrameH, total_tiles> sprite;
     
     // Frame indexing
-    constexpr std::size_t tile_offset(std::size_t frame) const;
-    gba::object frame_obj(unsigned short base_tile, std::size_t frame, unsigned short palette_index = 0) const;
-    gba::object_affine frame_obj_aff(unsigned short base_tile, std::size_t frame, unsigned short palette_index = 0) const;
+    static constexpr unsigned int tile_offset(unsigned int frame) noexcept;
+    static constexpr gba::object frame_obj(unsigned short base_tile, unsigned int frame, unsigned short palette_index = 0);
+    static constexpr gba::object_affine frame_obj_aff(unsigned short base_tile, unsigned int frame, unsigned short palette_index = 0);
     
     // Animation builders (return flipbook types with .frame(tick) methods)
-    constexpr auto forward<Start, Count>() const;
-    constexpr auto ping_pong<Start, Count>() const;
-    constexpr auto sequence<"...">() const;
-    constexpr auto row<R>() const;
+    static consteval auto forward<Start, Count>();
+    static consteval auto ping_pong<Start, Count>();
+    static consteval auto sequence<"...">();
+    static consteval auto row<R>();
 };
 ```
 
@@ -91,7 +95,7 @@ unsigned int frame = walk.frame(tick / 8);  // Cycles: 0, 1, 2, 3, 2, 1, 0, 1, 2
 
 ### `sequence<"...">()`
 
-Explicit frame sequence via string literal. Characters `0`-`9` map to frames 0-9; `a`-`z` continue from frame 10 upward.
+Explicit frame sequence via string literal. Characters `0`-`9` map to frames 0-9; `a`-`z` continue from frame 10 upward, and `A`-`Z` map the same way as lowercase.
 
 ```cpp
 static constexpr auto attack = actor.sequence<"01232100">();
@@ -151,13 +155,13 @@ Frames are laid out contiguously in OBJ VRAM. The converter ensures:
 
 static constexpr auto actor = gba::embed::indexed4_sheet<16, 16>([] {
     return std::to_array<unsigned char>({
-#embed "actor.tga"
+#embed "actor.png"
     });
 });
 
 // Copy tile data and palette to hardware
 const auto base_tile = gba::tile_index(gba::memory_map(gba::mem_vram_obj));
-std::memcpy(gba::memory_map(gba::mem_vram_obj), actor.sprite.data(), actor.sprite.size() * sizeof(actor.sprite[0]));
+std::memcpy(gba::memory_map(gba::mem_vram_obj), actor.sprite.data(), actor.sprite.size());
 std::copy(actor.palette.begin(), actor.palette.end(), gba::pal_obj_bank[0]);
 
 // Use frame_obj() to create OAM entries

@@ -1,6 +1,6 @@
 # Embedded Sprite Type Reference
 
-The sprite structure returned by `gba::embed::indexed4()`, `gba::embed::indexed8()`, and `gba::embed::bitmap15()` holds OAM object helpers and raw tile data.
+`gba::embed::indexed4()` and `gba::embed::indexed8()` expose sprite-facing helpers in slightly different shapes.
 
 ## Include
 
@@ -8,25 +8,40 @@ The sprite structure returned by `gba::embed::indexed4()`, `gba::embed::indexed8
 #include <gba/embed>
 ```
 
-## Sprite type summary
+## `indexed4` result summary
 
 ```cpp
-template<std::size_t TileCount, std::size_t PaletteSize>
-struct sprite {
-    std::array<unsigned int, TileCount> tiles;
+template<unsigned int Width, unsigned int Height, std::size_t PaletteSize, std::size_t TileCount, std::size_t MapSize>
+struct indexed4_result {
     std::array<gba::color, PaletteSize> palette;
-    
-    gba::object obj(unsigned short tile_index = 0) const;
-    gba::object_affine obj_aff(unsigned short tile_index = 0) const;
+    gba::sprite4<Width, Height, TileCount> sprite;
+    std::array<gba::screen_entry, MapSize> map;
 };
 ```
 
-## Members
+### Key members
 
-- `tiles` - 4bpp or 8bpp tile payload ready for OBJ VRAM upload via `std::memcpy()`
-- `palette` - palette entries for the sprite (16 colours for 4bpp, 256 for 8bpp)
+- `palette`: indexed palette data
+- `sprite`: 4bpp tile payload + `obj()` / `obj_aff()` OAM helpers
+- `map`: background-style tilemap (screenblock order)
 
-## OAM helpers
+## `indexed8` result summary
+
+```cpp
+template<unsigned int Width, unsigned int Height, std::size_t PaletteSize, std::size_t TileCount, std::size_t MapSize>
+struct indexed8_result {
+    std::array<gba::color, PaletteSize> palette;
+    std::array<gba::tile8bpp, TileCount> tiles;
+    std::array<gba::screen_entry, MapSize> map;
+
+    static constexpr gba::object obj(unsigned short tile_index = 0);
+    static constexpr gba::object_affine obj_aff(unsigned short tile_index = 0);
+};
+```
+
+`indexed8` exposes OAM helpers directly on the result type instead of through a nested `sprite` field.
+
+## OAM helpers (4bpp)
 
 ### `obj(tile_index)`
 
@@ -39,11 +54,11 @@ Returns a regular (non-affine) `gba::object` entry pre-configured with:
 ```cpp
 constexpr auto sprite = gba::embed::indexed4<gba::embed::dedup::none>([] {
     return std::to_array<unsigned char>({
-#embed "hero.tga"
+#embed "hero.png"
     });
 });
 
-gba::obj_mem[0] = sprite.obj(tile_base);
+gba::obj_mem[0] = sprite.sprite.obj(tile_base);
 gba::obj_mem[0].x = 120;
 gba::obj_mem[0].y = 80;
 ```
@@ -55,7 +70,7 @@ Returns an affine `gba::object_affine` entry pre-configured the same way as `obj
 - `affine_index` zeroed (assign your affine matrix index after)
 
 ```cpp
-gba::obj_aff_mem[0] = sprite.obj_aff(tile_base);
+gba::obj_aff_mem[0] = sprite.sprite.obj_aff(tile_base);
 gba::obj_aff_mem[0].affine_index = 0;
 gba::obj_aff_mem[0].x = 120;
 gba::obj_aff_mem[0].y = 80;
@@ -78,13 +93,13 @@ If the source does not match, the converter rejects it at compile time.
 ```cpp
 // Copy tile data to OBJ VRAM
 const auto base_tile = gba::tile_index(gba::memory_map(gba::mem_vram_obj));
-std::memcpy(gba::memory_map(gba::mem_vram_obj), sprite.tiles.data(), sprite.tiles.size() * sizeof(sprite.tiles[0]));
+std::memcpy(gba::memory_map(gba::mem_vram_obj), sprite.sprite.data(), sprite.sprite.size());
 
 // Copy palette to OBJ palette RAM
 std::copy(sprite.palette.begin(), sprite.palette.end(), gba::pal_obj_bank[0]);
 
 // Create OAM entry
-gba::obj_mem[0] = sprite.obj(base_tile);
+gba::obj_mem[0] = sprite.sprite.obj(base_tile);
 ```
 
 ## Related pages

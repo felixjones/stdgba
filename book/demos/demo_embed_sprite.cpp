@@ -11,13 +11,13 @@
 
 constexpr auto bg = gba::embed::indexed4([] {
     return std::to_array<unsigned char>({
-#embed "bg_2x1.tga"
+#embed "bg_2x1.png"
     });
 });
 
 constexpr auto hero = gba::embed::indexed4<gba::embed::dedup::none>([] {
     return std::to_array<unsigned char>({
-#embed "sprite.tga"
+#embed "sprite.png"
     });
 });
 

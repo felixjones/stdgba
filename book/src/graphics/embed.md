@@ -10,10 +10,11 @@ This page focuses on still images: framebuffers, tilemaps, and single-frame spri
 
 ## Supported formats
 
-| Format | Variants | Transparency |
-|--------|----------|--------------|
-| **PPM** (P6) | 24-bit RGB | Palette index 0 |
-| **TGA** | Uncompressed, RLE, true-colour (15/16/24/32bpp), colour-mapped, grayscale | Alpha channel (< 128) |
+| Format   | Variants                                                                  | Transparency |
+|----------|---------------------------------------------------------------------------|--------------|
+| **PPM**  | 24-bit RGB                                                                | Index 0      |
+| **PNG**  | Grayscale, RGB, indexed, grayscale+alpha, RGBA (8-bit channels)           | Alpha < 50%  |
+| **TGA**  | Uncompressed, RLE, true-colour (15/16/24/32bpp), colour-mapped, grayscale | Alpha < 50%  |
 
 Format is auto-detected from the file header.
 
@@ -35,13 +36,13 @@ All converters take a supplier lambda returning `std::array<unsigned char, N>`.
 
 static constexpr auto bg = gba::embed::indexed4([] {
     return std::to_array<unsigned char>({
-#embed "background.tga"
+#embed "background.png"
     });
 });
 
 static constexpr auto hero = gba::embed::indexed4<gba::embed::dedup::none>([] {
     return std::to_array<unsigned char>({
-#embed "hero.tga"
+#embed "hero.png"
     });
 });
 ```
@@ -50,7 +51,7 @@ Use `dedup::none` for OBJ sprites so tiles stay in 1D sequential order. Use the 
 
 ## Example: scrollable background with sprite
 
-This demo embeds a 512x256 background image and a 16x16 character sprite, both as TGA files. The D-pad scrolls the background, and holding A + D-pad moves the sprite:
+This demo embeds a 512x256 background image and a 16x16 character sprite, both as PNG files. The D-pad scrolls the background, and holding A + D-pad moves the sprite:
 
 ```cpp
 {{#include ../../demos/demo_embed_sprite.cpp:4:}}
@@ -64,7 +65,7 @@ The background uses a 2x1 screenblock layout (`size = 1` in `reg_bgcnt`), giving
 
 The sprite uses `dedup::none` so its tiles remain sequential - exactly what the GBA expects for 1D OBJ mapping. Without this, deduplication could merge mirrored tiles and break the sprite layout.
 
-Transparent pixels (alpha < 128 in the TGA source) become palette index 0, so the hardware automatically shows the background through the sprite.
+Transparent pixels (alpha < 128 in the PNG source) become palette index 0, so the hardware automatically shows the background through the sprite.
 
 ## Tile deduplication
 
@@ -92,7 +93,7 @@ When image dimensions match a valid GBA sprite size, `indexed4` returns a `sprit
 ```cpp
 constexpr auto sprite = gba::embed::indexed4<gba::embed::dedup::none>([] {
     return std::to_array<unsigned char>({
-#embed "sprite.tga"
+#embed "sprite.png"
     });
 });
 
@@ -113,7 +114,8 @@ If the source image does not match one of those shapes, `obj()` and `obj_aff()` 
 ## Transparency and palettes
 
 - **PPM**: palette index 0 is always reserved as transparent; the first visible colour becomes index 1.
-- **TGA**: 32bpp alpha and 16bpp attribute-bit transparency map transparent pixels to palette index 0.
+- **PNG**: RGBA/GA alpha maps transparent pixels (alpha < 128) to palette index 0.
+- **TGA**: 32bpp alpha and 16bpp attribute-bit transparency map transparent pixels (alpha < 128) to palette index 0.
 - **indexed4**: images may spread across multiple palette banks when background tiles use <= 15 opaque colours per tile.
 - **indexed8**: one 256-entry palette is shared across the whole image.
 

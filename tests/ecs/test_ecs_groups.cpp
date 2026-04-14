@@ -188,6 +188,33 @@ int main() {
         gba::test.expect.eq(test_result, 18, "constexpr group registry computed correctly");
     });
 
+    gba::test("constexpr grouped registry supports multi-entity aggregate", [] {
+        constexpr auto total = [] {
+            gba::ecs::registry<8, physics, health> world;
+
+            auto e0 = world.create();
+            world.emplace<position>(e0, 1, 2);
+            world.emplace<velocity>(e0, 3, 4);
+            world.emplace<acceleration>(e0, 5, 6);
+            world.emplace<health>(e0, 10);
+
+            auto e1 = world.create();
+            world.emplace<position>(e1, 7, 8);
+            world.emplace<velocity>(e1, 9, 10);
+            world.emplace<acceleration>(e1, 11, 12);
+
+            int acc = 0;
+            world.view<physics>().each([&](const position& p, const velocity& v, const acceleration& a) {
+                acc += p.x + v.vx + a.ax;
+            });
+
+            world.view<health>().each([&](const health& h) { acc += h.hp; });
+            return acc;
+        }();
+
+        gba::test.expect.eq(total, 46, "constexpr grouped views produce deterministic aggregate");
+    });
+
     // -- Test implicit view<group> optimization ----------------------------------
 
     gba::test("view with group optimized accessor", [] {
@@ -472,6 +499,93 @@ int main() {
             }
         }
         gba::test.expect.eq(applied, 2, "batch operation counted correct entities");
+    });
+
+    gba::test("group view stays stable when removing current entity during iteration", [] {
+        grouped_registry world;
+
+        auto e0 = world.create();
+        auto e1 = world.create();
+        auto e2 = world.create();
+
+        world.emplace<position>(e0, 0, 0);
+        world.emplace<velocity>(e0, 1, 0);
+        world.emplace<acceleration>(e0, 0, 0);
+
+        world.emplace<position>(e1, 10, 0);
+        world.emplace<velocity>(e1, 1, 0);
+        world.emplace<acceleration>(e1, 0, 0);
+
+        world.emplace<position>(e2, 20, 0);
+        world.emplace<velocity>(e2, 1, 0);
+        world.emplace<acceleration>(e2, 0, 0);
+
+        int visited = 0;
+        int removed = 0;
+        world.view<physics>().each([&](gba::ecs::entity_id id, position&, velocity&, acceleration&) {
+            ++visited;
+            world.destroy(id);
+            ++removed;
+        });
+
+        gba::test.expect.eq(visited, 3, "all physics entities visited exactly once before removal");
+        gba::test.expect.eq(removed, 3, "all visited entities removed");
+        gba::test.expect.eq(world.size(), std::size_t{0}, "world empty after in-iteration removals");
+        gba::test.expect.is_false(world.valid(e0), "e0 invalid after in-iteration remove");
+        gba::test.expect.is_false(world.valid(e1), "e1 invalid after in-iteration remove");
+        gba::test.expect.is_false(world.valid(e2), "e2 invalid after in-iteration remove");
+    });
+
+    gba::test("overlapping group dedup stress remains query-stable", [] {
+        dedup_registry world;
+        constexpr int n = 24;
+
+        for (int i = 0; i < n; ++i) {
+            auto e = world.create();
+            world.emplace<position>(e, i, i + 1);
+            world.emplace<velocity>(e, i + 2, i + 3);
+            world.emplace<health>(e, 100 - i);
+            world.emplace<armor>(e, 10 + i);
+            world.emplace<weapon>(e, 20 + i);
+        }
+
+        int full_count = 0;
+        int armor_sum = 0;
+        world.view<position, velocity, health, armor, weapon>().each([&](const position&, const velocity&, const health&, const armor& a, const weapon&) {
+            ++full_count;
+            armor_sum += a.defense;
+        });
+
+        gba::test.expect.eq(full_count, n, "deduplicated registry stores one instance per component in stress case");
+        gba::test.expect.eq(armor_sum, 516, "deduplicated stress query yields expected aggregate");
+    });
+
+    gba::test("grouped registry clear invalidates entities and supports repopulation", [] {
+        grouped_registry world;
+
+        auto e0 = world.create();
+        auto e1 = world.create();
+        world.emplace<position>(e0, 1, 2);
+        world.emplace<velocity>(e0, 3, 4);
+        world.emplace<acceleration>(e0, 5, 6);
+        world.emplace<health>(e1, 99);
+
+        world.clear();
+
+        gba::test.expect.eq(world.size(), std::size_t{0}, "clear resets grouped registry size");
+        gba::test.expect.is_false(world.valid(e0), "clear invalidates old grouped entity e0");
+        gba::test.expect.is_false(world.valid(e1), "clear invalidates old grouped entity e1");
+
+        int physics_count = 0;
+        world.view<physics>().each([&](const position&, const velocity&, const acceleration&) { ++physics_count; });
+        gba::test.expect.eq(physics_count, 0, "group views are empty after clear");
+
+        auto e2 = world.create();
+        world.emplace<position>(e2, 7, 8);
+        world.emplace<velocity>(e2, 9, 10);
+        world.emplace<acceleration>(e2, 11, 12);
+        gba::test.expect.is_true(world.valid(e2), "registry can be repopulated after clear");
+        gba::test.expect.is_true(world.all_of<physics>(e2), "repopulated entity can satisfy grouped query");
     });
 
     gba::test("overlapping groups are deduplicated in registry", [] {

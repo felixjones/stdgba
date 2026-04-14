@@ -25,7 +25,7 @@ Use plain `indexed4<dedup::none>()` when you only need one static sprite frame.
 
 static constexpr auto actor = gba::embed::indexed4_sheet<16, 16>([] {
 	return std::to_array<unsigned char>({
-#embed "actor.tga"
+#embed "actor.png"
 	});
 });
 
@@ -110,7 +110,7 @@ Frames: `0, 1, 2, 3, 2, 1`
 static constexpr auto attack = actor.sequence<"01232100">();
 ```
 
-Each character selects a frame index. `0`-`9` map to frames 0-9, `a`-`z` continue from 10 upward.
+Each character selects a frame index. `0`-`9` map to frames 0-9, `a`-`z` continue from 10 upward, and `A`-`Z` map the same way as lowercase.
 
 ## Row-based sheets
 
@@ -119,7 +119,7 @@ For RPG Maker style character sheets with one direction per row, use `row<R>()` 
 ```cpp
 static constexpr auto actor = gba::embed::indexed4_sheet<16, 16>([] {
 	return std::to_array<unsigned char>({
-#embed "hero_walk.tga"
+#embed "hero_walk.png"
 	});
 });
 
@@ -142,7 +142,7 @@ Row helpers still produce sheet-global frame indices, so the result plugs direct
 
 static constexpr auto actor = gba::embed::indexed4_sheet<16, 16>([] {
 	return std::to_array<unsigned char>({
-#embed "actor.tga"
+#embed "actor.png"
 	});
 });
 

@@ -22,8 +22,8 @@ namespace gba::codegen::bits {
 #endif
     }
 
-    [[gnu::always_inline]] constexpr void require(
-        bool condition, const char* message, const std::source_location loc = std::source_location::current()) {
+    [[gnu::always_inline]] constexpr void require(bool condition, const char* message,
+                                                  const std::source_location loc = std::source_location::current()) {
         if (!condition) {
             if consteval {
                 throw message;
@@ -166,16 +166,14 @@ namespace gba::codegen::bits {
         require(offset >= -255 && offset <= 255, "ldrh_imm: offset must fit signed 8 bits");
         const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
         const auto base = offset < 0 ? 0xE15000B0u : 0xE1D000B0u;
-        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) |
-               ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
     }
 
     constexpr std::uint32_t strh_imm(const arm_reg rd, const arm_reg rn, const int offset) {
         require(offset >= -255 && offset <= 255, "strh_imm: offset must fit signed 8 bits");
         const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
         const auto base = offset < 0 ? 0xE14000B0u : 0xE1C000B0u;
-        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) |
-               ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
     }
 
     constexpr std::uint32_t ldmia(const arm_reg rn, const std::uint16_t reg_list, const bool writeback = false) {
@@ -315,16 +313,14 @@ namespace gba::codegen::bits {
         require(offset >= -255 && offset <= 255, "ldrsb_imm: offset must fit signed 8 bits");
         const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
         const auto base = offset < 0 ? 0xE15000D0u : 0xE1D000D0u;
-        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) |
-               ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
     }
 
     constexpr std::uint32_t ldrsh_imm(const arm_reg rd, const arm_reg rn, const int offset) {
         require(offset >= -255 && offset <= 255, "ldrsh_imm: offset must fit signed 8 bits");
         const auto magnitude = static_cast<std::uint32_t>(offset < 0 ? -offset : offset);
         const auto base = offset < 0 ? 0xE15000F0u : 0xE1D000F0u;
-        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) |
-               ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
+        return base | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | ((magnitude & 0xF0u) << 4u) | (magnitude & 0x0Fu);
     }
 
     constexpr std::uint32_t ldrsb_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
@@ -378,38 +374,32 @@ namespace gba::codegen::bits {
 
     // ---- LDM/STM variants ----
 
-    constexpr std::uint32_t ldmib(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t ldmib(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "ldmib: register list must not be empty");
         return 0xE9900000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    constexpr std::uint32_t ldmda(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t ldmda(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "ldmda: register list must not be empty");
         return 0xE8100000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    constexpr std::uint32_t ldmdb(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t ldmdb(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "ldmdb: register list must not be empty");
         return 0xE9100000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    constexpr std::uint32_t stmib(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t stmib(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "stmib: register list must not be empty");
         return 0xE9800000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    constexpr std::uint32_t stmda(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t stmda(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "stmda: register list must not be empty");
         return 0xE8000000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    constexpr std::uint32_t stmdb(const arm_reg rn, const std::uint16_t regs,
-                                  const bool writeback = false) {
+    constexpr std::uint32_t stmdb(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "stmdb: register list must not be empty");
         return 0xE9000000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
@@ -423,22 +413,18 @@ namespace gba::codegen::bits {
     }
 
     // MLA Rd = Rm * Rs + Rn  (Rd must not equal Rm on ARM7TDMI)
-    constexpr std::uint32_t mla(const arm_reg rd, const arm_reg rm, const arm_reg rs,
-                                const arm_reg rn) {
+    constexpr std::uint32_t mla(const arm_reg rd, const arm_reg rm, const arm_reg rs, const arm_reg rn) {
         require(rd != rm, "mla: Rd must not equal Rm (ARM7TDMI constraint)");
-        return 0xE0200090u | (reg_bits(rd) << 16u) | (reg_bits(rn) << 12u) |
-               (reg_bits(rs) << 8u) | reg_bits(rm);
+        return 0xE0200090u | (reg_bits(rd) << 16u) | (reg_bits(rn) << 12u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
 
     // ---- Branch with link ----
 
-    constexpr std::uint32_t bl_to(const std::size_t current_index,
-                                  const std::size_t target_index) {
+    constexpr std::uint32_t bl_to(const std::size_t current_index, const std::size_t target_index) {
         const auto current = static_cast<long long>(current_index);
         const auto target = static_cast<long long>(target_index);
         const auto offset_words = target - (current + 2);
-        require(offset_words >= -(1LL << 23) && offset_words < (1LL << 23),
-                "bl_to: branch target out of ARM BL range");
+        require(offset_words >= -(1LL << 23) && offset_words < (1LL << 23), "bl_to: branch target out of ARM BL range");
         const auto encoded = static_cast<std::uint32_t>(offset_words) & 0x00FFFFFFu;
         return 0xEB000000u | encoded;
     }
@@ -460,14 +446,12 @@ namespace gba::codegen::bits {
         return cond_bits(cond) | 0x0A000000u | encoded;
     }
 
-
     constexpr std::uint32_t b_to(const std::size_t current_index, const std::size_t target_index) {
         const auto current = static_cast<long long>(current_index);
         const auto target = static_cast<long long>(target_index);
         const auto offset_words = target - (current + 2);
 
-        require(offset_words >= -(1LL << 23) && offset_words < (1LL << 23),
-                "b_to: branch target out of ARM B range");
+        require(offset_words >= -(1LL << 23) && offset_words < (1LL << 23), "b_to: branch target out of ARM B range");
 
         const auto encoded = static_cast<std::uint32_t>(offset_words) & 0x00FFFFFFu;
         return 0xEA000000u | encoded;

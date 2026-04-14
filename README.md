@@ -51,6 +51,7 @@ Current development is validated against ARM GNU Toolchain (`arm-none-eabi`) and
 - `gba/testing`, `gba/benchmark`: ROM-native validation and cycle measurement
 - `gba/music`, `gba/format`, `gba/embed`: compile-time authoring pipelines
 - `gba/save`, `gba/overlay`, `gba/memory`: cartridge persistence and memory helpers
+- `gba/codegen`: Runtime ARM instruction generation with zero-overhead patching
 
 ## Repository layout
 

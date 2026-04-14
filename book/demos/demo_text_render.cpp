@@ -6,7 +6,6 @@
 #include <gba/format>
 #include <gba/interrupt>
 #include <gba/text>
-#include <gba/video>
 
 #include <array>
 
@@ -68,13 +67,10 @@ int main() {
         gba::VBlankIntrWait();
         ++frame;
 
-        if (!cursor.next_visible()) {
-            // Stream exhausted -- wait, then restart with updated HP.
-            if ((frame % 120) == 0) {
-                alloc = {.next_tile = 1, .end_tile = 512};
-                layer = gba::text::bg4_text_layer{31, config, alloc};
-                cursor = make_cursor();
-            }
+        if (!cursor.next_visible() && frame % 120 == 0) {
+            alloc = {.next_tile = 1, .end_tile = 512};
+            layer = gba::text::bg4_text_layer{31, config, alloc};
+            cursor = make_cursor();
         }
     }
 }

@@ -137,6 +137,55 @@ int main() {
         gba::test.eq(buf[8], '7');
     }
 
+    // Grouped decimal edge: no separator below threshold
+    {
+        constexpr auto fmt = "{x:,d}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 999);
+        gba::test.eq(len, 3u);
+        gba::test.eq(buf[0], '9');
+        gba::test.eq(buf[1], '9');
+        gba::test.eq(buf[2], '9');
+    }
+
+    // Grouped decimal edge: exact separator threshold
+    {
+        constexpr auto fmt = "{x:,d}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 1000);
+        gba::test.eq(len, 5u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], ',');
+        gba::test.eq(buf[2], '0');
+        gba::test.eq(buf[3], '0');
+        gba::test.eq(buf[4], '0');
+    }
+
+    // Grouped decimal edge: explicit grouped type defaults to comma
+    {
+        constexpr auto fmt = "{x:n}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = 1234567);
+        gba::test.eq(len, 9u);
+        gba::test.eq(buf[0], '1');
+        gba::test.eq(buf[1], ',');
+        gba::test.eq(buf[5], ',');
+        gba::test.eq(buf[8], '7');
+    }
+
+    // Grouped decimal edge: explicit underscore grouping with grouped type
+    {
+        constexpr auto fmt = "{x:_n}"_fmt;
+        char buf[64];
+        auto len = fmt.to(buf, "x"_arg = -1234567);
+        gba::test.eq(len, 10u);
+        gba::test.eq(buf[0], '-');
+        gba::test.eq(buf[1], '1');
+        gba::test.eq(buf[2], '_');
+        gba::test.eq(buf[6], '_');
+        gba::test.eq(buf[9], '7');
+    }
+
     // Width + sign
     {
         constexpr auto fmt = "{x:+08d}"_fmt;
@@ -412,6 +461,41 @@ int main() {
         gba::test.eq(buf[5], '7');
     }
 
+    // Angle boundary: +180 and -180 map to the same half-turn raw value
+    {
+        constexpr auto fmt = "{a:i}"_fmt;
+        char posBuf[64];
+        char negBuf[64];
+        const auto posLen = fmt.to(posBuf, "a"_arg = 180_deg);
+        const auto negLen = fmt.to(negBuf, "a"_arg = -180_deg);
+        gba::test.is_true(posLen >= 9u);
+        gba::test.is_true(negLen > 0u);
+        gba::test.eq(posBuf[0], '2');
+    }
+
+    // Angle boundary: +/-pi stay on the expected radians boundary
+    {
+        constexpr auto fmt = "{a:.4r}"_fmt;
+        char posBuf[64];
+        char negBuf[64];
+        const auto posLen = fmt.to(posBuf, "a"_arg = 3.14159265358979323846_rad);
+        const auto negLen = fmt.to(negBuf, "a"_arg = -3.14159265358979323846_rad);
+        gba::test.is_true(posLen >= 4u);
+        gba::test.is_true(negLen >= 4u);
+        gba::test.eq(posBuf[0], '3');
+        gba::test.eq(posBuf[1], '.');
+        gba::test.eq(posBuf[2], '1');
+        gba::test.eq(posBuf[3], '4');
+        bool negHasDot = false;
+        for (std::size_t i = 0; i < negLen; ++i) {
+            if (negBuf[i] == '.') {
+                negHasDot = true;
+                break;
+            }
+        }
+        gba::test.is_true(negHasDot);
+    }
+
     // Angle turns formatting
     {
         constexpr auto fmt = "{a:.3t}"_fmt;
@@ -565,6 +649,32 @@ int main() {
         gba::test.eq(msg[0], '1');
         gba::test.eq(msg[1], '.');
         gba::test.eq(msg[4], 'e');
+    }
+
+    // Compile-time fixed_literal scientific boundary: +1e99
+    {
+        constexpr auto msg = "{x:.2e}"_fmt.to_static<32>("x"_arg = 1e99_fx);
+        gba::test.eq(msg[0], '1');
+        gba::test.eq(msg[1], '.');
+        gba::test.eq(msg[2], '0');
+        gba::test.eq(msg[3], '0');
+        gba::test.eq(msg[4], 'e');
+        gba::test.eq(msg[5], '+');
+        gba::test.eq(msg[6], '9');
+        gba::test.eq(msg[7], '9');
+    }
+
+    // Compile-time fixed_literal scientific boundary: +1e-99
+    {
+        constexpr auto msg = "{x:.2E}"_fmt.to_static<32>("x"_arg = 1e-99_fx);
+        gba::test.eq(msg[0], '1');
+        gba::test.eq(msg[1], '.');
+        gba::test.eq(msg[2], '0');
+        gba::test.eq(msg[3], '0');
+        gba::test.eq(msg[4], 'E');
+        gba::test.eq(msg[5], '-');
+        gba::test.eq(msg[6], '9');
+        gba::test.eq(msg[7], '9');
     }
 
     // User workspace

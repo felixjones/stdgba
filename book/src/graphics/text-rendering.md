@@ -19,7 +19,7 @@ The core goal is to render formatted strings efficiently (including typewriter e
 The demo below embeds `9x18.bdf`, configures the bitplane palette, and draws one visible glyph per frame.
 
 ```cpp
-{{#include ../../demos/demo_text_render.cpp:1:}}
+{{#include ../../demos/demo_text_render.cpp:4:}}
 ```
 
 ![Text rendering demo](../img/text_render.png)
