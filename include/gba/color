@@ -1,5 +1,22 @@
 /// @file color
-/// @brief GBA color and palette memory helpers.
+/// @brief GBA 15-bit colour type, palette memory registers, and web-colour literals.
+///
+/// Provides the `gba::color` struct (5-bit xBGR), compile-time conversion from
+/// CSS hex strings and named colours, and `inline constexpr` registral wrappers for
+/// all four palette RAM regions.
+///
+/// Example:
+/// @code{.cpp}
+/// using namespace gba::literals;
+/// gba::pal_bg_mem[0] = "#FF8040"_clr;   // backdrop colour
+/// gba::pal_bg_bank[1][3] = "cornflowerblue"_clr;
+/// @endcode
+///
+/// TONCLIB Equivalent:
+/// @code{.c}
+/// pal_bg_mem[0] = RGB8(0xFF, 0x80, 0x40);
+/// pal_bg_mem[16 + 3] = RGB8(0x64, 0x95, 0xED); // cornflowerblue (#6495ED)
+/// @endcode
 #pragma once
 
 #include <gba/peripherals>
@@ -9,16 +26,62 @@
 
 namespace gba {
 
+    /// @brief Raw palette RAM (512 halfwords, BG + OBJ combined, 0x5000000).
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_mem[n] = color_value;
+    /// @endcode
     inline constexpr auto mem_pal = registral<short[512]>{0x5000000};
+
+    /// @brief Background palette RAM (256 entries, 0x5000000).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::mem_pal_bg[0] = 0; // black backdrop
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_bg_mem[0] = 0;
+    /// @endcode
     inline constexpr auto mem_pal_bg = registral<short[256]>{0x5000000};
+
+    /// @brief Object palette RAM (256 entries, 0x5000200).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::mem_pal_obj[0] = 0x7FFF; // white sprite color
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_obj_mem[0] = RGB15(31, 31, 31);
+    /// @endcode
     inline constexpr auto mem_pal_obj = registral<short[256]>{0x5000200};
 
-    /// @brief 16-bit xBGR color.
+    /// @brief 15-bit xBGR colour value (2 bytes, GBA native format).
+    ///
+    /// Each channel is 5 bits (0-31). The `grn_lo` field captures the low bit of the
+    /// green channel that spills out of the 5-bit green field when building from 6-bit
+    /// source data; leave it zero for normal use.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::color red = { .red = 31 };
+    /// gba::color white = { .red = 31, .green = 31, .blue = 31 };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// COLOR red = RGB15(31, 0, 0);
+    /// COLOR white = RGB15(31, 31, 31);
+    /// @endcode
     struct alignas(unsigned short) color {
-        unsigned short red    : 5;
-        unsigned short green  : 5;
-        unsigned short blue   : 5;
-        unsigned short grn_lo : 1;
+        unsigned short red    : 5; ///< Red channel (0-31)
+        unsigned short green  : 5; ///< Green channel (0-31)
+        unsigned short blue   : 5; ///< Blue channel (0-31)
+        unsigned short grn_lo : 1; ///< Low green bit (leave 0 for normal use)
 
         [[nodiscard]] friend constexpr bool operator==(color, color) = default;
     };
@@ -27,6 +90,9 @@ namespace gba {
 
     namespace bits {
 
+        /// @brief Convert a single ASCII hex digit to its 4-bit value.
+        /// @param c ASCII character ('0'-'9', 'a'-'f', 'A'-'F').
+        /// @return Numeric value 0-15.
         consteval unsigned short hex_nibble(char c) {
             if (c >= '0' && c <= '9') return c - '0';
             if (c >= 'a' && c <= 'f') return c - 'a' + 10;
@@ -34,10 +100,18 @@ namespace gba {
             throw "invalid hex digit";
         }
 
+        /// @brief Convert two ASCII hex digits to a byte value.
+        /// @param hi High nibble character.
+        /// @param lo Low nibble character.
+        /// @return Byte value 0-255.
         consteval unsigned short hex_byte(char hi, char lo) {
             return (hex_nibble(hi) << 4) | hex_nibble(lo);
         }
 
+        /// @brief Parse a `#RRGGBB` hex color string to a packed 24-bit RGB value.
+        /// @param str Pointer to the string (must start with '#').
+        /// @param len Length of the string (must be 7).
+        /// @return Packed RGB as `(R << 16) | (G << 8) | B`.
         consteval unsigned int hex_to_rgb(const char* str, std::size_t len) {
             if (len != 7 || str[0] != '#') throw "expected \"#RRGGBB\" format";
             unsigned short r = hex_byte(str[1], str[2]);
@@ -46,9 +120,11 @@ namespace gba {
             return (r << 16) | (g << 8) | b;
         }
 
-        // CSS named color database (147 colors from CSS spec)
+        /// @brief Look up a CSS named colour and return its packed 24-bit RGB value.
+        /// @param name CSS colour name (e.g. `"cornflowerblue"`).
+        /// @return Packed RGB as `(R << 16) | (G << 8) | B`.
+        /// @note Supports all 147 colours from the CSS Color Level 4 specification.
         consteval unsigned int css_color_to_rgb(std::string_view name) {
-            // 3-letter colors
             if (name == "red") return 0xFF0000;
             if (name == "tan") return 0xD2B48C;
             if (name == "gold") return 0xFFD700;
@@ -195,15 +271,16 @@ namespace gba {
             if (name == "whitesmoke") return 0xF5F5F5;
             if (name == "yellowgreen") return 0x9ACD32;
             if (name == "yellow") return 0xFFFF00;
-
             throw "unknown CSS color name";
         }
 
+        /// @brief Convert a packed 24-bit RGB value to a `gba::color`.
+        /// @param rgb Packed value as `(R << 16) | (G << 8) | B` with 8-bit channels.
+        /// @return GBA color with 5-bit channels.
         consteval color from_rgb(unsigned int rgb) {
             unsigned short r = (rgb >> 16) & 0xFF;
             unsigned short g = (rgb >> 8) & 0xFF;
             unsigned short b = rgb & 0xFF;
-            // Convert 8-bit RGB to 5-bit GBA RGB
             return {.red = static_cast<unsigned short>(r >> 3),
                     .green = static_cast<unsigned short>(g >> 3),
                     .blue = static_cast<unsigned short>(b >> 3),
@@ -214,17 +291,24 @@ namespace gba {
 
     namespace literals {
 
-        /// @brief User-defined literal for web colors (hex #RRGGBB or CSS name).
-        /// @example "#FF8040"_clr or "cornflowerblue"_clr
+        /// @brief User-defined literal for compile-time web colours.
+        /// @param str Colour string: `"#RRGGBB"` hex or a CSS named colour (e.g. `"cornflowerblue"`).
+        /// @param len Length of the string.
+        /// @return `gba::color` value with 5-bit RGB channels.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// using namespace gba::literals;
+        /// gba::pal_bg_mem[0] = "#FF8040"_clr;
+        /// gba::pal_bg_mem[1] = "cornflowerblue"_clr;
+        /// @endcode
         consteval color operator""_clr(const char* str, std::size_t len) {
             std::string_view view(str, len);
 
-            // Try hex format first
             if (len == 7 && str[0] == '#') {
                 return bits::from_rgb(bits::hex_to_rgb(str, len));
             }
 
-            // Try CSS color name
             if (len > 0 && str[0] != '#') {
                 return bits::from_rgb(bits::css_color_to_rgb(view));
             }
@@ -236,9 +320,72 @@ namespace gba {
 
     using literals::operator""_clr;
 
+    /// @brief Background palette RAM as typed `color` array (256 entries, 0x5000000).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::pal_bg_mem[0] = { .blue = 16 };              // navy backdrop
+    /// gba::pal_bg_mem[1] = { .red = 31 };               // red
+    /// gba::pal_bg_mem[2] = { .red = 31, .green = 31 };  // yellow
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_bg_mem[0] = RGB15(0, 0, 16);
+    /// pal_bg_mem[1] = RGB15(31, 0, 0);
+    /// pal_bg_mem[2] = RGB15(31, 31, 0);
+    /// @endcode
     inline constexpr auto pal_bg_mem = registral_cast<color[256]>(mem_pal_bg);
+
+    /// @brief Object palette RAM as typed `color` array (256 entries, 0x5000200).
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::pal_obj_mem[0] = {};                                    // transparent (black)
+    /// gba::pal_obj_mem[1] = { .red = 31 };                        // red
+    /// gba::pal_obj_mem[2] = { .red = 31, .green = 31, .blue = 31 }; // white
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_obj_mem[0] = 0;
+    /// pal_obj_mem[1] = RGB15(31, 0, 0);
+    /// pal_obj_mem[2] = RGB15(31, 31, 31);
+    /// @endcode
     inline constexpr auto pal_obj_mem = registral_cast<color[256]>(mem_pal_obj);
+
+    /// @brief Background palette RAM as 16 banks of 16 colours (0x5000000).
+    ///
+    /// Useful for 4bpp backgrounds where each bank is a separate 16-colour palette.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::pal_bg_bank[0][0] = {};                                       // transparent (black)
+    /// gba::pal_bg_bank[1][3] = { .red = 12, .green = 18, .blue = 29 };  // cornflower blue
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_bg_mem[0 * 16 + 0] = 0;
+    /// pal_bg_mem[1 * 16 + 3] = RGB15(12, 18, 29);
+    /// @endcode
     inline constexpr auto pal_bg_bank = registral<color[16][16]>(0x5000000);
+
+    /// @brief Object palette RAM as 16 banks of 16 colours (0x5000200).
+    ///
+    /// Useful for 4bpp sprites where each bank is a separate 16-colour palette.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::pal_obj_bank[2][0] = {};                                        // transparent (black)
+    /// gba::pal_obj_bank[2][1] = { .red = 31, .green = 31, .blue = 31 };   // white
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// pal_obj_mem[2 * 16 + 0] = 0;
+    /// pal_obj_mem[2 * 16 + 1] = RGB15(31, 31, 31);
+    /// @endcode
     inline constexpr auto pal_obj_bank = registral<color[16][16]>(0x5000200);
 
 } // namespace gba
