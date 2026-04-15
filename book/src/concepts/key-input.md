@@ -175,7 +175,7 @@ For keypad register details (including active-low hardware semantics), see `book
 This demo renders a simple GBA-style button layout and updates each button colour from `pressed()`, `released()`, and `held()` state:
 
 ```cpp
-{{#include ../../demos/demo_keypad_buttons.cpp:14:}}
+{{#include ../../demos/demo_keypad_buttons.cpp:7:}}
 ```
 
 ![Keypad buttons demo screenshot](../img/keypad_buttons.png)

@@ -33,11 +33,11 @@ gba::pal_bg_mem[6] = "cornflowerblue"_clr;
 
 Here are several colours displayed as palette swatches using Mode 0 tiles:
 
+![Colour swatches](../img/colors.png)
+
 ```cpp
 {{#include ../../demos/demo_colors.cpp:7:}}
 ```
-
-![Colour swatches](../img/colors.png)
 
 ## Palette memory layout
 
