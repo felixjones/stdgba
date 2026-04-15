@@ -28,6 +28,26 @@ static_assert(font.glyph_count > 0);
 
 The returned type is `gba::embed::bdf_font_result<GlyphCount, BitmapBytes>`.
 
+## Demo
+
+The demo below embeds multiple BDF files and renders them in one text layer.
+
+Demo fonts used:
+
+- `6x13B.bdf`
+- `HaxorMedium-12.bdf`
+
+Font source: [IT-Studio-Rech/bdf-fonts](https://github.com/IT-Studio-Rech/bdf-fonts).
+
+The demo applies `with_shadow<1, 1>` to both embedded fonts and uses the
+`two_plane_three_color` profile so the shadow pass is visible.
+
+```cpp
+{{#include ../../demos/demo_embed_fonts.cpp:4:}}
+```
+
+![Embedded fonts demo](../img/embed_fonts.png)
+
 ## What `embed::bdf(...)` parses
 
 The parser expects standard text BDF structure and reads these fields:
