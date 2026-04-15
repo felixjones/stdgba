@@ -52,8 +52,6 @@ namespace gba::embed::bits {
                                        const std::array<unsigned char, Size>& data, const png_chunk_info& info,
                                        gba::color* pixels, bool* transparent) {
         if (info.plte_count == 0) throw "PNG: indexed image requires PLTE chunk";
-
-        // Build PLTE lookup (only the entries we need)
         gba::color plte[256]{};
         for (unsigned int i = 0; i < info.plte_count && i < 256; ++i) {
             auto off = info.plte_offset + i * 3;
@@ -61,15 +59,12 @@ namespace gba::embed::bits {
                                           (static_cast<unsigned int>(data[off + 1]) << 8) |
                                            static_cast<unsigned int>(data[off + 2]));
         }
-
-        // Build tRNS lookup
         bool plte_trans[256]{};
         if (info.trns_len > 0) {
             for (unsigned int i = 0; i < info.trns_len && i < 256; ++i)
                 plte_trans[i] = (data[info.trns_offset + i] < 128);
         }
-
-        auto stride = width; // 1 byte per pixel for indexed
+        auto stride = width;
         for (unsigned int y = 0; y < height; ++y) {
             auto* row = scanlines + y * (1 + stride) + 1;
             for (unsigned int x = 0; x < width; ++x) {

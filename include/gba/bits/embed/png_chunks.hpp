@@ -25,7 +25,7 @@ namespace gba::embed::bits {
     template<std::size_t Size>
     consteval png_chunk_info png_scan_chunks(const std::array<unsigned char, Size>& data) {
         png_chunk_info info{};
-        std::size_t pos = 33; // skip signature(8) + IHDR(4+4+13+4)
+        std::size_t pos = 33;
         while (pos + 12 <= Size) {
             auto chunk_len = png_read_u32(data, pos);
             auto t0 = data[pos + 4], t1 = data[pos + 5], t2 = data[pos + 6], t3 = data[pos + 7];
@@ -72,7 +72,8 @@ namespace gba::embed::bits {
 
         consteval void skip_zlib_header() {
             auto cmf = next_byte();
-            next_byte(); // FLG
+            auto flg = next_byte();
+            static_cast<void>(flg);
             if ((cmf & 0x0F) != 8) throw "PNG: zlib compression must be deflate";
         }
 

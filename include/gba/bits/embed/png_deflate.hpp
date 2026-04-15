@@ -19,15 +19,13 @@ namespace gba::embed::bits {
         unsigned int max_bits = 0;
     };
 
-    // Counting-sort Huffman build: O(count) instead of O(count × max_bits)
     consteval void deflate_build_huffman(deflate_huff& h, const unsigned int* lengths, unsigned int count) {
         for (unsigned int i = 0; i < 16; ++i) h.counts[i] = 0;
         for (unsigned int i = 0; i < count; ++i) {
             if (lengths[i] <= 15) ++h.counts[lengths[i]];
         }
-        h.counts[0] = 0; // length 0 means unused
+        h.counts[0] = 0;
 
-        // Compute first codes and first indices per bit length
         unsigned int code = 0;
         unsigned int idx = 0;
         h.max_bits = 0;
@@ -41,7 +39,6 @@ namespace gba::embed::bits {
             if (h.counts[bits] > 0) h.max_bits = bits;
         }
 
-        // Place symbols via counting sort — single O(count) pass
         for (unsigned int i = 0; i < count; ++i) {
             auto len = lengths[i];
             if (len > 0 && len <= 15) {
@@ -169,13 +166,14 @@ namespace gba::embed::bits {
             auto btype = deflate_read_bits(r, 2);
 
             if (btype == 0) {
-                // Stored block: align to byte boundary
                 r.align_to_byte();
                 unsigned int lo = r.next_byte();
                 unsigned int hi = r.next_byte();
                 unsigned int len = lo | (hi << 8);
-                r.next_byte(); // nlen lo
-                r.next_byte(); // nlen hi
+                unsigned int nlen_lo = r.next_byte();
+                unsigned int nlen_hi = r.next_byte();
+                unsigned int nlen = nlen_lo | (nlen_hi << 8);
+                if ((len ^ 0xFFFFu) != nlen) throw "PNG deflate: stored block LEN/NLEN mismatch";
                 for (unsigned int i = 0; i < len; ++i) {
                     if (out_pos >= dst_cap) throw "PNG deflate: output buffer overflow";
                     dst[out_pos++] = r.next_byte();

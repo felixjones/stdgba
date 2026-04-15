@@ -16,7 +16,6 @@ namespace gba::embed::bits {
                                     static_cast<unsigned int>(b));
     }
 
-
     consteval bool is_ws(unsigned char c) {
         return c == ' ' || c == '\t' || c == '\n' || c == '\r';
     }
@@ -34,17 +33,15 @@ namespace gba::embed::bits {
     struct image_header {
         unsigned int width;
         unsigned int height;
-        std::size_t pixel_offset; // PPM only: offset to raw RGB data
+        std::size_t pixel_offset;
         bool is_tga;
         bool is_png;
-        // TGA fields
         unsigned int tga_image_type;
         unsigned int tga_bpp;
         bool tga_origin_top;
         unsigned int tga_cmap_offset;
         unsigned int tga_cmap_length;
         unsigned int tga_cmap_bpp;
-        // PNG fields
         unsigned int png_color_type;
     };
 

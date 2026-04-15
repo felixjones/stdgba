@@ -26,22 +26,14 @@ namespace gba::embed::bits {
         auto bpp_bytes = (color_type == 2) ? 3u : (color_type == 6) ? 4u : 1u;
         auto stride = width * bpp_bytes;
         auto raw_size = height * (1 + stride);
-
-        // Single-pass chunk scan
         auto info = png_scan_chunks(data);
-
-        // Streaming inflate directly from IDAT spans (no intermediate buffer)
         png_idat_reader<Size> reader{data, info};
         reader.skip_zlib_header();
 
         unsigned char scanlines[raw_size];
         auto inflated = deflate_inflate(reader, scanlines, raw_size);
         if (inflated != raw_size) throw "PNG: inflated size does not match expected scanline data";
-
-        // Unfilter (filter type hoisted outside inner loop)
         png_unfilter(scanlines, width, height, bpp_bytes);
-
-        // Convert to pixels (color type dispatched outside loops)
         if (color_type == 2) {
             bool has_trns = false;
             unsigned char trns_r = 0, trns_g = 0, trns_b = 0;

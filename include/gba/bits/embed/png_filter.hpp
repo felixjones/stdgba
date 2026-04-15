@@ -18,6 +18,11 @@ namespace gba::embed::bits {
     }
 
     consteval void png_unfilter(unsigned char* raw, unsigned int width, unsigned int height, unsigned int bpp_bytes) {
+        constexpr unsigned int filter_none = 0;
+        constexpr unsigned int filter_sub = 1;
+        constexpr unsigned int filter_up = 2;
+        constexpr unsigned int filter_average = 3;
+        constexpr unsigned int filter_paeth = 4;
         auto stride = width * bpp_bytes;
         for (unsigned int y = 0; y < height; ++y) {
             auto row_start = y * (1 + stride);
@@ -26,26 +31,26 @@ namespace gba::embed::bits {
             const unsigned char* prev = (y > 0) ? (raw + (y - 1) * (1 + stride) + 1) : nullptr;
 
             switch (filter) {
-                case 0: // None
+                case filter_none:
                     break;
-                case 1: // Sub
+                case filter_sub:
                     for (unsigned int x = bpp_bytes; x < stride; ++x)
                         row[x] = static_cast<unsigned char>(row[x] + row[x - bpp_bytes]);
                     break;
-                case 2: // Up
+                case filter_up:
                     if (prev) {
                         for (unsigned int x = 0; x < stride; ++x)
                             row[x] = static_cast<unsigned char>(row[x] + prev[x]);
                     }
                     break;
-                case 3: // Average
+                case filter_average:
                     for (unsigned int x = 0; x < stride; ++x) {
                         unsigned int a = (x >= bpp_bytes) ? row[x - bpp_bytes] : 0;
                         unsigned int b = prev ? prev[x] : 0;
                         row[x] = static_cast<unsigned char>(row[x] + ((a + b) >> 1));
                     }
                     break;
-                case 4: // Paeth
+                case filter_paeth:
                     for (unsigned int x = 0; x < stride; ++x) {
                         unsigned int a = (x >= bpp_bytes) ? row[x - bpp_bytes] : 0;
                         unsigned int b = prev ? prev[x] : 0;
