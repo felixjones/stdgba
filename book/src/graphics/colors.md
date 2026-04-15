@@ -84,24 +84,33 @@ For full details, demo code, and emulator-vs-hardware screenshots, see [Advanced
 
 tonclib defines a small set of `CLR_*` constants for the primary colours. The stdgba equivalents use CSS web colour names with `_clr`:
 
-| tonclib                 | stdgba                             | Value     |
-|-------------------------|------------------------------------|-----------|
-| `CLR_BLACK`             | `"black"_clr`                      | `#000000` |
-| `CLR_RED`               | `"red"_clr`                        | `#FF0000` |
-| `CLR_LIME`              | `"lime"_clr`                       | `#00FF00` |
-| `CLR_YELLOW`            | `"yellow"_clr`                     | `#FFFF00` |
-| `CLR_BLUE`              | `"blue"_clr`                       | `#0000FF` |
-| `CLR_MAG`               | `"magenta"_clr` or `"fuchsia"_clr` | `#FF00FF` |
-| `CLR_CYAN`              | `"cyan"_clr` or `"aqua"_clr`       | `#00FFFF` |
-| `CLR_WHITE`             | `"white"_clr`                      | `#FFFFFF` |
-| `CLR_MAROON`            | `"maroon"_clr`                     | `#800000` |
-| `CLR_GREEN`             | `"green"_clr`                      | `#008000` |
-| `CLR_NAVY`              | `"navy"_clr`                       | `#000080` |
-| `CLR_TEAL`              | `"teal"_clr`                       | `#008080` |
-| `CLR_PURPLE`            | `"purple"_clr`                     | `#800080` |
-| `CLR_OLIVE`             | `"olive"_clr`                      | `#808000` |
-| `CLR_ORANGE`            | `"orange"_clr`                     | `#FFA500` |
-| `CLR_GRAY` / `CLR_GREY` | `"gray"_clr` or `"grey"_clr`       | `#808080` |
-| `CLR_SILVER`            | `"silver"_clr`                     | `#C0C0C0` |
+<table>
+  <thead>
+    <tr>
+      <th>tonclib</th>
+      <th>stdgba</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td><code>CLR_BLACK</code></td><td><code>"black"_clr</code></td><td bgcolor="#000000"><code>#000000</code></td></tr>
+    <tr><td><code>CLR_RED</code></td><td><code>"red"_clr</code></td><td bgcolor="#FF0000"><code>#FF0000</code></td></tr>
+    <tr><td><code>CLR_LIME</code></td><td><code>"lime"_clr</code></td><td bgcolor="#00FF00"><code>#00FF00</code></td></tr>
+    <tr><td><code>CLR_YELLOW</code></td><td><code>"yellow"_clr</code></td><td bgcolor="#FFFF00"><code>#FFFF00</code></td></tr>
+    <tr><td><code>CLR_BLUE</code></td><td><code>"blue"_clr</code></td><td bgcolor="#0000FF"><code>#0000FF</code></td></tr>
+    <tr><td><code>CLR_MAG</code></td><td><code>"magenta"_clr</code> or <code>"fuchsia"_clr</code></td><td bgcolor="#FF00FF"><code>#FF00FF</code></td></tr>
+    <tr><td><code>CLR_CYAN</code></td><td><code>"cyan"_clr</code> or <code>"aqua"_clr</code></td><td bgcolor="#00FFFF"><code>#00FFFF</code></td></tr>
+    <tr><td><code>CLR_WHITE</code></td><td><code>"white"_clr</code></td><td bgcolor="#FFFFFF"><code>#FFFFFF</code></td></tr>
+    <tr><td><code>CLR_MAROON</code></td><td><code>"maroon"_clr</code></td><td bgcolor="#800000"><code>#800000</code></td></tr>
+    <tr><td><code>CLR_GREEN</code></td><td><code>"green"_clr</code></td><td bgcolor="#008000"><code>#008000</code></td></tr>
+    <tr><td><code>CLR_NAVY</code></td><td><code>"navy"_clr</code></td><td bgcolor="#000080"><code>#000080</code></td></tr>
+    <tr><td><code>CLR_TEAL</code></td><td><code>"teal"_clr</code></td><td bgcolor="#008080"><code>#008080</code></td></tr>
+    <tr><td><code>CLR_PURPLE</code></td><td><code>"purple"_clr</code></td><td bgcolor="#800080"><code>#800080</code></td></tr>
+    <tr><td><code>CLR_OLIVE</code></td><td><code>"olive"_clr</code></td><td bgcolor="#808000"><code>#808000</code></td></tr>
+    <tr><td><code>CLR_ORANGE</code></td><td><code>"orange"_clr</code></td><td bgcolor="#FFA500"><code>#FFA500</code></td></tr>
+    <tr><td><code>CLR_GRAY</code> / <code>CLR_GREY</code></td><td><code>"gray"_clr</code> or <code>"grey"_clr</code></td><td bgcolor="#808080"><code>#808080</code></td></tr>
+    <tr><td><code>CLR_SILVER</code></td><td><code>"silver"_clr</code></td><td bgcolor="#C0C0C0"><code>#C0C0C0</code></td></tr>
+  </tbody>
+</table>
 
 stdgba's CSS colour set is a strict superset - all 147 CSS Color Level 4 names are supported, including colours like `"cornflowerblue"_clr` that have no tonclib constant.
