@@ -46,7 +46,6 @@ namespace gba::music {
         /// @brief True once all events have fired and the piece has ended.
         bool m_finished{};
 
-        // -- Current instrument state -------------------------------------
         // Runtime state updated by `instrument_change` events. `note_on`
         // re-applies these before triggering so notes after rests are audible.
 
@@ -102,7 +101,6 @@ namespace gba::music {
         }
 
     private:
-        // -- Switch-based dispatch entry ----------------------------------
         //
         // The switch generates a jump table that enters the template chain
         // at the exact depth matching m_timepointIdx, eliminating O(n)
@@ -110,7 +108,6 @@ namespace gba::music {
 
         void dispatch_from(std::int64_t currentTime) { dispatch_timepoint<0>(currentTime); }
 
-        // -- Template chain -----------------------------------------------
         //
         // Each dispatch_timepoint<I> checks one compile-time-known batch
         // time, fires events if due, then tail-calls dispatch_timepoint<I+1>.
@@ -146,7 +143,6 @@ namespace gba::music {
             }
         }
 
-        // -- Compile-time-specialized event firing ------------------------
         //
         // Every field of `Ev` is a compile-time constant. `if constexpr`
         // eliminates dead branches, leaving only the specific register

@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-// -- Test component types (all power-of-two sizes) ----------------------------
+// Section: Test component types (all power-of-two sizes)
 
 struct pos_t {
     int x, y;
@@ -30,7 +30,7 @@ static_assert(std::has_single_bit(sizeof(tag_t)));
 using test_registry = gba::ecs::registry<32, pos_t, vel_t, hp_t, tag_t>;
 
 int main() {
-    // -- Entity lifecycle -------------------------------------------------
+    // Section: Entity lifecycle
 
     gba::test("create entity", [] {
         test_registry reg;
@@ -97,7 +97,7 @@ int main() {
         gba::test.expect.is_false(reg.valid(e1), "e1 invalid after clear");
     });
 
-    // -- Component operations ---------------------------------------------
+    // Section: Component operations
 
     gba::test("emplace and get", [] {
         test_registry reg;
@@ -222,7 +222,7 @@ int main() {
         gba::test.expect.is_false(reg.any_of<hp_t>(e), "any: no hp");
     });
 
-    // -- View iteration ---------------------------------------------------
+    // Section: View iteration
 
     gba::test("view 2-component each", [] {
         test_registry reg;
@@ -329,7 +329,7 @@ int main() {
         gba::test.expect.eq(count, 1, "single-component view");
     });
 
-    // -- Constexpr support ------------------------------------------------
+    // Section: Constexpr support
 
     gba::test("constexpr create + emplace + get", [] {
         static constexpr auto result = [] {
@@ -372,7 +372,7 @@ int main() {
         gba::test.is_true(gen_changed, "constexpr gen increment");
     });
 
-    // -- Pad utility ------------------------------------------------------
+    // Section: Pad utility
 
     gba::test("pad utility sizes", [] {
         struct padded_1b {
@@ -388,7 +388,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Size tracking edge cases -----------------------------------------
+    // Section: Size tracking edge cases
 
     gba::test("size after create-destroy-create cycle", [] {
         test_registry reg;
@@ -419,7 +419,7 @@ int main() {
         gba::test.expect.eq(reg.get<pos_t>(e).x, 99);
     });
 
-    // -- Full capacity ----------------------------------------------------
+    // Section: Full capacity
 
     gba::test("fill to capacity", [] {
         gba::ecs::registry<8, int> reg;

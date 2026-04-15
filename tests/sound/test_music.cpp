@@ -7,7 +7,7 @@ using namespace gba::music;
 using namespace gba::music::literals;
 
 int main() {
-    // -- Note parsing tests ------------------------------------------
+    // Section: Note parsing tests
 
     gba::test("parse rest", [] {
         static constexpr auto result = parse_note_name("~", 0, 1);
@@ -196,7 +196,7 @@ int main() {
         gba::test.eq(rate, static_cast<std::uint16_t>(1546));
     });
 
-    // -- Rational arithmetic tests -----------------------------------
+    // Section: Rational arithmetic tests
 
     gba::test("rational arithmetic", [] {
         static constexpr auto a = rational{1, 3};
@@ -229,7 +229,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Pattern parsing tests ---------------------------------------
+    // Section: Pattern parsing tests
 
     gba::test("parse simple sequence", [] {
         static constexpr auto pat = parse_mini("c4 e4 g4");
@@ -368,7 +368,7 @@ int main() {
         gba::test.is_true(pat.nodes[pat.root].modifier_is_timeline);
     });
 
-    // -- note() API tests ---------------------------------------------
+    // Section: note() API tests
 
     gba::test("note() creates pattern", [] {
         static constexpr auto p = note("c4 e4 g4");
@@ -400,7 +400,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- UDL tests ---------------------------------------------------
+    // Section: UDL tests
 
     gba::test("sq1 UDL", [] {
         static constexpr auto p = "c4 e4 g4"_sq1;
@@ -417,7 +417,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Compile tests -----------------------------------------------
+    // Section: Compile tests
 
     gba::test("compile note() single layer (default tempo)", [] {
         static constexpr auto music = compile(note("c4 e4 g4"));
@@ -592,7 +592,7 @@ int main() {
         gba::test.is_true(hasSq2);
     });
 
-    // -- Stack tests -------------------------------------------------
+    // Section: Stack tests
 
     gba::test("stack auto-assigns channels", [] {
         static constexpr auto sp = stack(note("c4 e4"), note("g4 b4"));
@@ -617,7 +617,7 @@ int main() {
         gba::test.eq(noteOns, 4);
     });
 
-    // -- Seq tests ---------------------------------------------------
+    // Section: Seq tests
 
     gba::test("seq chains patterns", [] {
         static constexpr auto s = seq(note("c4 c4"), note("e4 g4"));
@@ -683,7 +683,7 @@ int main() {
         gba::test.eq(times[8], music.cycle_time_num * 2 + (music.cycle_time_num * 2) / 3);
     });
 
-    // -- Loop test ---------------------------------------------------
+    // Section: Loop test
 
     gba::test("loop sets flag", [] {
         static constexpr auto l = loop(note("c4 e4"));
@@ -691,7 +691,7 @@ int main() {
         gba::test.is_true(l.looping);
     });
 
-    // -- Bjorklund algorithm tests -----------------------------------
+    // Section: Bjorklund algorithm tests
 
     gba::test("bjorklund(3,8)", [] {
         // Real Bjorklund E(3,8) = x..x..x. (positions 0,3,6)
@@ -723,7 +723,7 @@ int main() {
         gba::test.eq(pulses, 5);
     });
 
-    // -- Instrument configuration tests ------------------------------
+    // Section: Instrument configuration tests
 
     gba::test("sq1 default instrument", [] {
         static constexpr auto p = "c4"_sq1;
@@ -742,7 +742,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Hold / tie tests --------------------------------------------
+    // Section: Hold / tie tests
 
     gba::test("parse sequence with hold", [] {
         static constexpr auto pat = parse_mini("c4 _ e4");
@@ -855,7 +855,7 @@ int main() {
         for (int i = 1; i < 8; ++i) gba::test.is_true(times[i] > times[i - 1]);
     });
 
-    // -- Fractional modifier tests ----------------------------------------
+    // Section: Fractional modifier tests
 
     gba::test("parse fractional fast *2.75", [] {
         static constexpr auto pat = parse_mini("[c4 e4]*2.75");
@@ -1013,7 +1013,7 @@ int main() {
         gba::test.eq(noteOns, 3);
     });
 
-    // -- s() drum pattern tests ----------------------------------------
+    // Section: s() drum pattern tests
 
     gba::test("s() creates noise channel pattern", [] {
         static constexpr auto p = s("bd hh sd hh");
@@ -1114,7 +1114,7 @@ int main() {
         gba::test.is_true(found);
     });
 
-    // -- Full Strudel percussion name parity tests -------------------------
+    // Section: Full Strudel percussion name parity tests
 
     gba::test("parse all Strudel drum names", [] {
         static constexpr auto rBd = parse_note_name("bd ", 0, 3);
@@ -1198,7 +1198,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- .channels() tests ------------------------------------------------
+    // Section: .channels() tests
 
     gba::test("channels() assigns channels to stacked layers", [] {
         // Two layers: first -> wav, second -> sq2
@@ -1334,7 +1334,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Wave channel pitch tests ---------------------------------------------
+    // Section: Wave channel pitch tests
 
     gba::test("note_to_wav_rate produces valid rate for A4", [] {
         static constexpr auto wavRate = note_to_wav_rate(note::a4);
@@ -1367,7 +1367,7 @@ int main() {
         gba::test.is_true(found);
     });
 
-    // -- Pitched noise rejection test -----------------------------------------
+    // Section: Pitched noise rejection test
 
     gba::test("pitched noise is consteval error (documented)", [] {
         // note("c4").channel(channel::noise) would throw at consteval time:
@@ -1377,7 +1377,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- .rev() tests ---------------------------------------------------------
+    // Section: .rev() tests
 
     gba::test("rev() reverses note order in sequence", [] {
         // "c4 e4 g4" reversed should produce g4 e4 c4
@@ -1431,7 +1431,7 @@ int main() {
         gba::test.eq(origRates[2], dblRates[2]);
     });
 
-    // -- .add() / .sub() tests ------------------------------------------------
+    // Section: .add() / .sub() tests
 
     gba::test("add(12) transposes up one octave", [] {
         static constexpr auto music = compile(note("c4").add(12));
@@ -1527,7 +1527,7 @@ int main() {
         gba::test.is_true(hasSq2);
     });
 
-    // -- .ply() tests ---------------------------------------------------------
+    // Section: .ply() tests
 
     gba::test("ply(2) doubles note count", [] {
         static constexpr auto original = compile(note("c4 e4"));
@@ -1568,7 +1568,7 @@ int main() {
         gba::test.eq(noteOns, 2); // c4 played twice, rest is unchanged
     });
 
-    // -- .press() tests -------------------------------------------------------
+    // Section: .press() tests
 
     gba::test("press() doubles event density (note + rest per step)", [] {
         // "c4 e4" -> press -> each note becomes [note rest] subdivision
@@ -1611,7 +1611,7 @@ int main() {
         gba::test.eq(noteOns, 1);
     });
 
-    // -- Chained pattern functions --------------------------------------------
+    // Section: Chained pattern functions
 
     gba::test("rev().add(7) chains correctly", [] {
         // "c4 e4 g4" -> rev -> "g4 e4 c4" -> add(7) -> "d5 b4 g4"
@@ -1627,7 +1627,7 @@ int main() {
         gba::test.eq(rates[2], static_cast<int>(note_to_rate(note::g4)));
     });
 
-    // -- .late() / .early() tests ---------------------------------------------
+    // Section: .late() / .early() tests
 
     gba::test("late() shifts events later in time", [] {
         // Compare "c4" vs "c4".late(1,4) - the shifted version should fire later
@@ -1721,7 +1721,7 @@ int main() {
         gba::test.eq(noteOns, 2);
     });
 
-    // -- .iter() tests --------------------------------------------------------
+    // Section: .iter() tests
 
     gba::test("iter(4) produces 4 rotation variants via alternating", [] {
         // "c4 e4 g4 b4".iter(4) should produce:
@@ -1776,7 +1776,7 @@ int main() {
         gba::test.is_true(music.looping);
     });
 
-    // -- .palindrome() tests --------------------------------------------------
+    // Section: .palindrome() tests
 
     gba::test("palindrome() creates forward-reverse alternation", [] {
         // "c4 e4 g4" palindrome: cycle 0 forward (c4 e4 g4), cycle 1 reversed (g4 e4 c4)
@@ -1836,7 +1836,7 @@ int main() {
         gba::test.is_true(music.looping);
     });
 
-    // -- Phase 4: Higher-order combinators --------------------------------
+    // Section: Phase 4: Higher-order combinators
 
     gba::test("superimpose(add(7)) creates stacked AST with 2 channels", [] {
         static constexpr auto music = compile(note("c4 e4 g4").superimpose(add(7)));
@@ -2029,7 +2029,7 @@ int main() {
         gba::test.is_true(hasSq2);
     });
 
-    // -- wav_from_samples round-trip tests ---------------------------------
+    // Section: wav_from_samples round-trip tests
 
     gba::test("wav_from_samples packs nibbles correctly", [] {
         // 8 samples: high nibble first, packed into uint32 words.
@@ -2056,7 +2056,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Timing precision tests -------------------------------------------
+    // Section: Timing precision tests
 
     gba::test("total_time_num is exact multiple of cycle_time_num", [] {
         static constexpr auto music = compile(note("c4 e4 g4 c5"));
@@ -2080,7 +2080,7 @@ int main() {
         gba::test.is_true(true);
     });
 
-    // -- Sort stability: same-time ordering --------------------------------
+    // Section: Sort stability: same-time ordering
 
     gba::test("events at same time: instrument_change before note_off before note_on", [] {
         // seq() emits instrument_change at boundary, notes produce note_on,
@@ -2099,7 +2099,7 @@ int main() {
         }
     });
 
-    // -- Articulation injection correctness --------------------------------
+    // Section: Articulation injection correctness
 
     gba::test("articulation: repeated notes get note_off between them", [] {
         static constexpr auto music = compile(note("a4 a4").channel(channel::sq1));
@@ -2148,7 +2148,7 @@ int main() {
         gba::test.le(static_cast<int>(noteOffTime), static_cast<int>(secondNoteOnTime));
     });
 
-    // -- compiled_music metadata ------------------------------------------
+    // Section: compiled_music metadata
 
     gba::test("compiled_music looping flag from loop()", [] {
         static constexpr auto music = compile(loop(note("c4")));

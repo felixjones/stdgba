@@ -203,8 +203,6 @@ namespace gba::codegen::bits {
         return 0xE1A00000u;
     }
 
-    // ---- Bitwise operations ----
-
     constexpr std::uint32_t orr_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
         require(imm <= 0xFFu, "orr_imm: immediate must fit 8 bits");
         return 0xE3800000u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | imm;
@@ -246,8 +244,6 @@ namespace gba::codegen::bits {
         return 0xE1E00000u | (reg_bits(rd) << 12u) | reg_bits(rm);
     }
 
-    // ---- Additional arithmetic ----
-
     constexpr std::uint32_t rsb_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
         require(imm <= 0xFFu, "rsb_imm: immediate must fit 8 bits");
         return 0xE2600000u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | imm;
@@ -275,14 +271,11 @@ namespace gba::codegen::bits {
         return 0xE0C00000u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | reg_bits(rm);
     }
 
-    // ---- Shift/rotate by immediate (ror) and by register ----
-
     constexpr std::uint32_t ror_imm(const arm_reg rd, const arm_reg rm, const unsigned shift) {
         require(shift >= 1u && shift <= 31u, "ror_imm: shift must be in range 1..31");
         return 0xE1A00060u | (reg_bits(rd) << 12u) | (shift << 7u) | reg_bits(rm);
     }
 
-    // Shift/rotate by register (MOV Rd, Rm, <shift> Rs)
     constexpr std::uint32_t lsl_reg(const arm_reg rd, const arm_reg rm, const arm_reg rs) {
         return 0xE1A00010u | (reg_bits(rd) << 12u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
@@ -298,8 +291,6 @@ namespace gba::codegen::bits {
     constexpr std::uint32_t ror_reg(const arm_reg rd, const arm_reg rm, const arm_reg rs) {
         return 0xE1A00070u | (reg_bits(rd) << 12u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
-
-    // ---- Halfword/signed-byte load with register offset ----
 
     constexpr std::uint32_t ldrh_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
         return 0xE19000B0u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | reg_bits(rm);
@@ -331,8 +322,6 @@ namespace gba::codegen::bits {
         return 0xE19000F0u | (reg_bits(rn) << 16u) | (reg_bits(rd) << 12u) | reg_bits(rm);
     }
 
-    // ---- Additional comparison / test flag-setters ----
-
     constexpr std::uint32_t cmn_imm(const arm_reg rn, const std::uint32_t imm) {
         require(imm <= 0xFFu, "cmn_imm: immediate must fit 8 bits");
         return 0xE3700000u | (reg_bits(rn) << 16u) | imm;
@@ -360,8 +349,6 @@ namespace gba::codegen::bits {
         return 0xE1300000u | (reg_bits(rn) << 16u) | reg_bits(rm);
     }
 
-    // ---- Multi-register: push / pop (STMDB SP! / LDMIA SP!) ----
-
     constexpr std::uint32_t push(const std::uint16_t regs) {
         require(regs != 0u, "push: register list must not be empty");
         return 0xE92D0000u | regs;
@@ -371,8 +358,6 @@ namespace gba::codegen::bits {
         require(regs != 0u, "pop: register list must not be empty");
         return 0xE8BD0000u | regs;
     }
-
-    // ---- LDM/STM variants ----
 
     constexpr std::uint32_t ldmib(const arm_reg rn, const std::uint16_t regs, const bool writeback = false) {
         require(regs != 0u, "ldmib: register list must not be empty");
@@ -404,21 +389,16 @@ namespace gba::codegen::bits {
         return 0xE9000000u | (writeback ? (1u << 21u) : 0u) | (reg_bits(rn) << 16u) | regs;
     }
 
-    // ---- Multiply ----
-
-    // MUL Rd = Rm * Rs  (Rd must not equal Rm on ARM7TDMI)
     constexpr std::uint32_t mul(const arm_reg rd, const arm_reg rm, const arm_reg rs) {
         require(rd != rm, "mul: Rd must not equal Rm (ARM7TDMI constraint)");
         return 0xE0000090u | (reg_bits(rd) << 16u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
 
-    // MLA Rd = Rm * Rs + Rn  (Rd must not equal Rm on ARM7TDMI)
     constexpr std::uint32_t mla(const arm_reg rd, const arm_reg rm, const arm_reg rs, const arm_reg rn) {
         require(rd != rm, "mla: Rd must not equal Rm (ARM7TDMI constraint)");
         return 0xE0200090u | (reg_bits(rd) << 16u) | (reg_bits(rn) << 12u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
 
-    // ---- Branch with link ----
 
     constexpr std::uint32_t bl_to(const std::size_t current_index, const std::size_t target_index) {
         const auto current = static_cast<long long>(current_index);

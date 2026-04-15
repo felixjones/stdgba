@@ -17,12 +17,10 @@
 
 namespace gba::music {
 
-    // -- Pattern ---------------------------------------------------------
 
     /// @brief Sentinel value: no channel assigned.
     inline constexpr std::uint8_t no_channel = 0xFF;
 
-    // -- Transform descriptors (Phase 4) ---------------------------------
     //
     // Lightweight tag types encoding a single pattern transform. Used as
     // arguments to `.superimpose()` and `.off()` for Strudel-style
@@ -71,7 +69,6 @@ namespace gba::music {
     // Forward declaration needed for pattern::off() return type.
     struct stacked_pattern;
 
-    // -- AST validation + rewrite helpers ---------------------------------
 
     namespace pattern_detail {
 
@@ -89,7 +86,6 @@ namespace gba::music {
             for (std::uint8_t i = 0; i < node.child_count; ++i) validate_drum_only(ast, node.children[i]);
         }
 
-        // -- AST rewrite helpers (Phase 1 pattern functions) --------------
 
         /// @brief Deep-copy an AST subtree, returning the new root index.
         ///
@@ -202,7 +198,6 @@ namespace gba::music {
             for (std::uint8_t i = 0; i < node.child_count; ++i) press_node(ast, node.children[i]);
         }
 
-        // -- AST rewrite helpers (Phase 3 - rotation/palindrome) ----------
 
         /// @brief Rotate children[] and weights[] of a node left by k positions.
         ///
@@ -241,7 +236,6 @@ namespace gba::music {
             }
         }
 
-        // -- AST-level transform dispatch (Phase 4) ------------------------
 
         /// @brief Apply an add_transform to an AST subtree.
         consteval void apply_ast_transform(parsed_pattern& ast, std::uint16_t root, const add_transform& t) {
@@ -480,7 +474,6 @@ namespace gba::music {
             return copy;
         }
 
-        // -- Strudel pattern functions (Phase 1) -------------------------
 
         /// @brief Reverse the pattern - children of sequence/subdivision nodes play backwards.
         ///
@@ -551,7 +544,6 @@ namespace gba::music {
             return copy;
         }
 
-        // -- Time shift (Phase 2) ----------------------------------------
 
         /// @brief Delay the pattern by `num/den` cycles.
         ///
@@ -584,7 +576,6 @@ namespace gba::music {
             return copy;
         }
 
-        // -- Rotation / palindrome (Phase 3) ------------------------------
 
         /// @brief Rotate the sequence left by 1 step each cycle, producing N variants.
         ///
@@ -668,7 +659,6 @@ namespace gba::music {
             return copy;
         }
 
-        // -- Higher-order combinators (Phase 4) ---------------------------
 
         /// @brief Stack the original pattern with a transformed copy.
         ///
@@ -745,7 +735,6 @@ namespace gba::music {
         }
     };
 
-    // -- note() ----------------------------------------------------------
 
     /// @brief Create a pattern from a mini-notation string.
     ///
@@ -764,7 +753,6 @@ namespace gba::music {
         return p;
     }
 
-    // -- s() -------------------------------------------------------------
 
     /// @brief Create a drum pattern from a mini-notation string.
     ///
@@ -792,7 +780,6 @@ namespace gba::music {
         return p;
     }
 
-    // -- UDL operators ---------------------------------------------------
 
     namespace literals {
 
@@ -843,7 +830,6 @@ namespace gba::music {
 
     } // namespace literals
 
-    // -- Combinators -----------------------------------------------------
 
     /// @brief Maximum segments in a seq(). Generous - only consteval intermediate.
     inline constexpr std::size_t max_seq_segments = 32;
@@ -894,7 +880,6 @@ namespace gba::music {
         bool looping{};
     };
 
-    // -- stack() ---------------------------------------------------------
 
     /// @brief Combine patterns to play simultaneously on distinct channels.
     ///
@@ -910,7 +895,6 @@ namespace gba::music {
         return result;
     }
 
-    // -- seq() -----------------------------------------------------------
 
     namespace seq_detail {
 
@@ -959,7 +943,6 @@ namespace gba::music {
         return result;
     }
 
-    // -- loop() ----------------------------------------------------------
 
     /// @brief Wrap a pattern/stack/seq for infinite looping.
     template<typename T>
@@ -969,7 +952,6 @@ namespace gba::music {
         return result;
     }
 
-    // -- Phase 4: pattern-level transform application + off() ----------
 
     namespace pattern_detail {
 
@@ -995,7 +977,6 @@ namespace gba::music {
 
     } // namespace pattern_detail
 
-    // -- Out-of-line: pattern::off() --------------------------------------
 
     /// @brief Delayed overlay implementation (defined after stack() is visible).
     template<typename Transform>

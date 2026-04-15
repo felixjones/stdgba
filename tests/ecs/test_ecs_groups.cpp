@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <type_traits>
 
-// -- Example components for demonstration ------------------------------------
+// Section: Example components for demonstration
 
 struct position {
     int x, y;
@@ -41,7 +41,7 @@ static_assert(std::has_single_bit(sizeof(health)));
 static_assert(std::has_single_bit(sizeof(armor)));
 static_assert(std::has_single_bit(sizeof(weapon)));
 
-// -- Component groups demonstration -------------------------------------------
+// Section: Component groups demonstration
 
 // Group 1: Physics components (movement and forces)
 using physics = gba::ecs::group<position, velocity, acceleration>;
@@ -68,7 +68,7 @@ static_assert(std::is_same_v<overlap_flat, gba::ecs::group<position, velocity, h
 using dedup_registry = gba::ecs::registry<32, overlap_a, overlap_b>;
 
 int main() {
-    // -- Test that grouped and flat registries work identically ---------------
+    // Section: Test that grouped and flat registries work identically
 
     gba::test("group flattening preserves registry semantics", [] {
         grouped_registry g_world;
@@ -102,7 +102,7 @@ int main() {
         gba::test.expect.eq(f_count, 1, "flat registry view works");
     });
 
-    // -- Test mixed group and component syntax --------------------------------
+    // Section: Test mixed group and component syntax
 
     using mixed = gba::ecs::group<physics, health, weapon>;
     using mixed_registry = gba::ecs::registry<32, mixed>;
@@ -128,7 +128,7 @@ int main() {
         gba::test.expect.eq(h.hp, 80, "health is correct");
     });
 
-    // -- Test complex physics simulation with groups ---------------------------
+    // Section: Test complex physics simulation with groups
 
     gba::test("physics simulation with groups", [] {
         grouped_registry world;
@@ -170,7 +170,7 @@ int main() {
         gba::test.expect.eq(e2_pos.y, 101, "entity 2 y position after physics step");
     });
 
-    // -- Test constexpr with groups -------------------------------------------
+    // Section: Test constexpr with groups
 
     gba::test("constexpr registry with groups", [] {
         constexpr auto test_result = [] {
@@ -215,7 +215,7 @@ int main() {
         gba::test.expect.eq(total, 46, "constexpr grouped views produce deterministic aggregate");
     });
 
-    // -- Test implicit view<group> optimization ----------------------------------
+    // Section: Test implicit view<group> optimisation
 
     gba::test("view with group optimized accessor", [] {
         grouped_registry world;
@@ -248,7 +248,7 @@ int main() {
                            "view<group> expands to same results as manual view");
     });
 
-    // -- Test implicit get<group>() optimization ---------------------------------
+    // Section: Test implicit get<group>() optimisation
 
     gba::test("get with group batch component accessor", [] {
         grouped_registry world;
@@ -463,7 +463,7 @@ int main() {
                                  "mixed create_emplace initialized all components");
     });
 
-    // -- Test batch group operations with implicit group query ---------------------
+    // Section: Test batch group operations with implicit group query
 
     gba::test("batch group operations using implicit groups", [] {
         grouped_registry world;

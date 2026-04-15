@@ -125,7 +125,7 @@ int main() {
         gba::test.eq(bit_cast(b), 0x20000000u); // 45 degrees
     }
 
-    // -- Power-of-two fast-path correctness ------------------------------
+    // Section: Power-of-two fast-path correctness
 
     {
         // *= power-of-two matches generic multiply

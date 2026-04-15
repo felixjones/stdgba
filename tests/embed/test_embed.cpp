@@ -123,7 +123,7 @@ static constexpr auto make_test_tga_gray() {
     return data;
 }
 
-// -- PNG test helpers --
+// Section: PNG test helpers
 
 // Helper: write a 4-byte big-endian unsigned int at a position
 static consteval void png_put_u32(unsigned char* d, unsigned int v) {

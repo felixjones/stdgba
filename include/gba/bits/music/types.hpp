@@ -13,7 +13,6 @@
 
 namespace gba::music {
 
-    // -- Timing constants ------------------------------------------------
 
     /// @brief GBA CPU clock frequency: 2^24 = 16,777,216 Hz.
     inline constexpr std::int64_t cpu_clock = 1 << 24;
@@ -21,7 +20,6 @@ namespace gba::music {
     /// @brief CPU cycles per frame: 228 scanlines x 1232 cycles = 280,896.
     inline constexpr std::int64_t frame_clocks = 280896;
 
-    // -- Rational arithmetic ---------------------------------------------
 
     /// @brief Compile-time rational number with GCD reduction.
     ///
@@ -76,7 +74,6 @@ namespace gba::music {
         }
     };
 
-    // -- Tempo (Strudel CPS model) -------------------------------------
 
     /// @brief Compile-time tempo value based on Strudel's cycles-per-second.
     ///
@@ -150,7 +147,6 @@ namespace gba::music {
 
     } // namespace literals
 
-    // -- Channel ---------------------------------------------------------
 
     /// @brief PSG sound channel identifier.
     enum class channel : std::uint8_t {
@@ -160,7 +156,6 @@ namespace gba::music {
         noise = 3, ///< Noise channel.
     };
 
-    // -- Notes -----------------------------------------------------------
 
     /// @brief Musical note identifier.
     ///
@@ -318,7 +313,6 @@ namespace gba::music {
         return n == note::hold;
     }
 
-    // -- DMG frequency table ---------------------------------------------
 
     /// @brief PSG frequency rate values for chromatic notes C1-B8.
     ///
@@ -464,7 +458,6 @@ namespace gba::music {
         return static_cast<std::uint16_t>(2048 - (2048 - sqRate) / 4);
     }
 
-    // -- Noise drum presets ----------------------------------------------
 
     /// @brief Noise channel frequency parameters for a drum preset.
     struct drum_preset {
@@ -558,7 +551,6 @@ namespace gba::music {
         return drum_preset_table[static_cast<int>(n) - static_cast<int>(first_drum)];
     }
 
-    // -- Instrument configurations ---------------------------------------
 
     /// @brief SQ1 instrument: sweep + duty/envelope.
     struct sq1_instrument {
@@ -608,7 +600,6 @@ namespace gba::music {
         consteval bool operator==(const noise_instrument&) const = default;
     };
 
-    // -- Waveform helpers ----------------------------------------------
 
     /// @brief Create a wav_instrument from 64 raw 4-bit sample values (0-15).
     ///
@@ -641,7 +632,6 @@ namespace gba::music {
         return inst;
     }
 
-    // -- Built-in waveforms ----------------------------------------------
 
     namespace waves {
         /// @brief Sine waveform - smooth, warm, only fundamental harmonic.
@@ -690,7 +680,6 @@ namespace gba::music {
         return wav_from_samples(samples, volume);
     }
 
-    // -- WAV file embed --------------------------------------------------
 
     namespace wav_detail {
 
@@ -897,7 +886,6 @@ namespace gba::music {
         return wav_detail::parse_wav(raw.data(), raw.size(), volume, max_samples);
     }
 
-    // -- Note name parsing -----------------------------------------------
 
     /// @brief Parse a note name from a string at compile time.
     ///

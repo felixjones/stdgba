@@ -28,7 +28,6 @@
 
 namespace gba::music {
 
-    // -- AST node types --------------------------------------------------
 
     /// @brief AST node type tags.
     enum class ast_type : std::uint8_t {
@@ -102,7 +101,6 @@ namespace gba::music {
         }
     };
 
-    // -- Parser ----------------------------------------------------------
 
     namespace parse_detail {
 
@@ -187,7 +185,6 @@ namespace gba::music {
         consteval std::uint16_t parse_sequence(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat,
                                                char terminator = '\0');
 
-        // -- Timeline parser (for *<N M> and /<N M>) --------------------
 
         consteval std::uint16_t parse_timeline_values(const char* str, std::size_t& pos, std::size_t end,
                                                       parsed_pattern& pat) {
@@ -217,7 +214,6 @@ namespace gba::music {
             return altIdx;
         }
 
-        // -- Atom --------------------------------------------------------
 
         consteval std::uint16_t parse_atom(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat) {
             skip_spaces(str, pos, end);
@@ -415,7 +411,6 @@ namespace gba::music {
             throw "parse_atom: unexpected character";
         }
 
-        // -- Postfix operators -------------------------------------------
 
         consteval std::uint16_t parse_postfix(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat) {
             auto atom = parse_atom(str, pos, end, pat);
@@ -528,7 +523,6 @@ namespace gba::music {
             return atom;
         }
 
-        // -- Sequence ----------------------------------------------------
 
         consteval std::uint16_t parse_sequence(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat,
                                                char terminator) {
@@ -561,7 +555,6 @@ namespace gba::music {
 
     } // namespace parse_detail
 
-    // -- Public parse API ------------------------------------------------
 
     /// @brief Parse a mini-notation string at compile time.
     ///

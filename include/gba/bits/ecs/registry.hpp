@@ -57,8 +57,6 @@ namespace gba::ecs {
         static_assert(sizeof...(Components) > 0 && sizeof...(Components) <= 31, "component count must be in [1, 31]");
         static_assert(((std::has_single_bit(sizeof(Components))) && ...), "all component sizes must be powers of two");
 
-        // -- Type-level helpers -------------------------------------------
-
         /// Index of component C in the Components... pack.
         template<typename C>
         static constexpr std::size_t index_of = detail::type_index<C, Components...>();
@@ -69,11 +67,6 @@ namespace gba::ecs {
 
         /// Bit 31 marks an entity slot as alive (independent of components).
         static constexpr std::uint32_t alive_bit = std::uint32_t{1} << 31;
-
-        // -- Storage ------------------------------------------------------
-        // Layout: small hot metadata first (low offsets -> cheap Thumb access
-        // in emplace/destroy), large pools last (each_arm uses ARM mode with
-        // 12-bit immediates, so high offsets are free).
 
         /// Per-component alive count (enables mask-check elision when all match).
         std::uint8_t m_component_count[sizeof...(Components)]{};
@@ -124,7 +117,6 @@ namespace gba::ecs {
             m_alive_index[slot] = oldAlive;
             ++m_alive;
 
-            // Recovered when there are no free slots and alive exactly matches prefix size.
             if (!m_dense_prefix && m_free_top == 0 && m_next_slot == m_alive) m_dense_prefix = 1;
             return slot;
         }
@@ -305,8 +297,6 @@ namespace gba::ecs {
             }
         };
 
-        // -- Entity lifecycle ---------------------------------------------
-
         /// @brief Create a new entity. Returns its id.
         ///
         /// Consteval: throws if capacity exceeded. Runtime: UB if exceeded
@@ -341,11 +331,9 @@ namespace gba::ecs {
                 if (!valid(e)) throw "registry::destroy: invalid entity";
             }
             const auto slot = e.slot();
-            // For small component sets, unrolled fold keeps destroy hot-path tight.
             if constexpr (sizeof...(Components) <= 8) {
                 ((m_mask[slot] & bit_of<Components> ? --m_component_count[index_of<Components>] : 0), ...);
             } else {
-                // For wider registries, visit only present bits to avoid branch fanout.
                 std::uint32_t present = m_mask[slot] & ~alive_bit;
                 while (present != 0) {
                     unsigned int idx = 0;
@@ -357,7 +345,6 @@ namespace gba::ecs {
             m_mask[slot] = 0;
             ++m_gen[slot];
             m_free_stack[m_free_top++] = slot;
-            // Swap-and-pop from alive list (O(1))
             --m_alive;
             const auto idx = m_alive_index[slot];
             const auto lastSlot = m_alive_list[m_alive];
@@ -391,8 +378,6 @@ namespace gba::ecs {
             m_alive = 0;
             m_dense_prefix = 1;
         }
-
-        // -- Component operations -----------------------------------------
 
         /// @brief Attach a component to an entity, constructed from @p args.
         /// @return Reference to the emplaced component.
@@ -514,8 +499,6 @@ namespace gba::ecs {
             return (m_mask[e.slot()] & req) != 0;
         }
 
-        // -- View creation ------------------------------------------------
-
         /// @brief Create a view over entities that have all listed components.
         template<typename... ViewCs>
         [[nodiscard]] constexpr basic_view<ViewCs...> view() noexcept {
@@ -564,18 +547,14 @@ namespace gba::ecs {
     /// @endcode
     template<std::size_t Capacity, typename... ComponentsAndGroups>
     class registry {
-        // Flatten any component-group mix into a single component list.
         using flattened_components = flatten_groups_t<ComponentsAndGroups...>;
 
-        // Extract the actual component types from the flattened list.
         using components_tuple = typename detail::extract_components<flattened_components>::type;
 
-        // Helper to instantiate registry_impl with the flattened components
         template<typename Tuple, std::size_t... Is>
         static auto make_impl(std::index_sequence<Is...>)
             -> registry_impl<Capacity, std::tuple_element_t<Is, Tuple>...>;
 
-        // The actual implementation type
         using impl_type = decltype(make_impl<components_tuple>(std::make_index_sequence<std::tuple_size_v<components_tuple>>{}));
 
         impl_type m_impl;
@@ -769,7 +748,6 @@ namespace gba::ecs {
         }
 
     public:
-        // Forward all registry methods to the implementation
 
         /// @brief Create a new entity.
         [[nodiscard]] constexpr entity_id create() { return m_impl.create(); }

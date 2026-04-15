@@ -16,7 +16,6 @@
 
 namespace gba::music {
 
-    // -- Event types -----------------------------------------------------
 
     /// @brief What kind of event to emit.
     enum class event_type : std::uint8_t {
@@ -349,7 +348,6 @@ namespace gba::music {
         }
     };
 
-    // -- Bjorklund / Euclidean -------------------------------------------
 
     namespace compile_detail {
 
@@ -551,7 +549,6 @@ namespace gba::music {
             return result;
         }
 
-        // -- AST walker --------------------------------------------------
 
         /// @brief Compile-time context threaded through the recursive AST walker.
         ///
@@ -889,7 +886,6 @@ namespace gba::music {
 
     } // namespace compile_detail
 
-    // -- Public compile API ----------------------------------------------
 
     /// @brief Implementation: Compile a single pattern with explicit tempo.
     template<tempo Tempo>
@@ -1070,7 +1066,6 @@ namespace gba::music {
         return music;
     }
 
-    // -- Public compile API ----------------------------------------------
 
     /// @brief Compile a single pattern using default tempo (0.5 cps = 120 BPM).
     ///
