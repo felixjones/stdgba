@@ -6,7 +6,7 @@ Displays format strings, generators, and argument binders in readable form.
 Example output:
     (gba::format::fixed_string<15>) "HP: {hp}/{max}"
     (gba::format::compiled_format<...>) format("HP: {hp}/{max}")
-    (gba::format::arg_binder<...>) arg("hp")
+    (gba::arg_binder<...>) arg("hp")
 """
 
 import gdb
@@ -90,7 +90,7 @@ class CompiledFormatPrinter:
 
 
 class ArgBinderPrinter:
-    """Pretty printer for gba::format::arg_binder<Name>
+    """Pretty printer for gba::arg_binder<Name>
 
     This is a stateless type - the arg name is in the type itself.
     """
@@ -110,7 +110,7 @@ class ArgBinderPrinter:
 
 
 class BoundArgPrinter:
-    """Pretty printer for gba::format::bound_arg<Hash, T>"""
+    """Pretty printer for gba::bound_arg<Hash, T>"""
 
     def __init__(self, val):
         self.val = val
@@ -156,10 +156,10 @@ def format_lookup(val):
     if 'gba::format::compiled_format<' in type_name:
         return CompiledFormatPrinter(val)
 
-    if 'gba::format::arg_binder<' in type_name:
+    if 'gba::arg_binder<' in type_name:
         return ArgBinderPrinter(val)
 
-    if 'gba::format::bound_arg<' in type_name:
+    if 'gba::bound_arg<' in type_name:
         return BoundArgPrinter(val)
 
     if 'gba::format::format_generator<' in type_name:

@@ -5,9 +5,7 @@
 #include <gba/bits/codegen/encoder.hpp>
 #include <gba/bits/codegen/patch_args.hpp>
 
-// Shared named-argument binder/value helpers ("name"_arg) live in the format layer.
-// We depend only on binder/value types (no format parsing).
-#include <gba/bits/format/args.hpp>
+#include <gba/args>
 
 #include <array>
 #include <cstddef>
@@ -35,7 +33,6 @@ namespace gba::codegen {
         return static_cast<std::uint16_t>(mask);
     }
 
-    // Checked instruction helpers (for whole-instruction patch slots)
     [[nodiscard]] constexpr arm_word nop_instr() noexcept {
         return arm_word{bits::nop()};
     }
@@ -72,7 +69,6 @@ namespace gba::codegen {
         return arm_word{bits::mul(rd, rm, rs)};
     }
 
-    // Expose raw encoders directly for constexpr usage
     using bits::adc_imm;
     using bits::adc_reg;
     using bits::and_imm;
@@ -302,10 +298,9 @@ namespace gba::codegen {
         /// @param rd Destination register
         /// @return Reference to builder for chaining
         /// @see gba::literals::operator""_arg - Create named patch arguments
-        template<::gba::format::fixed_string Name>
-        [[deprecated("Use positional imm_slot(n) instead; named args reduce specialization efficiency")]]
-        consteval arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::format::arg_binder<Name>) {
-            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+        template<::gba::fixed_string Name>
+        consteval arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::arg_binder<Name>) {
+            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::arg_binder<Name>::hash));
             push_with_patch(bits::mov_imm(rd, 0), patch_kind::imm8, idx);
             return *this;
         }
@@ -354,10 +349,10 @@ namespace gba::codegen {
             return *this;
         }
 
-        template<::gba::format::fixed_string Name>
+        template<::gba::fixed_string Name>
         consteval arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn,
-                                             const ::gba::format::arg_binder<Name>) {
-            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+                                             const ::gba::arg_binder<Name>) {
+            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::arg_binder<Name>::hash));
             push_with_patch(bits::add_imm(rd, rn, 0), patch_kind::imm8, idx);
             return *this;
         }
@@ -395,10 +390,10 @@ namespace gba::codegen {
             return *this;
         }
 
-        template<::gba::format::fixed_string Name>
+        template<::gba::fixed_string Name>
         consteval arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn,
-                                             const ::gba::format::arg_binder<Name>) {
-            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::format::arg_binder<Name>::hash));
+                                             const ::gba::arg_binder<Name>) {
+            const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::arg_binder<Name>::hash));
             push_with_patch(bits::sub_imm(rd, rn, 0), patch_kind::imm8, idx);
             return *this;
         }
@@ -575,8 +570,6 @@ namespace gba::codegen {
             return instruction(instr_arg{arg.position});
         }
 
-        // ---- Bitwise ----
-
         consteval arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
             push(bits::orr_imm(rd, rn, imm));
             return *this;
@@ -647,8 +640,6 @@ namespace gba::codegen {
             return *this;
         }
 
-        // ---- Additional arithmetic ----
-
         consteval arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
             push(bits::rsb_imm(rd, rn, imm));
             return *this;
@@ -684,8 +675,6 @@ namespace gba::codegen {
             return *this;
         }
 
-        // ---- Shifts ----
-
         consteval arm_macro_builder& ror_imm(const arm_reg rd, const arm_reg rm, const unsigned shift) {
             push(bits::ror_imm(rd, rm, shift));
             return *this;
@@ -711,8 +700,6 @@ namespace gba::codegen {
             return *this;
         }
 
-        // ---- Byte memory ----
-
         consteval arm_macro_builder& ldrb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
             push(bits::ldrb_imm(rd, rn, offset));
             return *this;
@@ -732,8 +719,6 @@ namespace gba::codegen {
             push(bits::strb_reg(rd, rn, rm));
             return *this;
         }
-
-        // ---- Halfword / signed-byte memory ----
 
         consteval arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
             push(bits::ldrh_reg(rd, rn, rm));
@@ -764,8 +749,6 @@ namespace gba::codegen {
             push(bits::ldrsh_reg(rd, rn, rm));
             return *this;
         }
-
-        // ---- Comparison / flag setters ----
 
         consteval arm_macro_builder& cmn_imm(const arm_reg rn, const std::uint32_t imm) {
             push(bits::cmn_imm(rn, imm));
@@ -802,15 +785,11 @@ namespace gba::codegen {
             return *this;
         }
 
-        // ---- Multi-register / stack ----
-
-        // push takes a reg_list bitmask (use reg_list(...) helper)
         consteval arm_macro_builder& push(const std::uint16_t regs) {
             push(bits::push(regs));
             return *this;
         }
 
-        // pop takes a reg_list bitmask (use reg_list(...) helper)
         consteval arm_macro_builder& pop(const std::uint16_t regs) {
             push(bits::pop(regs));
             return *this;
@@ -845,8 +824,6 @@ namespace gba::codegen {
             push(bits::stmdb(rn, regs, writeback));
             return *this;
         }
-
-        // ---- Multiply ----
 
         consteval arm_macro_builder& mul(const arm_reg rd, const arm_reg rm, const arm_reg rs) {
             push(bits::mul(rd, rm, rs));
@@ -908,7 +885,6 @@ namespace gba::codegen {
             bits::require(hash != 0u, "arm_macro_builder: named arg hash must be nonzero");
 
             if (m_namedBase == 0xFFu) {
-                // Start named args after the highest positional arg used so far.
                 bits::require(m_argCount <= 32u, "arm_macro_builder: too many patch args");
                 m_namedBase = static_cast<std::uint8_t>(m_argCount);
             }
@@ -936,7 +912,6 @@ namespace gba::codegen {
             bits::require(argIndex <= 31, "arm_macro_builder: patch arg out of range (0-31)");
             bits::require(m_count < Capacity, "arm_macro_builder: instruction capacity exceeded");
 
-            // Positional args have arg_hash = 0.
             if (m_argHashes[argIndex] == 0u) {
                 m_argHashes[argIndex] = 0u;
             }
@@ -954,7 +929,6 @@ namespace gba::codegen {
             m_words[m_count++] = arm_word{word};
         }
 
-        // Helper to emit a raw instruction word (renamed to avoid conflict with push(regs))
         consteval void push(const std::uint32_t word) { emit(word); }
     };
 
@@ -998,8 +972,8 @@ namespace gba::codegen {
                 return *this;
             }
 
-            template<::gba::format::fixed_string Name>
-            consteval counting_arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::format::arg_binder<Name>) {
+            template<::gba::fixed_string Name>
+            consteval counting_arm_macro_builder& mov_imm(const arm_reg rd, const ::gba::arg_binder<Name>) {
                 (void)::gba::codegen::bits::mov_imm(rd, 0);
                 ++m_count;
                 return *this;
@@ -1030,9 +1004,9 @@ namespace gba::codegen {
                 return *this;
             }
 
-            template<::gba::format::fixed_string Name>
+            template<::gba::fixed_string Name>
             consteval counting_arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn,
-                                                          const ::gba::format::arg_binder<Name>) {
+                                                          const ::gba::arg_binder<Name>) {
                 (void)::gba::codegen::bits::add_imm(rd, rn, 0);
                 ++m_count;
                 return *this;
@@ -1057,9 +1031,9 @@ namespace gba::codegen {
                 return *this;
             }
 
-            template<::gba::format::fixed_string Name>
+            template<::gba::fixed_string Name>
             consteval counting_arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn,
-                                                          const ::gba::format::arg_binder<Name>) {
+                                                          const ::gba::arg_binder<Name>) {
                 (void)::gba::codegen::bits::sub_imm(rd, rn, 0);
                 ++m_count;
                 return *this;
@@ -1193,8 +1167,6 @@ namespace gba::codegen {
                 return instruction(instr_arg{arg.position});
             }
 
-            // ---- Bitwise ----
-
             consteval counting_arm_macro_builder& orr_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
                 (void)::gba::codegen::bits::orr_imm(rd, rn, imm);
                 ++m_count;
@@ -1284,8 +1256,6 @@ namespace gba::codegen {
                 return *this;
             }
 
-            // ---- Additional arithmetic ----
-
             consteval counting_arm_macro_builder& rsb_imm(const arm_reg rd, const arm_reg rn, const std::uint32_t imm) {
                 (void)::gba::codegen::bits::rsb_imm(rd, rn, imm);
                 ++m_count;
@@ -1329,8 +1299,6 @@ namespace gba::codegen {
                 return *this;
             }
 
-            // ---- Shifts ----
-
             consteval counting_arm_macro_builder& ror_imm(const arm_reg rd, const arm_reg rm, const unsigned shift) {
                 (void)::gba::codegen::bits::ror_imm(rd, rm, shift);
                 ++m_count;
@@ -1361,8 +1329,6 @@ namespace gba::codegen {
                 return *this;
             }
 
-            // ---- Byte memory ----
-
             consteval counting_arm_macro_builder& ldrb_imm(const arm_reg rd, const arm_reg rn, const int offset) {
                 (void)::gba::codegen::bits::ldrb_imm(rd, rn, offset);
                 ++m_count;
@@ -1386,8 +1352,6 @@ namespace gba::codegen {
                 ++m_count;
                 return *this;
             }
-
-            // ---- Halfword / signed-byte memory ----
 
             consteval counting_arm_macro_builder& ldrh_reg(const arm_reg rd, const arm_reg rn, const arm_reg rm) {
                 (void)::gba::codegen::bits::ldrh_reg(rd, rn, rm);
@@ -1424,8 +1388,6 @@ namespace gba::codegen {
                 ++m_count;
                 return *this;
             }
-
-            // ---- Comparison / flag setters ----
 
             consteval counting_arm_macro_builder& cmn_imm(const arm_reg rn, const std::uint32_t imm) {
                 (void)::gba::codegen::bits::cmn_imm(rn, imm);
@@ -1469,8 +1431,6 @@ namespace gba::codegen {
                 ++m_count;
                 return *this;
             }
-
-            // ---- Multi-register / stack ----
 
             consteval counting_arm_macro_builder& push(const std::uint16_t regs) {
                 (void)::gba::codegen::bits::push(regs);
@@ -1525,8 +1485,6 @@ namespace gba::codegen {
                 ++m_count;
                 return *this;
             }
-
-            // ---- Multiply ----
 
             consteval counting_arm_macro_builder& mul(const arm_reg rd, const arm_reg rm, const arm_reg rs) {
                 (void)::gba::codegen::bits::mul(rd, rm, rs);
@@ -1653,9 +1611,6 @@ namespace gba::codegen {
 
             template<typename... Ts>
             [[nodiscard]] static consteval bool no_duplicate_named() {
-                // Compile-time duplicate detection: for each named arg type, count how many
-                // other arg types share the same hash.  Uses if constexpr so that ::hash is
-                // only accessed when the type actually satisfies is_named_arg<T>.
                 bool ok = true;
                 auto check_one = [&]<typename T>() {
                     if constexpr (is_named_arg<T>()) {
@@ -1732,12 +1687,10 @@ namespace gba::codegen {
 
                 (bind_one(std::forward<Args>(args)), ...);
 
-                // Validate all args were provided.
                 for (std::size_t i = 0; i < actual_args; ++i) {
                     bits::require(filled[i], "patcher: missing patch argument");
                 }
 
-                // Apply patches (fully unrolled).
                 for (std::size_t i = 0; i < actual_patches; ++i) {
                     const auto& p = patches[i];
                     const auto value = vals[p.arg_index];
@@ -1817,7 +1770,6 @@ namespace gba::codegen {
     template<auto Block>
     struct block_patcher {
     private:
-        // Apply a single patch slot I, with all metadata as compile-time constants.
         template<std::size_t I>
         [[gnu::always_inline]] static void apply_slot(std::uint32_t* dest, const std::uint32_t* vals) noexcept {
             constexpr std::size_t wi = Block.patches[I].word_index;
@@ -1843,12 +1795,10 @@ namespace gba::codegen {
                 bits::require(sv >= -0x00800000 && sv <= 0x007FFFFF, "block_patcher: branch offset out of range");
                 dest[wi] = bw | (value & 0x00FFFFFFu);
             } else {
-                // instruction / word32: write full word directly
                 dest[wi] = value;
             }
         }
 
-        // Fold-expand over all patch indices.
         template<std::size_t... Is>
         [[gnu::always_inline]] static void apply_all(std::uint32_t* dest, const std::uint32_t* vals,
                                                      std::index_sequence<Is...>) noexcept {

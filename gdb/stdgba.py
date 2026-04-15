@@ -28,8 +28,8 @@ Supported types:
     - gba::angle                     -> "90.00deg [raw=0x40000000]"
     - gba::packed_angle<Bits>        -> "45.00deg [raw=0x2000]"
     - gba::format::compiled_format   -> format("HP: {hp}")
-    - gba::format::arg_binder        -> arg("hp")
-    - gba::format::bound_arg         -> = 42
+    - gba::arg_binder                -> arg("hp")
+    - gba::bound_arg                 -> = 42
     - gba::format::format_generator  -> generator("...") [seg=0, char=3]
     - gba::log::level                -> "info"
     - gba::color                     -> rgb(31, 15, 0)

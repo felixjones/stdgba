@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <gba/bits/format/args.hpp>
 #include <gba/bits/format/parse.hpp>
 #include <gba/bits/format/render_value.hpp>
 

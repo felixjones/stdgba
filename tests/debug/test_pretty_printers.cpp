@@ -26,7 +26,7 @@ void use(T const& val) {
 }
 
 int main() {
-    // === fixed_point.py ===
+    // Section: fixed_point.py
 
     // gba::fixed<Rep, FracBits, IntermediateRep>
     gba::fixed<short, 8> fix8_val = 3.5_fx;
@@ -37,7 +37,7 @@ int main() {
     use(fix16_val);
     use(fix24_8_val);
 
-    // === angle.py ===
+    // Section: angle.py
 
     // gba::angle
     gba::angle angle_90 = 90_deg;
@@ -56,17 +56,17 @@ int main() {
     use(packed8);
     use(packed12);
 
-    // === format.py ===
+    // Section: format.py
 
     // gba::format::compiled_format (stateless, info in type)
     constexpr auto fmt_simple = "Hello World"_fmt;
     constexpr auto fmt_args = "HP: {hp}/{max}"_fmt;
 
-    // gba::format::arg_binder (stateless, info in type)
+    // gba::arg_binder (stateless, info in type)
     constexpr auto arg_hp = "hp"_arg;
     constexpr auto arg_max = "max"_arg;
 
-    // gba::format::bound_arg
+    // gba::bound_arg
     auto bound_hp = "hp"_arg = 42;
     auto bound_max = "max"_arg = 100;
     auto bound_str = "name"_arg = "Hero";
@@ -88,7 +88,7 @@ int main() {
     use(bound_str);
     use(gen);
 
-    // === log.py ===
+    // Section: log.py
 
     // gba::log::level
     gba::log::level level_info = gba::log::level::info;
@@ -101,7 +101,7 @@ int main() {
     use(level_debug);
     use(level_error);
 
-    // === registral.py ===
+    // Section: registral.py
     // Note: These are compile-time register wrappers, they just hold addresses
     // The pretty printer will show the address and attempt to read memory
 
@@ -115,7 +115,7 @@ int main() {
     use(test_reg_u32);
     use(test_reg_array);
 
-    // === keyinput.py ===
+    // Section: keyinput.py
 
     // gba::key (button mask)
     auto key_single = gba::key_a;
@@ -133,7 +133,7 @@ int main() {
 
     use(keypad_empty);
 
-    // === memory.py ===
+    // Section: memory.py
 
     // gba::plex (tuple-like for registers)
     gba::plex<short, short> plex2{short{100}, short{200}};
