@@ -117,6 +117,54 @@ std::fill(gba::reg_bgcnt.begin(), gba::reg_bgcnt.end(),
 
 The array wrapper provides standard range interface: `.begin()`, `.end()`, `.size()`, and forward iterators compatible with all `<algorithm>` calls.
 
+## `registral_cast`
+
+When you need to access the same memory region through a different type - for example, interpreting palette RAM as typed `color` entries rather than raw `short` values - use `gba::registral_cast`.
+
+```cpp
+#include <gba/color>
+
+// mem_pal_bg is registral<short[256]> (raw shorts)
+// pal_bg_mem is the same address, reinterpreted as color[256]
+inline constexpr auto pal_bg_mem = gba::registral_cast<gba::color[256]>(gba::mem_pal_bg);
+```
+
+The cast preserves the hardware address and stride. It works for all combinations:
+
+| From      | To        | Example                                       |
+|-----------|-----------|-----------------------------------------------|
+| Non-array | Non-array | `registral_cast<color>(raw_short_reg)`        |
+| Non-array | Array     | `registral_cast<color[4]>(raw_reg)`           |
+| Array     | Array     | `registral_cast<color[256]>(short_array_reg)` |
+| Array     | Non-array | `registral_cast<color>(color_array_reg)`      |
+
+### Palette example
+
+```cpp
+using namespace gba::literals;
+
+// Write palette entries as typed colors
+gba::pal_bg_mem[0] = "#000000"_clr;  // transparent/backdrop
+gba::pal_bg_mem[1] = "red"_clr;
+
+// 4bpp: access as 16 banks of 16 colours each
+gba::pal_bg_bank[0][0] = "black"_clr;
+gba::pal_bg_bank[1][3] = "cornflowerblue"_clr;
+```
+
+### VRAM example
+
+```cpp
+#include <gba/video>
+
+// VRAM as typed tile arrays
+auto tile_ptr = gba::memory_map(gba::mem_tile_4bpp);
+// Equivalent to registral_cast internally:
+// registral<tile4bpp[4][512]> at 0x6000000
+```
+
+`registral_cast` is a zero-cost cast: it produces a new `registral<To>` at exactly the same base address, with no runtime overhead.
+
 ## Designated initialisers
 
 The biggest ergonomic win is designated initialisers. Instead of remembering which bit is which:

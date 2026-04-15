@@ -101,14 +101,14 @@ namespace gba {
         /// Convert to a read-only register view.
         explicit(false) constexpr operator registral<const value_type>() const noexcept
             requires std::derived_from<registral, bits::read_write_ops>
-        { // NOLINT(*-explicit-constructor)
+        {
             return {m_address};
         }
 
         /// Convert to a write-only register view.
         explicit(false) constexpr operator gba::registral<volatile value_type>() const noexcept
             requires std::derived_from<registral, bits::read_write_ops>
-        { // NOLINT(*-explicit-constructor)
+        {
             return {m_address};
         }
 
