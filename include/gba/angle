@@ -64,5 +64,117 @@
 // Literals (_deg, _rad)
 #include <gba/bits/angle/angle_literal.hpp>
 
-// Helper functions
-#include <gba/bits/angle/angle_util.hpp>
+namespace gba {
+
+    /// @brief Extract the raw underlying value from an angle.
+    /// @param value The angle to inspect.
+    /// @return The underlying `unsigned int` value.
+    ///
+    /// The full 0..2^32-1 range maps to one complete revolution.
+    /// Useful when passing angle values to hardware registers or lookup tables.
+    ///
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// gba::angle a = 90_deg;
+    /// unsigned int raw = gba::bit_cast(a); // 0x40000000
+    /// @endcode
+    [[nodiscard]]
+    constexpr angle::value_type bit_cast(angle value) noexcept;
+
+    /// @brief Extract the raw storage value from a packed_angle.
+    /// @tparam Bits Bit precision of the packed angle.
+    /// @param value The packed_angle to inspect.
+    /// @return The underlying storage value.
+    ///
+    /// @code{.cpp}
+    /// gba::packed_angle16 pa = 90_deg;
+    /// uint16_t raw = gba::bit_cast(pa); // 0x4000
+    /// @endcode
+    template<unsigned int Bits>
+    [[nodiscard]]
+    constexpr typename packed_angle<Bits>::storage_type bit_cast(packed_angle<Bits> value) noexcept;
+
+    /// @brief Convert an angle to a lookup-table index.
+    /// @tparam TableBits Number of bits for table indexing (table size = 2^TableBits).
+    /// @param value The angle to convert.
+    /// @return Index in the range [0, 2^TableBits).
+    ///
+    /// Maps the full 0..2^32 angle range onto a table of exactly 2^TableBits entries
+    /// with no gaps or duplicates.
+    ///
+    /// @code{.cpp}
+    /// // 256-entry sine table
+    /// constexpr auto sine_table = make_sine_table<256>();
+    /// gba::angle theta = 45_deg;
+    /// auto sample = sine_table[gba::lut_index<8>(theta)];
+    /// @endcode
+    template<unsigned int TableBits>
+    [[nodiscard]]
+    constexpr unsigned int lut_index(angle value) noexcept {
+        static_assert(TableBits <= 32, "Table size cannot exceed angle precision");
+        constexpr auto shift = 32 - TableBits;
+        return static_cast<unsigned int>(bit_cast(value) >> shift);
+    }
+
+    /// @brief Reinterpret an angle as a signed integer for range comparisons.
+    /// @param value The angle.
+    /// @return Signed interpretation of the underlying value.
+    ///
+    /// Useful when treating the angle domain as [-180, +180) degrees rather than
+    /// [0, 360) degrees.
+    ///
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// gba::angle a = 270_deg;
+    /// int s = gba::as_signed(a); // negative (equivalent to -90 degrees)
+    /// @endcode
+    [[nodiscard]]
+    constexpr int as_signed(angle value) noexcept {
+        return static_cast<int>(bit_cast(value));
+    }
+
+    /// @brief Counter-clockwise angular distance from `a` to `b`.
+    /// @param a Starting angle.
+    /// @param b Ending angle.
+    /// @return Unsigned distance travelling counter-clockwise from `a` to `b`.
+    ///
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// auto d = gba::ccw_distance(90_deg, 270_deg); // 180 degrees CCW
+    /// @endcode
+    [[nodiscard]]
+    constexpr unsigned int ccw_distance(angle a, angle b) noexcept {
+        return bit_cast(b - a);
+    }
+
+    /// @brief Clockwise angular distance from `a` to `b`.
+    /// @param a Starting angle.
+    /// @param b Ending angle.
+    /// @return Unsigned distance travelling clockwise from `a` to `b`.
+    ///
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// auto d = gba::cw_distance(270_deg, 90_deg); // 180 degrees CW
+    /// @endcode
+    [[nodiscard]]
+    constexpr unsigned int cw_distance(angle a, angle b) noexcept {
+        return bit_cast(a - b);
+    }
+
+    /// @brief Test whether `test` lies within the counter-clockwise arc from `start` to `end`.
+    /// @param start Arc start angle.
+    /// @param end Arc end angle.
+    /// @param test Angle to test.
+    /// @return `true` if `test` is at or within the CCW arc from `start` to `end`.
+    ///
+    /// @code{.cpp}
+    /// using namespace gba::literals;
+    /// bool inside = gba::is_ccw_between(0_deg, 180_deg, 90_deg);  // true
+    /// bool outside = gba::is_ccw_between(0_deg, 180_deg, 270_deg); // false
+    /// @endcode
+    [[nodiscard]]
+    constexpr bool is_ccw_between(angle start, angle end, angle test) noexcept {
+        return ccw_distance(start, test) <= ccw_distance(start, end);
+    }
+
+} // namespace gba
