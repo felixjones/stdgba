@@ -33,7 +33,7 @@ Sprites can be various sizes by combining shape and size fields:
 
 ## Sprite tile data
 
-Sprite tiles live in the lower portion of VRAM (starting at `0x06010000` in tile modes). Like background tiles, they can be 4bpp (16 colours) or 8bpp (256 colours) and use the object palette (`mem_pal_obj`).
+Sprite tiles live in the lower portion of VRAM (starting at `0x06010000` in tile modes). Like background tiles, they can be 4bpp (16 colours) or 8bpp (256 colours) and use the object palette (`pal_obj_mem`).
 
 ## 1D vs 2D mapping
 
@@ -73,4 +73,4 @@ std::ranges::fill(gba::obj_mem, gba::object{ .disable = true });
 | stdgba | tonclib |
 |--------|---------|
 | `gba::obj_mem[0] = { .y = 80, .x = 120, ... };` | `obj_set_attr(&oam_mem[0], ...)` |
-| `gba::mem_pal_obj[n] = color;` | `pal_obj_mem[n] = color;` |
+| `gba::pal_obj_mem[n] = color;` | `pal_obj_mem[n] = color;` |

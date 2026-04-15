@@ -24,6 +24,7 @@
 - [Tiles & Maps](./graphics/tiles.md)
 - [Sprites (Objects)](./graphics/sprites.md)
 - [Text Rendering](./graphics/text-rendering.md)
+- [Embedding Fonts (BDF)](./graphics/embed-fonts.md)
 - [Embedding Images](./graphics/embed.md)
     - [Animated Sprite Sheets](./graphics/embed-animated.md)
 

@@ -86,8 +86,8 @@ gba::reg_tmcnt_h[0] = { .prescaler = 3, .enable = true };
 gba::reg_bg_hofs[0] = 120;
 
 // Palette memory (256 BG colours + 256 OBJ colours)
-gba::mem_pal_bg[0] = 0x001F; // Red
-gba::mem_pal_obj[1] = 0x7C00; // Blue
+gba::pal_bg_mem[0] = { .red = 31 };   // Red
+gba::pal_obj_mem[1] = { .blue = 31 }; // Blue
 ```
 
 These compile to indexed memory stores with no overhead.
@@ -104,7 +104,7 @@ Array registers support range-based iteration and are compatible with `<algorith
 std::fill(gba::reg_tmcnt_l.begin(), gba::reg_tmcnt_l.end(), 0);
 
 // Copy a preset palette from EWRAM into OBJ palette
-std::copy(preset_palette.begin(), preset_palette.end(), gba::mem_pal_obj.begin());
+std::copy(preset_palette.begin(), preset_palette.end(), gba::pal_obj_mem.begin());
 
 // Check if any timer is running
 bool any_running = std::any_of(gba::reg_tmcnt_h.begin(), gba::reg_tmcnt_h.end(),

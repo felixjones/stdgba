@@ -58,7 +58,7 @@ Palette index 0 is special: it is the **transparent colour** for both background
 
 ```cpp
 // Set the backdrop to dark blue
-gba::mem_pal_bg[0] = 0x4000;
+gba::pal_bg_mem[0] = { .blue = 16 };
 ```
 
 ## Bit 15 and hardware blending
