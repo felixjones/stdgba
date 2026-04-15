@@ -183,7 +183,7 @@ namespace {
     static_assert(word_patched_block.patch_arg_index(3) == 3);
     static_assert(word_patched_block.patch_type(1) == patch_kind::instruction);
 
-    // ---- v2.0 encoding static_asserts ----
+    // Section: Extended encoding static_asserts
 
     // Shift/rotate
     static_assert(static_cast<std::uint32_t>(lsl_imm(arm_reg::r0, arm_reg::r0, 1)) == 0xE1A00080u);
@@ -265,7 +265,7 @@ namespace {
 
     static_assert(runtime_arg_shift_orr_block.count == 3);
 
-    // New v2.0 execution blocks
+    // New execution blocks
 
     // AND: r0 = r0 & r1
     static constexpr auto and_reg_block = arm_macro([](auto& b) {
@@ -797,7 +797,7 @@ int main() {
         gba::test.eq(sub_fn(), 7);
     });
 
-    // ---- v2.0 instruction execution tests ----
+    // Section: Instruction execution tests
 
     gba::test("generated function executes: and_reg bitwise AND", [] {
         alignas(4) std::uint32_t code[4] = {};

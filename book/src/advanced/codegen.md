@@ -11,12 +11,14 @@ then replace runtime values (like loop counts, thresholds, or offsets) without r
 
 ```cpp
 #include <gba/codegen>
+#include <gba/args>
 #include <cstring>
 using namespace gba::codegen;
+using namespace gba::literals;
 
-// 1. Define a template with a patched constant
+// 1. Define a template with named patch arguments
 static constexpr auto add_const = arm_macro([](auto& b) {
-    b.add_imm(arm_reg::r0, arm_reg::r0, imm_slot(0))  // r0 = r0 + (patched value)
+    b.add_imm(arm_reg::r0, arm_reg::r0, "c"_arg)  // r0 = r0 + c
      .bx(arm_reg::lr);
 });
 
@@ -25,16 +27,16 @@ alignas(4) std::uint32_t code[add_const.size()] = {};
 std::memcpy(code, add_const.data(), add_const.size_bytes());
 
 // 3. Patch and call - reuse the same code buffer with different constants
-constexpr block_patcher<add_const> patch{};
+constexpr auto patch = add_const.patcher<int(int)>();
 
-auto add_10 = patch.entry<int(int)>(code, 10u);
+auto add_10 = patch(code, "c"_arg = 10u);
 int result = add_10(5);  // 15 = 5 + 10
 
-auto add_100 = patch.entry<int(int)>(code, 100u);
+auto add_100 = patch(code, "c"_arg = 100u);
 result = add_100(5);  // 105 = 5 + 100
 ```
 
-The `imm_slot(0)` marks a placeholder that is filled in at patch time.
+Named placeholders such as `"c"_arg` are filled at patch time.
 No re-copy needed - the same code buffer switches from adding 10 to adding 100.
 
 ---
@@ -81,10 +83,14 @@ before emitting the branch instruction.
 
 ---
 
-## Patch slots
+## Patch arguments
 
-Patch slots mark positions in the template that are replaced with runtime values
-after install.  They accept a slot index `n` (0–31) that maps to a call-site argument.
+Codegen supports two patching styles:
+
+- named arguments: `"name"_arg`
+- positional slots: `imm_slot(n)`, `s12_slot(n)`, `b_slot(n)`, `instr_slot(n)`
+
+Positional slots use an index `n` (0-31) that maps to a call-site argument.
 
 | Slot | Instruction(s) | Value |
 |------|----------------|-------|
@@ -96,10 +102,18 @@ after install.  They accept a slot index `n` (0–31) that maps to a call-site a
 `word_slot` and `literal_slot` are aliases for `instr_slot`.
 
 ```cpp
-static constexpr auto tpl = arm_macro([](auto& b) {
-    b.mov_imm(arm_reg::r0, imm_slot(0))              // arg 0 → 8-bit immediate
-     .ldr_imm(arm_reg::r1, arm_reg::r2, s12_slot(1)) // arg 1 → ±4095 byte offset
-     .instruction(instr_slot(2))                      // arg 2 → full 32-bit word
+// Named patch args (primary)
+static constexpr auto named_tpl = arm_macro([](auto& b) {
+    b.mov_imm(arm_reg::r0, "x"_arg)
+     .add_imm(arm_reg::r0, arm_reg::r0, "y"_arg)
+     .bx(arm_reg::lr);
+});
+
+// Positional slots (alternative)
+static constexpr auto slot_tpl = arm_macro([](auto& b) {
+    b.mov_imm(arm_reg::r0, imm_slot(0))              // arg 0 -> 8-bit immediate
+     .ldr_imm(arm_reg::r1, arm_reg::r2, s12_slot(1)) // arg 1 -> +/-4095 byte offset
+     .instruction(instr_slot(2))                      // arg 2 -> full 32-bit word
      .bx(arm_reg::lr);
 });
 ```
@@ -108,66 +122,37 @@ static constexpr auto tpl = arm_macro([](auto& b) {
 
 ## Patching
 
-The preferred path uses `block_patcher<tpl>`: a zero-overhead patcher parameterised
-on the block value as a non-type template argument.  All patch metadata is a
-compile-time constant, so the compiler emits a straight-line sequence of stores --
-no loop, no dispatch table, no ROM reads.
+The primary workflow uses `compiled_block::patcher()` with named arguments.
+This keeps call sites self-documenting and order-independent.
 
-### Preferred: `block_patcher<tpl>`
+### Preferred: `compiled_block::patcher()` (named args)
+
+```cpp
+static constexpr auto tpl = arm_macro([](auto& b) {
+    b.mov_imm(arm_reg::r0, "value"_arg).bx(arm_reg::lr);
+});
+
+constexpr auto patch = tpl.patcher<int()>();
+
+alignas(4) std::uint32_t code[tpl.size()] = {};
+std::memcpy(code, tpl.data(), tpl.size_bytes());
+
+auto fn = patch(code, "value"_arg = 42u);  // patch + typed function pointer
+```
+
+Named patch arguments are order-independent and self-documenting.
+
+### Zero-overhead variant: `block_patcher<tpl>` (positional)
+
+Use this when you want fully compile-time patch metadata and positional patch values.
 
 ```cpp
 static constexpr auto tpl = arm_macro([](auto& b) {
     b.mov_imm(arm_reg::r0, imm_slot(0)).bx(arm_reg::lr);
 });
 
-// Declare once as a constexpr object - zero runtime cost
-constexpr block_patcher<tpl> patch{};
-
-alignas(4) std::uint32_t code[tpl.size()] = {};
-std::memcpy(code, tpl.data(), tpl.size_bytes());
-
-patch(code, 42u);                          // apply patches in place
-auto fn = patch.entry<int()>(code, 42u);  // patch + typed function pointer
-```
-
-**Typed variant** - when you want `operator()` to return the function pointer:
-
-```cpp
 constexpr auto fn_patch = block_patcher<tpl>{}.typed<int()>();
-auto fn = fn_patch(code, 42u);  // returns int(*)()
-```
-
-### Convenience: `compiled_block::patcher()`
-
-Returns a patcher object obtained directly from the block.
-Patch metadata is stored as runtime fields but the patcher is `constexpr`-constructible.
-Use this when the block is not a static `constexpr` at the call site, or when
-named-argument patching is needed.
-
-```cpp
-constexpr auto patch  = tpl.patcher();          // untyped
-constexpr auto tpatch = tpl.patcher<int()>();   // typed
-
-std::memcpy(code, tpl.data(), tpl.size_bytes());
-patch(code, 42u);                // apply patches only
-auto fn = tpatch(code, 42u);    // apply + return int(*)()
-```
-
-**Named-argument patching** - order-independent, self-documenting:
-
-```cpp
-#include <gba/args>
-using namespace gba::literals;
-
-static constexpr auto tpl = arm_macro([](auto& b) {
-    b.mov_imm(arm_reg::r0, "x"_arg)
-     .add_imm(arm_reg::r0, arm_reg::r0, "y"_arg)
-     .bx(arm_reg::lr);
-});
-
-constexpr auto patch = tpl.patcher();
-std::memcpy(code, tpl.data(), tpl.size_bytes());
-patch(code, "y"_arg = 12u, "x"_arg = 30u);  // 42 - order irrelevant
+auto fn = fn_patch(code, 42u);
 ```
 
 ### Generic Runtime Dispatch: `apply_patches<Sig>(...)`
