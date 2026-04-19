@@ -1,6 +1,6 @@
 # Text Rendering
 
-stdgba provides a text renderer targeting 4bpp BG tile modes.
+stdgba provides a 4bpp BG text-layer renderer.
 
 The core goal is to render formatted strings efficiently - including typewriter effects - without
 a full-screen redraw each frame.
@@ -9,11 +9,11 @@ a full-screen redraw each frame.
 
 - Bitmap fonts embedded from BDF files at compile time via `<gba/embed>`.
 - Compile-time font variant baking: `with_shadow<dx, dy>` and `with_outline<thickness>`.
-- Character streams for incremental rendering:
-  - C-string streams (`cstr_stream`).
-  - Format generator streams from `<gba/format>` (`format_stream`).
+- Stream/tokenizer support for incremental rendering:
+  - C-string tokenizer streams (`cstr_stream`).
+  - Generator-backed streams from `<gba/format>` via `stream(gen, ...)`.
 - Word wrapping using a lookahead to the next break character.
-- Incremental rendering with `draw_cursor` and `next_visible()` for typewriter effects.
+- Incremental rendering via `make_cursor(...)` and `next_visible()` for typewriter effects.
 - Bitplane palette profiles for 2-colour, 3-colour, and full-colour (up to 15 colours) text.
 - Inline colour escape sequences for per-character palette switching in full-colour mode.
 
@@ -31,15 +31,15 @@ The demo below embeds `9x18.bdf`, configures the bitplane palette, and draws one
 
 ## Bitplane profiles
 
-The renderer multiplexes multiple palette layers onto 4bpp VRAM tiles using a mixed-radix
+`bg4bpp_text_layer<Width, Height>` multiplexes multiple palette layers onto 4bpp VRAM tiles using a mixed-radix
 encoding scheme.  Choose the profile that matches how many colour roles your text needs.
 
-| Profile | Planes | Palette entries | Colour roles |
-|---------|--------|-----------------|--------------|
-| `two_plane_binary` | 2 | 4 | background, foreground |
-| `two_plane_three_color` | 2 | 9 | background, foreground, shadow |
-| `three_plane_binary` | 3 | 8 | background, foreground |
-| `one_plane_full_color` | 1 | 16 | nibble = palette index directly |
+| Profile                 | Planes | Palette entries | Colour roles                    |
+|-------------------------|--------|-----------------|---------------------------------|
+| `two_plane_binary`      | 2      | 4               | background, foreground          |
+| `two_plane_three_color` | 2      | 9               | background, foreground, shadow  |
+| `three_plane_binary`    | 3      | 8               | background, foreground          |
+| `one_plane_full_color`  | 1      | 16              | nibble = palette index directly |
 
 `two_plane_three_color` is the most common choice: it provides foreground, shadow (or
 outline decoration), and background using only two VRAM tiles worth of palette space
@@ -63,8 +63,6 @@ constexpr auto config = gba::text::bitplane_config{
 };
 ```
 
-Use `checked_bitplane_config` if you want invalid configurations to become compile errors.
-
 Apply colours to palette RAM with `set_theme`:
 
 ```cpp
@@ -84,7 +82,7 @@ entire colour scheme without re-rendering text.
 
 Font variants bake visual effects into the glyph bitmap data at compile time.
 The renderer then uses a separate decoration bitmap for the shadow/outline colour role,
-so no extra work is done at runtime.
+so no extra per-effect bitmap generation is done at runtime.
 
 ### Drop shadow
 
@@ -121,7 +119,7 @@ used by the word-wrap algorithm.
 
 ```cpp
 gba::text::stream_metrics metrics{.letter_spacing_px = 1};
-auto s = gba::text::stream("HP: 42/99", font, metrics);
+auto s = gba::text::cstr_stream{gba::text::cstr_source{"HP: 42/99"}};
 ```
 
 ### Format generator stream
@@ -134,6 +132,9 @@ auto s   = gba::text::stream(gen, font, metrics);
 ```
 
 The generator is copied for lookahead, so it must be copyable (all format generators are).
+
+There is currently no `stream(const char*, ...)` convenience overload; use
+`cstr_stream{cstr_source{...}}` for C-strings.
 
 ### Inline colour escapes
 
@@ -178,7 +179,8 @@ auto count = layer.draw_stream(font, "HP: 42/99", /*x=*/8, /*y=*/16, metrics);
 auto count = layer.draw_stream(font, "HP: 42/99", 8, 16, metrics, /*max_chars=*/10);
 ```
 
-Returns the number of characters emitted (including whitespace and control codes).
+Returns the number of emitted characters (including whitespace/newlines).
+Inline colour escape sequences are consumed and are not included in the count.
 
 ### `draw_char` - single glyph
 
@@ -187,9 +189,10 @@ Returns the number of characters emitted (including whitespace and control codes
 auto advance = layer.draw_char(font, static_cast<unsigned int>('A'), pen_x, baseline_y);
 ```
 
-### `draw_cursor` - incremental typewriter
+### `make_cursor` + cursor object - incremental typewriter
 
-`draw_cursor` draws one character per `next()` call, maintaining cursor position between
+`make_cursor(...)` returns a cursor object that draws one character per `next()` call,
+maintaining cursor position between
 calls.  Use `next_visible()` to skip whitespace and advance the cursor in the same call,
 so a typewriter effect never wastes a frame on a space:
 
@@ -204,13 +207,13 @@ if (!cursor.next_visible()) {
 
 The cursor also exposes:
 
-| Method | Description |
-|--------|-------------|
-| `next()` | Draw the next character; returns `true` while characters remain |
-| `next_visible()` | Draw the next non-whitespace character; skips layout whitespace in one call |
-| `emitted()` | Total characters processed so far |
-| `done()` | `true` when the stream is exhausted |
-| `operator()()` | Shorthand for `next()` |
+| Method           | Description                                                                  |
+|------------------|------------------------------------------------------------------------------|
+| `next()`         | Draws the next character step; returns `true` while characters remain        |
+| `next_visible()` | Draws the next non-whitespace character; skips layout whitespace in one call |
+| `emitted()`      | Total processed characters so far                                             |
+| `done()`         | `true` when the stream is exhausted                                          |
+| `operator()()`   | Shorthand for `next()`                                                       |
 
 To restart a typewriter sequence, re-create the layer (to clear tile state) and construct
 a fresh cursor:
@@ -227,7 +230,7 @@ cursor = layer.make_cursor(font, new_stream, 0, 0, metrics);
 ## Full-colour mode
 
 `one_plane_full_color` maps nibble values directly to palette entries, giving access to
-up to 15 distinct foreground colours in a single text layer.
+up to 15 distinct foreground colours in a single `bg4bpp_text_layer`.
 
 ```cpp
 constexpr auto config = gba::text::bitplane_config{
@@ -241,13 +244,14 @@ constexpr auto config = gba::text::bitplane_config{
 
 Use the text-format palette extension (`:pal`) to emit inline colour escapes in generated text
 (see [Streams -- Inline colour escapes](#inline-colour-escapes) above for the escape semantics).
-The nibble argument must be in the range `[1, 15]`; `0` is reserved for transparent.
+At present, the `:pal` argument is emitted as a single character and decoded as a hex digit,
+so pass `'1'..'9'` or `'A'..'F'` (`'0'` remains reserved for transparent).
 
 ```cpp
 using namespace gba::literals;
 
-constexpr auto fmt = gba::text::text_format<"HP {fg:pal}{hp}/{max}">{};
-auto gen = fmt.generator("fg"_arg = 2, "hp"_arg = hp, "max"_arg = max_hp);
+constexpr gba::text::text_format<"HP {fg:pal}{hp}/{max}"> fmt{};
+auto gen = fmt.generator("fg"_arg = '2', "hp"_arg = hp, "max"_arg = max_hp);
 auto s = gba::text::stream(gen, font, metrics);
 ```
 
@@ -272,22 +276,22 @@ gba::pal_bg_mem[config.palbank_0 * 16 + 4] = "#88FF88"_clr; // nibble 4 = green
 
 ### `bitplane_config`
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `profile` | `bitplane_profile` | Plane/colour role layout |
-| `palbank_0` | `unsigned char` | Palette bank for plane 0 (255 = unused) |
-| `palbank_1` | `unsigned char` | Palette bank for plane 1 (255 = unused) |
-| `palbank_2` | `unsigned char` | Palette bank for plane 2 (255 = unused) |
-| `start_index` | `unsigned char` | First occupied entry within each bank |
+| Field         | Type               | Description                             |
+|---------------|--------------------|-----------------------------------------|
+| `profile`     | `bitplane_profile` | Plane/colour role layout                |
+| `palbank_0`   | `unsigned char`    | Palette bank for plane 0 (255 = unused) |
+| `palbank_1`   | `unsigned char`    | Palette bank for plane 1 (255 = unused) |
+| `palbank_2`   | `unsigned char`    | Palette bank for plane 2 (255 = unused) |
+| `start_index` | `unsigned char`    | First occupied entry within each bank   |
 
 ### `stream_metrics`
 
-| Field | Default | Description |
-|-------|---------|-------------|
-| `letter_spacing_px` | 0 | Extra pixels between glyphs |
-| `line_spacing_px` | 0 | Extra pixels between lines |
-| `tab_width_px` | 32 | Width of a tab character in pixels |
-| `wrap_width_px` | `0xFFFF` | Maximum line width before wrapping |
+| Field               | Default  | Description                        |
+|---------------------|----------|------------------------------------|
+| `letter_spacing_px` | 0        | Extra pixels between glyphs        |
+| `line_spacing_px`   | 0        | Extra pixels between lines         |
+| `tab_width_px`      | 32       | Width of a tab character in pixels |
+| `wrap_width_px`     | `0xFFFF` | Maximum line width before wrapping |
 
 ### `linear_tile_allocator`
 
@@ -299,13 +303,13 @@ alloc = {.next_tile = 1, .end_tile = 512};
 
 ### `bg4bpp_text_layer<Width, Height>`
 
-| Method | Description |
-|--------|-------------|
-| `draw_char(font, encoding, x, y)` | Draw a single glyph; returns advance width |
-| `draw_stream(font, cstr, x, y, metrics [, max])` | Draw a full C-string with layout |
-| `make_cursor(font, s, x, y, metrics)` | Create an incremental `draw_cursor` |
-| `clear()` | Reset all tile allocations and clear the tilemap to background |
-| `uses_full_color()` | `true` when the profile is `one_plane_full_color` |
+| Method                                           | Description                                                    |
+|--------------------------------------------------|----------------------------------------------------------------|
+| `draw_char(font, encoding, x, y)`                | Draw a single glyph; returns advance width                     |
+| `draw_stream(font, const char* str, x, y, metrics [, max_chars])` | Draw a full C-string with layout                               |
+| `make_cursor(font, s, x, y, metrics)`            | Create an incremental cursor object                            |
+| `clear()`                                        | Reset all tile allocations and clear the tilemap to background |
+| `uses_full_color()`                              | `true` when the profile is `one_plane_full_color`              |
 
 ---
 
