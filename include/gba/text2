@@ -1,0 +1,12 @@
+/// @file gba/text2
+/// @brief text2 high-performance text rendering engine.
+
+#pragma once
+
+#include <gba/bits/text2/types.hpp>
+#include <gba/bits/text2/font_concept.hpp>
+#include <gba/bits/text2/glyph_blit.hpp>
+#include <gba/bits/text2/render_layer.hpp>
+#include <gba/bits/text2/stream.hpp>
+#include <gba/bits/text2/tile_allocator.hpp>
+#include <gba/text2_format>

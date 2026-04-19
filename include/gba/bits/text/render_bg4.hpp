@@ -233,7 +233,7 @@ namespace gba::text {
         return static_cast<unsigned char>((state >> 10) & 0x3u);
     }
 
-    /// @brief BG4 bitplane text rendering layer with nibble merge logic.
+    /// @brief BG 4bpp bitplane text rendering layer with nibble merge logic.
     template<unsigned short WidthTiles, unsigned short HeightTiles, typename Allocator>
     class bg4_text_layer {
     public:
@@ -453,8 +453,8 @@ namespace gba::text {
             if (vram_tile == no_tile || plane_idx == no_plane) return;
 
             // Get tile and perform merge
-            auto* tiles = gba::memory_map(gba::mem_tile_4bpp);
-            auto& tile_data = tiles[vram_tile >> 9][vram_tile & 511u];
+            auto* tiles = gba::memory_map(gba::registral_cast<gba::tile4bpp[2048]>(gba::mem_tile_4bpp));
+            auto& tile_data = tiles[vram_tile];
 
             const auto lx = static_cast<int>(ux & 7u);
             const auto ly = static_cast<int>(uy & 7u);
@@ -474,8 +474,8 @@ namespace gba::text {
                 m_current_plane = 0;
 
                 // Initialize new tile with background nibbles
-                auto* tiles = gba::memory_map(gba::mem_tile_4bpp);
-                auto& tile_data = tiles[m_current_vram_tile >> 9][m_current_vram_tile & 511u];
+                auto* tiles = gba::memory_map(gba::registral_cast<gba::tile4bpp[2048]>(gba::mem_tile_4bpp));
+                auto& tile_data = tiles[m_current_vram_tile];
                 const auto bg_nibble = m_config.background_nibble();
                 const auto row_val = static_cast<unsigned int>(0x11111111u) * bg_nibble;
                 for (auto& row : tile_data) {
@@ -547,7 +547,6 @@ namespace gba::text {
                 }
             }
         }
-
 
     };
 

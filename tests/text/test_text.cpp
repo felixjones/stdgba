@@ -438,9 +438,9 @@ int main() {
         gba::test.eq(se0.palette_index, 1u);
         gba::test.eq(se1.palette_index, 1u);
 
-        auto* tiles = gba::memory_map(gba::mem_tile_4bpp);
-        const auto& t0 = tiles[se0.tile_index >> 9][se0.tile_index & 511u];
-        const auto& t1 = tiles[se1.tile_index >> 9][se1.tile_index & 511u];
+        auto* tiles = gba::memory_map(gba::registral_cast<gba::tile4bpp[2048]>(gba::mem_tile_4bpp));
+        const auto& t0 = tiles[se0.tile_index];
+        const auto& t1 = tiles[se1.tile_index];
 
         const auto nibble_at = [](const gba::tile4bpp& tile, unsigned int x, unsigned int y) {
             return static_cast<unsigned int>((tile[y] >> (x * 4)) & 0xFu);
@@ -470,7 +470,7 @@ int main() {
                  for (unsigned int cell_x = 0; cell_x < 4; ++cell_x) {
                      const auto se = gba::mem_se[screenblock][(start_y + cell_y) * 32 + (start_x + cell_x)].value();
                      if (se.tile_index == 0u) continue;
-                     const auto& tile = tiles[se.tile_index >> 9][se.tile_index & 511u];
+                     const auto& tile = tiles[se.tile_index];
                      if (tile_has_nibble(tile, nibble)) return true;
                  }
              }

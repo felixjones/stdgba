@@ -322,6 +322,12 @@ namespace gba::benchmark {
         gba::log::write(lvl, fmt, std::move(args)...);
     }
 
+    template<format::fixed_string Fmt, typename... Args>
+    inline void log(gba::log::level lvl, format::format_literal<Fmt> fmt, Args... args) {
+        ensure_logger();
+        gba::log::write(lvl, fmt, std::move(args)...);
+    }
+
     /// @brief Print a section header to the debug console.
     inline void header(const char* title) {
         using gba::literals::operator""_arg;

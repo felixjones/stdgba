@@ -140,7 +140,7 @@ namespace gba::format {
     struct format_literal {
         static constexpr auto fmt = Fmt;
 
-        template<typename Config>
+        template<typename Config = default_format_config>
         consteval operator compiled_format<Fmt, Config>() const {
             return compiled_format<Fmt, Config>{};
         }

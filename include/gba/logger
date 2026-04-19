@@ -273,6 +273,11 @@ namespace gba::log {
         return bits::current_backend->write(lvl, buf, len);
     }
 
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t write(level lvl, format::format_literal<Fmt> fmt, Args... args) {
+        return write(lvl, static_cast<format::compiled_format<Fmt>>(fmt), std::move(args)...);
+    }
+
     /// @brief Log at fatal level.
     /// @param msg Null-terminated message string.
     /// @return Number of characters written.
@@ -360,6 +365,31 @@ namespace gba::log {
     /// @return Number of characters written.
     template<format::fixed_string Fmt, typename... Args>
     std::size_t debug(format::compiled_format<Fmt> fmt, Args... args) {
+        return write(level::debug, fmt, std::move(args)...);
+    }
+
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t fatal(format::format_literal<Fmt> fmt, Args... args) {
+        return write(level::fatal, fmt, std::move(args)...);
+    }
+
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t error(format::format_literal<Fmt> fmt, Args... args) {
+        return write(level::error, fmt, std::move(args)...);
+    }
+
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t warn(format::format_literal<Fmt> fmt, Args... args) {
+        return write(level::warn, fmt, std::move(args)...);
+    }
+
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t info(format::format_literal<Fmt> fmt, Args... args) {
+        return write(level::info, fmt, std::move(args)...);
+    }
+
+    template<format::fixed_string Fmt, typename... Args>
+    std::size_t debug(format::format_literal<Fmt> fmt, Args... args) {
         return write(level::debug, fmt, std::move(args)...);
     }
 
