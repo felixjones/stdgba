@@ -1,5 +1,51 @@
 /// @file gba/text
 /// @brief High-performance text rendering engine for proportional fonts and bitplane palettes.
+///
+/// Public umbrella header for the text renderer.
+///
+/// Include this header to access the complete text API surface:
+/// - Core configuration and stream types (`bitplane_config`, `stream_metrics`).
+/// - Font concept checks and decorator helpers (`with_shadow`, `with_outline`, etc.).
+/// - Palette initialisation helpers for bitplane rendering.
+/// - `bg4bpp_text_layer<Width, Height>` for glyph and stream drawing.
+/// - Tile allocation and reveal-run helpers used by incremental/typewriter flows.
+///
+/// Typical usage:
+/// 1. Configure a `bitplane_config` and initialise palette banks.
+/// 2. Construct a `bg4bpp_text_layer<Width, Height>` with a config and allocator.
+/// 3. Draw text with `draw_char(...)` or `draw_stream(...)`.
+/// 4. Call `flush_cache()` when needed to commit pending tile updates.
+///
+/// @code{.cpp}
+/// #include <gba/text>
+///
+/// // Example helper body; concrete font, screenblock, and tile range are project-defined.
+/// template<class Font>
+/// void draw_ui_label(const Font& font) {
+///     gba::text::bitplane_config cfg{};
+///     cfg.profile = gba::text::bitplane_profile::two_plane_three_color;
+///     cfg.palbank_0 = 0;
+///     cfg.palbank_1 = 1;
+///
+///     gba::text::linear_tile_allocator alloc{0, 512};
+///     using layer_type = gba::text::bg4bpp_text_layer<240, 160>;
+///     static layer_type::cell_state_map cell_state{};
+///     layer_type layer{31, cfg, alloc, cell_state};
+///
+///     constexpr gba::text::stream_metrics m{
+///         .letter_spacing_px = 1,
+///         .line_spacing_px = 1,
+///         .tab_width_px = 32,
+///         .wrap_width_px = 240,
+///     };
+///
+///     layer.draw_stream(font, "HP: 42/99", 0, 0, m);
+///     layer.flush_cache();
+/// }
+/// @endcode
+///
+/// @note This header re-exports module components; behaviour contracts are documented
+///       on the concrete types/functions in the included headers.
 #pragma once
 #include <gba/bits/text/types.hpp>
 #include <gba/bits/text/font_concept.hpp>
