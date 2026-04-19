@@ -114,6 +114,32 @@ jobs:
         run: |
           echo "$HOME/.cache/stdgba/arm-gnu-toolchain/bin" >> "$GITHUB_PATH"
 
+      - name: Install ccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ccache
+
+      - name: Configure job-local ccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          cache_dir="$RUNNER_TEMP/ccache"
+          mkdir -p "$cache_dir"
+          export CCACHE_DIR="$cache_dir"
+          export CCACHE_BASEDIR="$GITHUB_WORKSPACE"
+          export CCACHE_NOHASHDIR=true
+          export CCACHE_COMPRESS=true
+          {
+            echo "CCACHE_DIR=$cache_dir"
+            echo "CCACHE_BASEDIR=$GITHUB_WORKSPACE"
+            echo "CCACHE_NOHASHDIR=true"
+            echo "CCACHE_COMPRESS=true"
+          } >> "$GITHUB_ENV"
+          ccache --set-config=max_size=500M
+          ccache --zero-stats
+
       - name: Verify compiler
         shell: bash
         run: |
@@ -126,6 +152,8 @@ jobs:
           set -euo pipefail
           cmake -S . -B build -G Ninja \
             -DCMAKE_TOOLCHAIN_FILE="$HOME/.cache/stdgba/gba-toolchain/cmake/gba.toolchain.cmake" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
             -DSTDGBA_BUILD_TESTS=ON \
             -DSTDGBA_BUILD_BENCHMARKS=ON \
             -DSTDGBA_BUILD_DEMOS=OFF
@@ -135,6 +163,12 @@ jobs:
         run: |
           set -euo pipefail
           cmake --build build --target $(printf '%s ' ${{ join(fromJson(needs.discover-tests.outputs.tests), ' ') }}) -- -j "$(nproc)"
+
+      - name: Show ccache stats after build
+        shell: bash
+        run: |
+          set -euo pipefail
+          ccache --show-stats
 
       - name: Export ctest metadata
         shell: bash
