@@ -94,7 +94,7 @@ Positional slots use an index `n` (0-31) that maps to a call-site argument.
 
 | Slot | Instruction(s) | Value |
 |------|----------------|-------|
-| `imm_slot(n)` | `mov_imm`, `add_imm`, `sub_imm`, `orr_imm`, `and_imm`, `eor_imm`, `bic_imm`, `mvn_imm`, `rsb_imm`, `cmp_imm`, `tst_imm` | 0–255 |
+| `imm_slot(n)` | `mov_imm`, `add_imm`, `sub_imm`, `orr_imm`, `and_imm`, `eor_imm`, `bic_imm`, `mvn_imm`, `rsb_imm`, `cmp_imm`, `tst_imm` | 0-255 |
 | `s12_slot(n)` | `ldr_imm`, `str_imm` | -4095 ... +4095 |
 | `b_slot(n)` | `b_to`, `b_if` | 24-bit signed word offset |
 | `instr_slot(n)` | `instruction(...)` / `word(...)` / `literal_word(...)` | Any 32-bit word |
@@ -243,7 +243,7 @@ accepted by the `arm_macro` lambda.
 
 | Builder method | Effect |
 |----------------|--------|
-| `mov_imm(rd, imm8)` | `rd = imm8` (0–255) |
+| `mov_imm(rd, imm8)` | `rd = imm8` (0-255) |
 | `mov_imm(rd, imm_slot(n))` | `rd = arg[n]` at patch time |
 | `mov_reg(rd, rm)` | `rd = rm` |
 
@@ -281,10 +281,10 @@ accepted by the `arm_macro` lambda.
 
 | Method | Shift amount | Range |
 |--------|--------------|-------|
-| `lsl_imm(rd, rm, shift)` | Immediate | 0–31 |
-| `lsr_imm(rd, rm, shift)` | Immediate | 1–32 |
-| `asr_imm(rd, rm, shift)` | Immediate | 1–32 |
-| `ror_imm(rd, rm, shift)` | Immediate | 1–31 |
+| `lsl_imm(rd, rm, shift)` | Immediate | 0-31 |
+| `lsr_imm(rd, rm, shift)` | Immediate | 1-32 |
+| `asr_imm(rd, rm, shift)` | Immediate | 1-32 |
+| `ror_imm(rd, rm, shift)` | Immediate | 1-31 |
 | `lsl_reg(rd, rm, rs)` | Register `rs` | |
 | `lsr_reg(rd, rm, rs)` | Register `rs` | |
 | `asr_reg(rd, rm, rs)` | Register `rs` | |
@@ -586,5 +586,5 @@ static constexpr auto update_sprite = arm_macro([](auto& b) {
   **compile errors** in `consteval` context.
 - `b_to` / `b_if` targets are in **instruction words**, not bytes.
 - `mul` / `mla`: `rd ≠ rm` (ARM7TDMI hardware constraint).
-- These APIs cover leaf-function patterns (AAPCS `r0`–`r3` arguments, `r0` return).
+- These APIs cover leaf-function patterns (AAPCS `r0`-`r3` arguments, `r0` return).
   Stack-passed arguments, calls to other functions, and floating-point are not abstracted.

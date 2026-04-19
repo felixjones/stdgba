@@ -9,7 +9,7 @@ a full-screen redraw each frame.
 
 - Bitmap fonts embedded from BDF files at compile time via `<gba/embed>`.
 - Compile-time font variant baking: `with_shadow<dx, dy>` and `with_outline<thickness>`.
-- Character streams:
+- Character streams for incremental rendering:
   - C-string streams (`cstr_stream`).
   - Format generator streams from `<gba/format>` (`format_stream`).
 - Word wrapping using a lookahead to the next break character.
@@ -164,18 +164,18 @@ Renders a full stream in one call, with layout, word wrapping, and optional char
 limit for partial reveals:
 
 ```cpp
-gba::text::draw_metrics draw_cfg{
+gba::text::stream_metrics metrics{
     .letter_spacing_px = 1,
     .line_spacing_px   = 2,
+    .tab_width_px      = 32,
     .wrap_width_px     = 220,
-    .break_chars       = gba::text::break_policy::whitespace,
 };
 
 // Draw everything
-auto count = layer.draw_stream(font, s, /*x=*/8, /*y=*/16, draw_cfg);
+auto count = layer.draw_stream(font, "HP: 42/99", /*x=*/8, /*y=*/16, metrics);
 
 // Draw only the first 10 characters (typewriter snapshot)
-auto count = layer.draw_stream(font, s, 8, 16, draw_cfg, /*max_chars=*/10);
+auto count = layer.draw_stream(font, "HP: 42/99", 8, 16, metrics, /*max_chars=*/10);
 ```
 
 Returns the number of characters emitted (including whitespace and control codes).
@@ -194,7 +194,7 @@ calls.  Use `next_visible()` to skip whitespace and advance the cursor in the sa
 so a typewriter effect never wastes a frame on a space:
 
 ```cpp
-auto cursor = layer.make_cursor(font, s, /*start_x=*/0, /*start_y=*/0, draw_cfg);
+auto cursor = layer.make_cursor(font, s, /*start_x=*/0, /*start_y=*/0, metrics);
 
 // In the update loop - one visible glyph per frame:
 if (!cursor.next_visible()) {
@@ -217,9 +217,9 @@ a fresh cursor:
 
 ```cpp
 // Reset tile allocator and layer, then create a new cursor
-alloc  = {.next_tile = 1, .end_tile = 512};
-layer  = gba::text::bg4_text_layer{31, config, alloc};
-cursor = layer.make_cursor(font, new_stream, 0, 0, draw_cfg);
+alloc = {.next_tile = 1, .end_tile = 512};
+layer = layer_type{31, config, alloc, cell_state};
+cursor = layer.make_cursor(font, new_stream, 0, 0, metrics);
 ```
 
 ---
@@ -239,9 +239,17 @@ constexpr auto config = gba::text::bitplane_config{
 
 ### Inline colour escapes
 
-Use `color_escape(nibble)` to change the active foreground palette entry mid-string
-(see [Streams -- Inline colour escapes](#inline-colour-escapes) above for usage).
+Use the text-format palette extension (`:pal`) to emit inline colour escapes in generated text
+(see [Streams -- Inline colour escapes](#inline-colour-escapes) above for the escape semantics).
 The nibble argument must be in the range `[1, 15]`; `0` is reserved for transparent.
+
+```cpp
+using namespace gba::literals;
+
+constexpr auto fmt = gba::text::text_format<"HP {fg:pal}{hp}/{max}">{};
+auto gen = fmt.generator("fg"_arg = 2, "hp"_arg = hp, "max"_arg = max_hp);
+auto s = gba::text::stream(gen, font, metrics);
+```
 
 Make sure the corresponding palette entries are populated.  `set_theme` fills nibbles
 1 (foreground) and 2 (shadow); write additional entries directly:
@@ -272,24 +280,14 @@ gba::pal_bg_mem[config.palbank_0 * 16 + 4] = "#88FF88"_clr; // nibble 4 = green
 | `palbank_2` | `unsigned char` | Palette bank for plane 2 (255 = unused) |
 | `start_index` | `unsigned char` | First occupied entry within each bank |
 
-### `draw_metrics`
+### `stream_metrics`
 
 | Field | Default | Description |
 |-------|---------|-------------|
 | `letter_spacing_px` | 0 | Extra pixels between glyphs |
 | `line_spacing_px` | 0 | Extra pixels between lines |
-| `wrap_width_px` | 240 | Maximum line width before wrapping |
-| `break_chars` | `whitespace` | Where line breaks are allowed |
-
-`break_policy::whitespace_and_hyphen` also allows breaking after hyphens.
-
-### `stream_metrics`
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `letter_spacing_px` | 0 | Extra pixels between glyphs (used for lookahead width) |
-| `tab_width_px` | 16 | Width of a tab character in pixels |
-| `break_chars` | `whitespace` | Break policy for lookahead |
+| `tab_width_px` | 32 | Width of a tab character in pixels |
+| `wrap_width_px` | `0xFFFF` | Maximum line width before wrapping |
 
 ### `linear_tile_allocator`
 
@@ -299,12 +297,12 @@ Simple bump allocator over a VRAM tile range.  Reset it by re-assigning the stru
 alloc = {.next_tile = 1, .end_tile = 512};
 ```
 
-### `bg4_text_layer<WidthTiles, HeightTiles, Allocator>`
+### `bg4bpp_text_layer<Width, Height>`
 
 | Method | Description |
 |--------|-------------|
 | `draw_char(font, encoding, x, y)` | Draw a single glyph; returns advance width |
-| `draw_stream(font, s, x, y, metrics [, max])` | Draw a full stream with layout |
+| `draw_stream(font, cstr, x, y, metrics [, max])` | Draw a full C-string with layout |
 | `make_cursor(font, s, x, y, metrics)` | Create an incremental `draw_cursor` |
 | `clear()` | Reset all tile allocations and clear the tilemap to background |
 | `uses_full_color()` | `true` when the profile is `one_plane_full_color` |
