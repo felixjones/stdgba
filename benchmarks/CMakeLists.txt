@@ -27,6 +27,10 @@ foreach(bench_src ${BENCH_SOURCES})
     endif()
     if(bench_name STREQUAL "bench_codegen")
         target_sources(${bench_name} PRIVATE support/bench_codegen_arm_wrappers.cpp)
+        set_source_files_properties(
+            support/bench_codegen_arm_wrappers.cpp
+            PROPERTIES COMPILE_OPTIONS "-Os"
+        )
     endif()
 
     target_link_libraries(${bench_name} PRIVATE librom stdgba)
