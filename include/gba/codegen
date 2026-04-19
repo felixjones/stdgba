@@ -101,16 +101,16 @@
 ///
 /// Runtime patching is performed through two APIs:
 ///
-/// ### `block_patcher<block>` (preferred — zero overhead)
+/// ### `block_patcher<block>` (preferred - zero overhead)
 ///
 /// A zero-overhead patcher generated from the block value as a non-type template
 /// parameter.  All patch metadata (word index, base word, kind, arg index) is a
 /// compile-time constant, so the optimizer sees a straight-line sequence of stores
 /// with no dispatch, no loop, and no ROM metadata loads.
 ///
-/// - `block_patcher<block>{}(destination, args...)` — apply patches in place
-/// - `block_patcher<block>{}.entry<Signature>(destination, args...)` — patch + return typed fn ptr
-/// - `block_patcher<block>{}.typed<Signature>()` — return a typed patcher whose `operator()` returns a fn ptr
+/// - `block_patcher<block>{}(destination, args...)` - apply patches in place
+/// - `block_patcher<block>{}.entry<Signature>(destination, args...)` - patch + return typed fn ptr
+/// - `block_patcher<block>{}.typed<Signature>()` - return a typed patcher whose `operator()` returns a fn ptr
 ///
 /// Example:
 /// @code{.cpp}
@@ -123,7 +123,7 @@
 /// patch(code, 42u);                          // zero-overhead store sequence
 /// auto fn = patch.entry<int()>(code, 42u);   // patch + typed fn ptr
 ///
-/// // Typed patcher variant — operator() returns int(*)() directly:
+/// // Typed patcher variant - operator() returns int(*)() directly:
 /// constexpr auto tpatch = block_patcher<tpl>{}.typed<int()>();
 /// auto fn2 = tpatch(code, 99u);              // returns int(*)()
 /// @endcode
@@ -134,9 +134,9 @@
 /// block as an NTTP.  Stores patch metadata as runtime fields but is still
 /// constexpr-constructible, so it can be stored as `constexpr auto`.
 ///
-/// - `block.patcher()(destination, args...)` — apply patches in place (untyped)
-/// - `block.patcher<Signature>()(destination, args...)` — patch + return typed fn ptr
-/// - `block.patcher()(destination, "name"_arg = v)` — named-arg patching
+/// - `block.patcher()(destination, args...)` - apply patches in place (untyped)
+/// - `block.patcher<Signature>()(destination, args...)` - patch + return typed fn ptr
+/// - `block.patcher()(destination, "name"_arg = v)` - named-arg patching
 ///
 /// Example:
 /// @code{.cpp}
@@ -156,9 +156,9 @@
 /// Generic runtime dispatch path. Still useful when the block is not available
 /// as a constexpr at the call site, or as a fallback for dynamic patch counts.
 ///
-/// - `apply_patches<Signature>(block, destination, words, args...)` — variadic args
-/// - `apply_patches<Signature>(block, destination, words, packed_args, count)` — pre-packed array
-/// - `apply_word_patches(block, destination, words, value_fn)` — callback for word/literal slots
+/// - `apply_patches<Signature>(block, destination, words, args...)` - variadic args
+/// - `apply_patches<Signature>(block, destination, words, packed_args, count)` - pre-packed array
+/// - `apply_word_patches(block, destination, words, value_fn)` - callback for word/literal slots
 ///
 /// ## Example usage
 /// @code{.cpp}

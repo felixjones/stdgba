@@ -1,16 +1,16 @@
-/// @file bits/text2/reveal_runs.hpp
-/// @brief Compile-time run metadata for text2 incremental reveal rendering.
+/// @file bits/text/reveal_runs.hpp
+/// @brief Compile-time run metadata for text incremental reveal rendering.
 
 #pragma once
 
 #include <gba/bits/format/parse.hpp>
-#include <gba/bits/text2/text2_format.hpp>
+#include <gba/bits/text/text_format.hpp>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
 
-namespace gba::text2 {
+namespace gba::text {
     enum class glyph_run_kind : std::uint8_t {
         literal,
         runtime,
@@ -27,7 +27,7 @@ namespace gba::text2 {
         unsigned int name_hash = 0;
     };
 
-    template<gba::format::fixed_string Fmt, typename Config = text2_format_config>
+    template<gba::format::fixed_string Fmt, typename Config = text_format_config>
     struct compiled_reveal_runs {
         static constexpr auto ast = gba::format::parse_format<Fmt, Config>();
         static_assert(ast.valid, "Invalid format string");
@@ -130,8 +130,8 @@ namespace gba::text2 {
         }();
     };
 
-    template<gba::format::fixed_string Fmt, typename Config = text2_format_config>
+    template<gba::format::fixed_string Fmt, typename Config = text_format_config>
     consteval auto make_reveal_runs() {
         return compiled_reveal_runs<Fmt, Config>{};
     }
-} // namespace gba::text2
+} // namespace gba::text

@@ -2,7 +2,7 @@
 /// @brief Unit tests for format module using mgba test framework.
 
 #include <gba/format>
-#include <gba/text2_format>
+#include <gba/text_format>
 #include <gba/angle>
 #include <gba/fixed_point>
 #include <gba/testing>
@@ -19,8 +19,8 @@ static_assert(parse_format<"{x:.2e}">().valid);
 static_assert(parse_format<"{x:.2E}">().valid);
 static_assert(parse_format<"{x:.4g}">().valid);
 static_assert(parse_format<"{x:.4G}">().valid);
-static_assert(parse_format<"{x:pal}", gba::text2::text2_format_config>().valid);
-static_assert(parse_format<"{x:pal}", gba::text2::text2_format_config>().segments[0].spec.fmt_type ==
+static_assert(parse_format<"{x:pal}", gba::text::text_format_config>().valid);
+static_assert(parse_format<"{x:pal}", gba::text::text_format_config>().segments[0].spec.fmt_type ==
               format_spec::format_kind::extension);
 
 static_assert(!parse_format<"{x:!}">().valid);
@@ -30,14 +30,14 @@ static_assert(!parse_format<"{x:,s}">().valid);
 static_assert(!parse_format<"{x:=s}">().valid);
 static_assert(!parse_format<"{x:.2i}">().valid);
 static_assert(!parse_format<"{x:pal}">().valid);
-static_assert(!parse_format<"{x:+pal}", gba::text2::text2_format_config>().valid);
+static_assert(!parse_format<"{x:+pal}", gba::text::text_format_config>().valid);
 
-constexpr auto text2_palette_static = gba::text2::text2_format<"{pal:pal}">::to_static<8>("pal"_arg = 7);
-constexpr gba::text2::text2_format<"{pal:pal}"> text2_palette_literal = "{pal:pal}"_fmt;
-constexpr auto text2_palette_with_config = "{pal:pal}"_fmt.with_config<gba::text2::text2_format_config>();
-static_assert(static_cast<unsigned char>(text2_palette_static[0]) == 0x1B);
-static_assert(static_cast<unsigned char>(text2_palette_static[1]) == 7u);
-static_assert(text2_palette_static[2] == '\0');
+constexpr auto text_palette_static = gba::text::text_format<"{pal:pal}">::to_static<8>("pal"_arg = 7);
+constexpr gba::text::text_format<"{pal:pal}"> text_palette_literal = "{pal:pal}"_fmt;
+constexpr auto text_palette_with_config = "{pal:pal}"_fmt.with_config<gba::text::text_format_config>();
+static_assert(static_cast<unsigned char>(text_palette_static[0]) == 0x1B);
+static_assert(static_cast<unsigned char>(text_palette_static[1]) == 7u);
+static_assert(text_palette_static[2] == '\0');
 
 int main() {
     // Basic literal formatting
@@ -699,9 +699,9 @@ int main() {
         gba::test.eq(*c, '4');
     }
 
-    // text2 palette formatting via to()
+    // text palette formatting via to()
     {
-        constexpr gba::text2::text2_format<"P{pal:pal}Z"> fmt = "P{pal:pal}Z"_fmt;
+        constexpr gba::text::text_format<"P{pal:pal}Z"> fmt = "P{pal:pal}Z"_fmt;
         char buf[16]{};
         auto len = fmt.to(buf, "pal"_arg = 5);
         gba::test.eq(len, 4u);
@@ -712,9 +712,9 @@ int main() {
         gba::test.eq(buf[4], '\0');
     }
 
-    // text2 palette formatting via generator()
+    // text palette formatting via generator()
     {
-        constexpr auto fmt = "{pal:pal}X"_fmt.with_config<gba::text2::text2_format_config>();
+        constexpr auto fmt = "{pal:pal}X"_fmt.with_config<gba::text::text_format_config>();
         auto gen = fmt.generator("pal"_arg = 12);
         auto c1 = gen();
         auto c2 = gen();

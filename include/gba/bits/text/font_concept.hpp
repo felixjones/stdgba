@@ -1,11 +1,11 @@
-/// @file bits/text2/font_concept.hpp
-/// @brief text2 font type concept.
+/// @file bits/text/font_concept.hpp
+/// @brief text font type concept.
 
 #pragma once
 
 #include <cstdint>
 
-namespace gba::text2 {
+namespace gba::text {
     template<typename T>
     concept GlyphFont = requires(const T& font, unsigned int encoding) {
         font.find(encoding);
@@ -24,4 +24,4 @@ namespace gba::text2 {
         { font.glyph_or_default(encoding).dwidth };
         { font.glyph_or_default(encoding).bitmap_byte_width };
     };
-} // namespace gba::text2
+} // namespace gba::text

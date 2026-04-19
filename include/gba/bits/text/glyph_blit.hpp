@@ -1,5 +1,5 @@
-/// @file bits/text2/glyph_blit.hpp
-/// @brief text2 IWRAM tile cache — plane-aware nibble accumulator.
+/// @file bits/text/glyph_blit.hpp
+/// @brief text IWRAM tile cache - plane-aware nibble accumulator.
 ///
 /// A single IWRAM buffer holds one full VRAM tile's worth of 4bpp nibble data.
 /// All pixel writes operate against this buffer via bitplane_config::update_role();
@@ -9,13 +9,13 @@
 #pragma once
 
 #include <gba/video>
-#include <gba/bits/text2/tile_allocator.hpp>
-#include <gba/bits/text2/types.hpp>
+#include <gba/bits/text/tile_allocator.hpp>
+#include <gba/bits/text/types.hpp>
 
 #include <array>
 #include <cstdint>
 
-namespace gba::text2 {
+namespace gba::text {
 
     /// @brief IWRAM-resident tile cache for one VRAM tile.
     ///
@@ -252,4 +252,4 @@ namespace gba::text2 {
 
 
 
-} // namespace gba::text2
+} // namespace gba::text

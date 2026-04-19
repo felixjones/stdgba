@@ -1,5 +1,5 @@
 /// @file bits/embed/png_filter.hpp
-/// @brief Compile-time PNG scanline unfiltering (filter types 0–4 + Paeth predictor).
+/// @brief Compile-time PNG scanline unfiltering (filter types 0-4 + Paeth predictor).
 #pragma once
 
 #include <cstddef>

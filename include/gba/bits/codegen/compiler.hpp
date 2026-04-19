@@ -1751,7 +1751,7 @@ namespace gba::codegen {
     /// Parameterised on the block value as a non-type template argument, so every
     /// piece of patch metadata (word index, base word, patch kind, arg index) is a
     /// compile-time constant.  `operator()` expands into a straight-line sequence of
-    /// stores — no loop, no dispatch table, no ROM metadata loads.
+    /// stores - no loop, no dispatch table, no ROM metadata loads.
     ///
     /// Usage:
     /// @code{.cpp}

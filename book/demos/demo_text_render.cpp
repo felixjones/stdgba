@@ -5,7 +5,6 @@
 #include <gba/embed>
 #include <gba/format>
 #include <gba/interrupt>
-#include <gba/text2>
 #include <gba/text>
 
 #include <array>
@@ -28,14 +27,14 @@ int main() {
     gba::reg_dispcnt = {.video_mode = 0, .enable_bg0 = true};
     gba::reg_bgcnt[0] = {.screenblock = 31};
 
-    constexpr auto config = gba::text2::bitplane_config{
-        .profile = gba::text2::bitplane_profile::two_plane_three_color,
+    constexpr auto config = gba::text::bitplane_config{
+        .profile = gba::text::bitplane_profile::two_plane_three_color,
         .palbank_0 = 1,
         .palbank_1 = 2,
         .start_index = 1,
     };
 
-    gba::text2::set_theme(config, {
+    gba::text::set_theme(config, {
                                       .background = "#304060"_clr,
                                       .foreground = "white"_clr,
                                       .shadow = "#102040"_clr,
@@ -44,12 +43,12 @@ int main() {
 
     unsigned int frame = 0;
 
-    gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-    using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
+    gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
+    using layer_type = gba::text::bg4bpp_text_layer<240, 160>;
     static layer_type::cell_state_map cell_state{};
     layer_type layer{31, config, alloc, cell_state};
 
-    gba::text2::stream_metrics metrics{
+    gba::text::stream_metrics metrics{
         .letter_spacing_px = 1,
         .line_spacing_px = 2,
         .tab_width_px = 32,
@@ -58,7 +57,7 @@ int main() {
 
     auto make_cursor = [&] {
         auto gen = fmt.generator("value"_arg = [&] { return frame; });
-        auto s = gba::text2::stream(gen, font, metrics);
+        auto s = gba::text::stream(gen, font, metrics);
         return layer.make_cursor(font, s, 0, 0, metrics);
     };
 

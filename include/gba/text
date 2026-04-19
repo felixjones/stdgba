@@ -1,25 +1,13 @@
-/// @file text
-/// @brief Streaming text helpers for proportional fonts and bitplane palettes.
+/// @file gba/text
+/// @brief High-performance text rendering engine for proportional fonts and bitplane palettes.
 #pragma once
-
-#include <gba/bits/text/font_variants.hpp>
-#include <gba/bits/text/palette.hpp>
-#include <gba/bits/text/render_bg4.hpp>
-#include <gba/bits/text/stream.hpp>
 #include <gba/bits/text/types.hpp>
-
-#include <utility>
-
-namespace gba::text {
-
-    template<typename Font>
-    constexpr auto stream(const char* text, const Font& font, stream_metrics metrics = {}) {
-        return cstr_stream<Font>{text, font, metrics};
-    }
-
-    template<typename Generator, typename Font>
-    constexpr auto stream(Generator gen, const Font& font, stream_metrics metrics = {}) {
-        return format_stream<Generator, Font>{std::move(gen), font, metrics};
-    }
-
-} // namespace gba::text
+#include <gba/bits/text/font_concept.hpp>
+#include <gba/bits/text/font_variants.hpp>
+#include <gba/bits/text/glyph_blit.hpp>
+#include <gba/bits/text/palette.hpp>
+#include <gba/bits/text/render_layer.hpp>
+#include <gba/bits/text/stream.hpp>
+#include <gba/bits/text/tile_allocator.hpp>
+#include <gba/bits/text/reveal_runs.hpp>
+#include <gba/text_format>

@@ -1,0 +1,6 @@
+/// @file gba/text_format
+/// @brief Text-specific format extensions (palette specifier).
+
+#pragma once
+
+#include <gba/bits/text/text_format.hpp>

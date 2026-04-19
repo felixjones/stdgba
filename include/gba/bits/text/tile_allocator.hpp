@@ -1,11 +1,11 @@
-/// @file bits/text2/tile_allocator.hpp
-/// @brief text2 linear tile allocator.
+/// @file bits/text/tile_allocator.hpp
+/// @brief text linear tile allocator.
 
 #pragma once
 
 #include <cstdint>
 
-namespace gba::text2 {
+namespace gba::text {
 
     static constexpr std::uint16_t no_tile = 0xFFFFu;
     static constexpr std::uint8_t no_plane = 255u;
@@ -53,4 +53,4 @@ namespace gba::text2 {
         }
     };
 
-} // namespace gba::text2
+} // namespace gba::text

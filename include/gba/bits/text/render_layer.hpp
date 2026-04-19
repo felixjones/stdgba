@@ -1,12 +1,12 @@
-/// @file bits/text2/render_layer.hpp
-/// @brief text2 main text rendering layer — plane-aware, screenblock-aware.
+/// @file bits/text/render_layer.hpp
+/// @brief text main rendering layer - plane-aware and screenblock-aware.
 ///
-/// Matches the rendering model of gba::text::bg4_text_layer:
+/// Matches the rendering model of gba::text::bg4bpp_text_layer:
 ///  - Cell state map tracking (vram_tile, plane) per screen cell.
 ///  - Plane packing: multiple cells share one VRAM tile (mixed-radix encoding).
 ///  - Screenblock tilemap writes on every newly allocated cell.
 ///  - Pen/baseline pixel coordinate model with x_offset/y_offset from BDF glyph metrics.
-///  - draw_stream() with draw_metrics (letter spacing, line spacing, word wrap).
+///  - draw_stream() with stream_metrics (letter spacing, line spacing, wrap width).
 ///  - Color escape gating: only active for one_plane_full_color.
 ///  - start_index applied via bitplane_config::update_role() on every pixel.
 ///  - Decoration pass for decorated_font_result (shadow/outline).
@@ -14,10 +14,10 @@
 #pragma once
 
 #include <gba/video>
-#include <gba/bits/text2/glyph_blit.hpp>
-#include <gba/bits/text2/stream.hpp>
-#include <gba/bits/text2/tile_allocator.hpp>
-#include <gba/bits/text2/types.hpp>
+#include <gba/bits/text/glyph_blit.hpp>
+#include <gba/bits/text/stream.hpp>
+#include <gba/bits/text/tile_allocator.hpp>
+#include <gba/bits/text/types.hpp>
 
 #include <array>
 #include <cstddef>
@@ -25,7 +25,7 @@
 #include <limits>
 #include <variant>
 
-namespace gba::text2 {
+namespace gba::text {
 
     template<std::size_t CellCount>
     struct packed_cell_state_map {
@@ -745,4 +745,4 @@ namespace gba::text2 {
         }
     };
 
-} // namespace gba::text2
+} // namespace gba::text

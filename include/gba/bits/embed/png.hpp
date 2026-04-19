@@ -1,5 +1,5 @@
 /// @file bits/embed/png.hpp
-/// @brief Compile-time PNG decode — umbrella header + full decode entry point.
+/// @brief Compile-time PNG decode - umbrella header + full decode entry point.
 ///
 /// Supports non-interlaced PNG with 8-bit channels:
 /// - Color type 2 (RGB)

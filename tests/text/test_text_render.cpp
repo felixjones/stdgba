@@ -1,9 +1,9 @@
-/// @file tests/text2/test_text2_render.cpp
-/// @brief Rendering engine tests for text2.
+/// @file tests/text/test_text_render.cpp
+/// @brief Rendering engine tests for text.
 
 #include <gba/embed>
 #include <gba/testing>
-#include <gba/text2>
+#include <gba/text>
 #include <gba/bits/text/font_variants.hpp>
 
 #include <array>
@@ -76,27 +76,27 @@ ENDFONT
     static constexpr auto cursor_font_shadowed = gba::text::with_shadow<1, 1>(cursor_font);
     static constexpr auto cursor_font_outlined = gba::text::with_outline<1>(cursor_font);
 
-    static_assert(gba::text2::GlyphFont<decltype(cursor_font_shadowed)>,
-                  "decorated_font_result (shadow) must satisfy text2::GlyphFont");
-    static_assert(gba::text2::GlyphFont<decltype(cursor_font_outlined)>,
-                  "decorated_font_result (outline) must satisfy text2::GlyphFont");
+    static_assert(gba::text::GlyphFont<decltype(cursor_font_shadowed)>,
+                  "decorated_font_result (shadow) must satisfy text::GlyphFont");
+    static_assert(gba::text::GlyphFont<decltype(cursor_font_outlined)>,
+                  "decorated_font_result (outline) must satisfy text::GlyphFont");
 
-    using layer_240x160 = gba::text2::bg4bpp_text_layer<240, 160>;
-    using layer_120x80 = gba::text2::bg4bpp_text_layer<120, 80>;
-    using layer_32x32 = gba::text2::bg4bpp_text_layer<32, 32>;
+    using layer_240x160 = gba::text::bg4bpp_text_layer<240, 160>;
+    using layer_120x80 = gba::text::bg4bpp_text_layer<120, 80>;
+    using layer_32x32 = gba::text::bg4bpp_text_layer<32, 32>;
     [[nodiscard]]
-    layer_240x160 make_layer_240x160(const gba::text2::bitplane_config& cfg) noexcept {
+    layer_240x160 make_layer_240x160(const gba::text::bitplane_config& cfg) noexcept {
         static layer_240x160::cell_state_map state{};
         return layer_240x160{31, cfg, {.next_tile = 1, .end_tile = 512}, state};
     }
     [[nodiscard]]
-    layer_120x80 make_layer_120x80(const gba::text2::bitplane_config& cfg) noexcept {
+    layer_120x80 make_layer_120x80(const gba::text::bitplane_config& cfg) noexcept {
         static layer_120x80::cell_state_map state{};
         return layer_120x80{31, cfg, {.next_tile = 1, .end_tile = 512}, state};
     }
     [[nodiscard]]
-    layer_32x32 make_layer_32x32(const gba::text2::bitplane_config& cfg,
-                                 gba::text2::linear_tile_allocator alloc = {.next_tile = 1, .end_tile = 512}) noexcept {
+    layer_32x32 make_layer_32x32(const gba::text::bitplane_config& cfg,
+                                 gba::text::linear_tile_allocator alloc = {.next_tile = 1, .end_tile = 512}) noexcept {
         static layer_32x32::cell_state_map state{};
         return layer_32x32{31, cfg, alloc, state};
     }
@@ -132,8 +132,8 @@ ENDFONT
 int main() {
     // Test: Layer instantiation
     {
-        auto config = gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::two_plane_three_color,
+        auto config = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
             .palbank_0 = 1,
             .palbank_1 = 2,
             .start_index = 1,
@@ -146,7 +146,7 @@ int main() {
 
     // Test: Palette setting
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         gba::test.eq(layer.palette(), 5u);
@@ -154,7 +154,7 @@ int main() {
 
     // Test: Palette bounds (invalid palette should clamp)
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         layer.set_palette(20);
@@ -163,7 +163,7 @@ int main() {
 
     // Test: Reset clears state
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         layer.set_palette(7);
         layer.reset();
@@ -174,8 +174,8 @@ int main() {
 
     // Test: Clear/reset reinitialize blank tile 0 and screenblock entries
     {
-        constexpr auto config = gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::two_plane_three_color,
+        constexpr auto config = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
             .palbank_0 = 1,
             .palbank_1 = 2,
             .start_index = 1,
@@ -222,24 +222,24 @@ int main() {
 
     // Test: Max tile count calculation (240x160 = 30×20 tiles)
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         gba::test.eq(layer.max_tile_count(), 600u);
     }
 
     // Test: Different layer dimensions
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_120x80(config);
         gba::test.eq(layer.max_tile_count(), 150u);
     }
 
     // Test: Cstr stream tokenization
     {
-        gba::text2::cstr_stream stream("Hello");
+        gba::text::cstr_stream stream("Hello");
         auto token = stream.next();
         gba::test.is_true(token.has_value());
-        auto* char_ptr = std::get_if<gba::text2::char_token>(&*token);
+        auto* char_ptr = std::get_if<gba::text::char_token>(&*token);
         gba::test.is_true(char_ptr != nullptr);
         if (char_ptr) {
             gba::test.eq(char_ptr->codepoint, static_cast<unsigned int>('H'));
@@ -249,10 +249,10 @@ int main() {
     // Test: Color escape tokenization
     {
         const char with_escape[] = "\x1B""5Test";
-        gba::text2::cstr_stream stream(with_escape);
+        gba::text::cstr_stream stream(with_escape);
         auto token = stream.next();
         gba::test.is_true(token.has_value());
-        auto* color_ptr = std::get_if<gba::text2::color_token>(&*token);
+        auto* color_ptr = std::get_if<gba::text::color_token>(&*token);
         gba::test.is_true(color_ptr != nullptr);
         if (color_ptr) {
             gba::test.eq(color_ptr->palette_index, 5u);
@@ -260,7 +260,7 @@ int main() {
 
         auto next_token = stream.next();
         gba::test.is_true(next_token.has_value());
-        auto* char_ptr = std::get_if<gba::text2::char_token>(&*next_token);
+        auto* char_ptr = std::get_if<gba::text::char_token>(&*next_token);
         gba::test.is_true(char_ptr != nullptr);
         if (char_ptr) {
             gba::test.eq(char_ptr->codepoint, static_cast<unsigned int>('T'));
@@ -269,7 +269,7 @@ int main() {
 
     // Test: Text2 format with palette specifier
     {
-        auto fmt = gba::text2::text2_format<"Pal: {p:pal}">{};
+        auto fmt = gba::text::text_format<"Pal: {p:pal}">{};
         char buf[16]{};
         fmt.to(buf, "p"_arg = 3);
         gba::test.eq(buf[0], 'P');
@@ -283,17 +283,17 @@ int main() {
 
     // Test: Bitplane profile helpers
     {
-        constexpr auto prof = gba::text2::bitplane_profile::two_plane_three_color;
-        constexpr auto planes = gba::text2::profile_plane_count(prof);
-        constexpr auto roles = gba::text2::profile_role_count(prof);
+        constexpr auto prof = gba::text::bitplane_profile::two_plane_three_color;
+        constexpr auto planes = gba::text::profile_plane_count(prof);
+        constexpr auto roles = gba::text::profile_role_count(prof);
         gba::test.eq(planes, 2u);
         gba::test.eq(roles, 3u);
     }
 
     // Test: Config helpers
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::three_plane_binary,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::three_plane_binary,
         };
         gba::test.eq(cfg.plane_count(), 3u);
         gba::test.eq(cfg.role_count(), 2u);
@@ -301,7 +301,7 @@ int main() {
 
     // Test: Tile index calculation
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         auto idx = layer.tile_index_from_row_col(0, 0);
         gba::test.eq(idx, 0u);
@@ -313,7 +313,7 @@ int main() {
 
     // Test: Multiple tiles on same row
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         auto idx1 = layer.tile_index_from_row_col(2, 5);
         auto idx2 = layer.tile_index_from_row_col(2, 6);
@@ -322,7 +322,7 @@ int main() {
 
     // Test: Current tile count tracking
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         gba::test.eq(layer.current_tile_count(), 0u);
         gba::test.eq(layer.max_tile_count(), 600u); // 30 × 20 tiles
@@ -330,7 +330,7 @@ int main() {
 
     // Test: Reset clears tile count
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         layer.reset();
         gba::test.eq(layer.current_tile_count(), 0u);
@@ -340,7 +340,7 @@ int main() {
 
     // Test: Color escape with palette clamp
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         gba::test.eq(layer.palette(), 5u);
@@ -351,14 +351,14 @@ int main() {
     // Test: Cursor next_visible skips whitespace and wraps at word boundaries
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .letter_spacing_px = 1,
             .line_spacing_px = 2,
             .tab_width_px = 16,
             .wrap_width_px = 20,
         };
-        auto stream = gba::text2::cstr_stream("AA AA");
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::cstr_stream("AA AA");
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         while (cursor.next_visible()) {}
@@ -377,9 +377,9 @@ int main() {
     // Test: Cursor next_visible applies full-color escape without consuming a visible step
     {
         mock_layer layer{.full_color = true};
-        gba::text2::stream_metrics metrics{};
-        auto stream = gba::text2::cstr_stream("\x1B" "5A");
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        gba::text::stream_metrics metrics{};
+        auto stream = gba::text::cstr_stream("\x1B" "5A");
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         gba::test.is_true(cursor.next_visible());
@@ -391,19 +391,19 @@ int main() {
 
     // Test: Layer make_cursor is available and can draw incrementally
     {
-        auto config = gba::text2::bitplane_config{};
+        auto config = gba::text::bitplane_config{};
         auto layer = make_layer_32x32(config);
-        auto cursor = layer.make_cursor(cursor_font, gba::text2::cstr_stream("A"), 0, 0);
+        auto cursor = layer.make_cursor(cursor_font, gba::text::cstr_stream("A"), 0, 0);
         gba::test.is_true(cursor.next_visible());
         gba::test.eq(cursor.emitted(), 1u);
     }
 
-    // Test: Cursor works with direct text2_format stream helper
+    // Test: Cursor works with direct text_format stream helper
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{};
-        auto stream = gba::text2::stream(gba::text2::text2_format<"ABC">{});
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        gba::text::stream_metrics metrics{};
+        auto stream = gba::text::stream(gba::text::text_format<"ABC">{});
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         while (cursor.next_visible()) {}
@@ -416,13 +416,13 @@ int main() {
     // Test: Cursor wrap lookahead follows escaped-brace literal runs as one word
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .letter_spacing_px = 1,
             .line_spacing_px = 2,
             .wrap_width_px = 40,
         };
-        auto stream = gba::text2::stream(gba::text2::text2_format<"AA A{{B}}C">{});
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gba::text::text_format<"AA A{{B}}C">{});
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         while (cursor.next_visible()) {}
@@ -447,11 +447,11 @@ int main() {
     // Test: Cursor works with generator-backed stream helper on mixed literal/runtime format
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{};
-        auto fmt = gba::text2::text2_format<"A{value}B">{};
+        gba::text::stream_metrics metrics{};
+        auto fmt = gba::text::text_format<"A{value}B">{};
         auto gen = fmt.generator("value"_arg = 7);
-        auto stream = gba::text2::stream(gen, cursor_font, metrics);
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gen, cursor_font, metrics);
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         while (cursor.next_visible()) {}
@@ -464,15 +464,15 @@ int main() {
     // Test: Cursor wrap lookahead stitches literal and runtime segments into one word
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .letter_spacing_px = 1,
             .line_spacing_px = 2,
             .wrap_width_px = 40,
         };
-        auto fmt = gba::text2::text2_format<"AA A{value}B">{};
+        auto fmt = gba::text::text_format<"AA A{value}B">{};
         auto gen = fmt.generator("value"_arg = 7);
-        auto stream = gba::text2::stream(gen, cursor_font, metrics);
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gen, cursor_font, metrics);
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         while (cursor.next_visible()) {}
@@ -493,12 +493,12 @@ int main() {
     // Test: next_visible drains literal whitespace/control chars before first visible glyph
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .line_spacing_px = 2,
             .tab_width_px = 16,
         };
-        auto stream = gba::text2::stream(gba::text2::text2_format<" \n\tA">{});
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gba::text::text_format<" \n\tA">{});
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         gba::test.is_true(cursor.next_visible());
@@ -513,14 +513,14 @@ int main() {
     // Test: next_visible drains literal prefix before runtime visible glyph in mixed stream
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .line_spacing_px = 2,
             .tab_width_px = 16,
         };
-        auto fmt = gba::text2::text2_format<" \n\t{value}B">{};
+        auto fmt = gba::text::text_format<" \n\t{value}B">{};
         auto gen = fmt.generator("value"_arg = 7);
-        auto stream = gba::text2::stream(gen, cursor_font, metrics);
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gen, cursor_font, metrics);
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         gba::test.is_true(cursor.next_visible());
@@ -537,12 +537,12 @@ int main() {
     // Test: next_visible on literal whitespace-only stream produces no visible draw and finishes
     {
         mock_layer layer{};
-        gba::text2::stream_metrics metrics{
+        gba::text::stream_metrics metrics{
             .line_spacing_px = 2,
             .tab_width_px = 16,
         };
-        auto stream = gba::text2::stream(gba::text2::text2_format<" \t\r\n">{});
-        gba::text2::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
+        auto stream = gba::text::stream(gba::text::text_format<" \t\r\n">{});
+        gba::text::draw_cursor<mock_layer, decltype(cursor_font), decltype(stream)> cursor{
             layer, cursor_font, stream, 0, 0, metrics};
 
         gba::test.is_true(!cursor.next_visible());
@@ -583,11 +583,11 @@ int main() {
 
     // Test: Horizontal span - glyph at pen_x=5 crosses tile column boundary (cols 0 and 1)
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::one_plane_full_color,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         layer.draw_char(cursor_font, static_cast<unsigned int>('A'),
@@ -611,11 +611,11 @@ int main() {
 
     // Test: Vertical span - glyph at baseline_y=11 crosses tile row boundary (rows 0 and 1)
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::one_plane_full_color,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         // glyph_y = baseline_y - height - y_offset = 11 - 7 - 0 = 4
@@ -643,11 +643,11 @@ int main() {
 
     // Test: 2D span - glyph at pen_x=5, baseline_y=11 crosses both tile column and row boundaries
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::one_plane_full_color,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         // glyph_x=5, glyph_y=4 -> spans cells (tx=0,ty=0),(tx=1,ty=0),(tx=0,ty=1),(tx=1,ty=1)
@@ -681,11 +681,11 @@ int main() {
 
     // Test: draw_stream across tile column boundary (two glyphs in adjacent tile columns)
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::one_plane_full_color,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         // 'A' at pen_x=0 (glyph_x=0, pixels abs_x=0..4, all in tx=0)
@@ -704,13 +704,13 @@ int main() {
 
     // Test: draw_char with shadow font writes both foreground and shadow nibbles into VRAM
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::two_plane_three_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::two_plane_three_color,
             .palbank_0   = 1,
             .palbank_1   = 2,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         layer.draw_char(cursor_font_shadowed, static_cast<unsigned int>('A'),
@@ -745,11 +745,11 @@ int main() {
 
     // Test: decoration view bounds offsets are respected during decoration draw
     {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
+        constexpr auto cfg = gba::text::bitplane_config{
+            .profile     = gba::text::bitplane_profile::one_plane_full_color,
             .start_index = 1,
         };
-        constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
+        constexpr gba::text::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
         auto layer = make_layer_32x32(cfg, alloc);
 
         const auto& g = cursor_font_shadowed.glyph_or_default('A');
@@ -802,7 +802,7 @@ int main() {
 
     // Test: apply_row fast paths match per-pixel reference updates
     {
-        const auto verify_profile = [](const gba::text2::bitplane_config& cfg,
+        const auto verify_profile = [](const gba::text::bitplane_config& cfg,
                                        unsigned int plane_limit,
                                        unsigned int role_limit) {
             constexpr std::array<unsigned char, 8> patterns{
@@ -813,8 +813,8 @@ int main() {
                 for (unsigned int role = 0; role < role_limit; ++role) {
                     for (auto tile_lx : offsets) {
                         for (auto bits : patterns) {
-                            gba::text2::tile_plane_cache ref;
-                            gba::text2::tile_plane_cache fast;
+                            gba::text::tile_plane_cache ref;
+                            gba::text::tile_plane_cache fast;
                             ref.init_to_background(100, cfg);
                             fast.init_to_background(100, cfg);
 
@@ -836,22 +836,22 @@ int main() {
             }
         };
 
-        verify_profile(gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::two_plane_binary,
+        verify_profile(gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_binary,
             .palbank_0 = 1,
             .palbank_1 = 2,
             .start_index = 1,
         }, 2u, 2u);
 
-        verify_profile(gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::two_plane_three_color,
+        verify_profile(gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::two_plane_three_color,
             .palbank_0 = 1,
             .palbank_1 = 2,
             .start_index = 1,
         }, 2u, 3u);
 
-        verify_profile(gba::text2::bitplane_config{
-            .profile = gba::text2::bitplane_profile::three_plane_binary,
+        verify_profile(gba::text::bitplane_config{
+            .profile = gba::text::bitplane_profile::three_plane_binary,
             .palbank_0 = 1,
             .palbank_1 = 2,
             .palbank_2 = 3,

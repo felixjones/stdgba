@@ -1,5 +1,6 @@
 /// @file demo_embed_fonts.cpp
-/// @brief Embedded BDF font demo using multiple compile-time fonts.
+/// @brief Embedded BDF font demo.
+/// Demonstrates plain and shadow-decorated fonts in multi-plane profiles.
 
 #include <gba/bios>
 #include <gba/embed>
@@ -41,43 +42,43 @@ int main() {
         .start_index = 1,
     };
 
-    gba::text::set_theme(config, {
-                                     .background = "#1A2238"_clr,
-                                     .foreground = "#F6F7FB"_clr,
-                                     .shadow = "#0A1020"_clr,
-                                 });
-    gba::pal_bg_mem[0] = "#1A2238"_clr;
+    constexpr auto theme = gba::text::bitplane_theme{
+        .background = "#1A2238"_clr,
+        .foreground = "#F6F7FB"_clr,
+        .shadow = "#0A1020"_clr,
+    };
+
+    gba::text::set_theme(config, theme);
+    gba::pal_bg_mem[0] = theme.background;
 
     gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-    gba::text::bg4_text_layer layer{31, config, alloc};
+    using layer_type = gba::text::bg4bpp_text_layer<240, 160>;
+    static layer_type::cell_state_map cell_state{};
+    layer_type layer{31, config, alloc, cell_state};
 
-    gba::text::draw_metrics draw_title{
+    // Stream metrics for layout
+    gba::text::stream_metrics title_metrics{
         .letter_spacing_px = 0,
         .line_spacing_px = 0,
+        .tab_width_px = 32,
         .wrap_width_px = 224,
-        .break_chars = gba::text::break_policy::whitespace,
     };
-    gba::text::draw_metrics draw_body{
+    gba::text::stream_metrics body_metrics{
         .letter_spacing_px = 1,
         .line_spacing_px = 1,
+        .tab_width_px = 32,
         .wrap_width_px = 224,
-        .break_chars = gba::text::break_policy::whitespace,
     };
 
-    gba::text::stream_metrics stream_title{.letter_spacing_px = 0};
-    gba::text::stream_metrics stream_body{.letter_spacing_px = 1};
+    layer.draw_stream(font_haxor, "Embedded BDF fonts", 4, 8, title_metrics);
 
-    auto line_1 = gba::text::stream("Embedded BDF fonts", font_haxor, stream_title);
-    layer.draw_stream(font_haxor, line_1, 4, 8, draw_title);
+    layer.draw_stream(font_haxor, "HaxorMedium-12: ABC abc 0123", 4, 34, body_metrics);
 
-    auto line_2 = gba::text::stream("HaxorMedium-12: ABC abc 0123", font_haxor, stream_body);
-    layer.draw_stream(font_haxor, line_2, 4, 34, draw_body);
+    layer.draw_stream(font_ui, "6x13B: GBA text layer sample", 4, 64, body_metrics);
 
-    auto line_3 = gba::text::stream("6x13B: GBA text layer sample", font_ui, stream_body);
-    layer.draw_stream(font_ui, line_3, 4, 64, draw_body);
+    layer.draw_stream(font_ui, "glyph_or_default + BitUnPack-ready rows", 4, 84, body_metrics);
 
-    auto line_4 = gba::text::stream("glyph_or_default + BitUnPack-ready rows", font_ui, stream_body);
-    layer.draw_stream(font_ui, line_4, 4, 84, draw_body);
+    layer.flush_cache();
 
     while (true) {
         gba::VBlankIntrWait();
