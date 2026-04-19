@@ -120,6 +120,24 @@ namespace gba::text2 {
             return static_cast<std::uint32_t>(nibble) << (static_cast<unsigned>(lx) * 4u);
         }
 
+        template<std::size_t PlaneCount, std::size_t RoleCount>
+        static bool apply_row_with_transition_lut(tile4bpp& words, int ly, std::uint8_t bitmap_byte,
+                                                  int tile_lx, std::uint8_t plane_idx,
+                                                  std::uint8_t effective_role,
+                                                  const std::array<std::array<std::array<std::uint8_t, RoleCount>, PlaneCount>, 16>& lut) noexcept {
+            if (plane_idx >= PlaneCount || effective_role >= RoleCount) return false;
+            auto& row = words[static_cast<unsigned>(ly)];
+            for (int b = 0; b < 8 && (tile_lx + b) < 8; ++b) {
+                if (((bitmap_byte >> b) & 1u) == 0u) continue;
+                const auto lx = tile_lx + b;
+                const auto shift = static_cast<unsigned>(lx) * 4u;
+                const auto old_nibble = static_cast<std::uint8_t>((row >> shift) & 0xFu);
+                const auto new_nibble = lut[old_nibble][plane_idx][effective_role];
+                row = (row & ~nibble_mask(lx)) | nibble_value(lx, new_nibble);
+            }
+            return true;
+        }
+
         void init_to_background(std::uint16_t tile_idx, const bitplane_config& cfg) noexcept {
             const auto bg_nibble = cfg.background_nibble();
             const auto bg_row = static_cast<std::uint32_t>(0x11111111u) * bg_nibble;
@@ -205,43 +223,22 @@ namespace gba::text2 {
             }
             if (cfg.start_index == 1u && plane_idx < 2u &&
                 cfg.profile == bitplane_profile::two_plane_binary && effective_role < 2u) {
-                auto& row = words[static_cast<unsigned>(ly)];
-                for (int b = 0; b < 8 && (tile_lx + b) < 8; ++b) {
-                    if (((bitmap_byte >> b) & 1u) == 0u) continue;
-                    const auto lx = tile_lx + b;
-                    const auto shift = static_cast<unsigned>(lx) * 4u;
-                    const auto old_nibble = static_cast<std::uint8_t>((row >> shift) & 0xFu);
-                    const auto new_nibble = two_plane_binary_transition_lut[old_nibble][plane_idx][effective_role];
-                    row = (row & ~nibble_mask(lx)) | nibble_value(lx, new_nibble);
-                }
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
+                                              effective_role, two_plane_binary_transition_lut);
                 dirty = true;
                 return;
             }
             if (cfg.start_index == 1u && plane_idx < 2u &&
                 cfg.profile == bitplane_profile::two_plane_three_color && effective_role < 3u) {
-                auto& row = words[static_cast<unsigned>(ly)];
-                for (int b = 0; b < 8 && (tile_lx + b) < 8; ++b) {
-                    if (((bitmap_byte >> b) & 1u) == 0u) continue;
-                    const auto lx = tile_lx + b;
-                    const auto shift = static_cast<unsigned>(lx) * 4u;
-                    const auto old_nibble = static_cast<std::uint8_t>((row >> shift) & 0xFu);
-                    const auto new_nibble = two_plane_three_color_transition_lut[old_nibble][plane_idx][effective_role];
-                    row = (row & ~nibble_mask(lx)) | nibble_value(lx, new_nibble);
-                }
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
+                                              effective_role, two_plane_three_color_transition_lut);
                 dirty = true;
                 return;
             }
             if (cfg.start_index == 1u && plane_idx < 3u &&
                 cfg.profile == bitplane_profile::three_plane_binary && effective_role < 2u) {
-                auto& row = words[static_cast<unsigned>(ly)];
-                for (int b = 0; b < 8 && (tile_lx + b) < 8; ++b) {
-                    if (((bitmap_byte >> b) & 1u) == 0u) continue;
-                    const auto lx = tile_lx + b;
-                    const auto shift = static_cast<unsigned>(lx) * 4u;
-                    const auto old_nibble = static_cast<std::uint8_t>((row >> shift) & 0xFu);
-                    const auto new_nibble = three_plane_binary_transition_lut[old_nibble][plane_idx][effective_role];
-                    row = (row & ~nibble_mask(lx)) | nibble_value(lx, new_nibble);
-                }
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
+                                              effective_role, three_plane_binary_transition_lut);
                 dirty = true;
                 return;
             }
@@ -253,105 +250,6 @@ namespace gba::text2 {
         }
     };
 
-    /// @brief Optimized IWRAM-resident tile cache using per-plane bitmaps with sparse encoding.
-    ///
-    /// Key optimizations over v1:
-    /// 1. Per-pixel writes use single OR (no update_role() calls)
-    /// 2. Flush only encodes pixels that actually changed (via plane_pixels membership)
-    /// 3. For one_plane_full_color: encodes nibble directly without plane mixing
-    ///
-    /// This minimizes both per-pixel work and flush-time work.
-    struct tile_plane_cache_v2 {
-        /// Per-plane pixel bitmaps: 3 planes, 8 rows each, 1 byte = 8 pixels per row.
-        std::uint8_t plane_pixels[3u][8u]{};
-        tile4bpp words{};
-        bool dirty = false;
-        std::uint16_t vram_tile = no_tile;
-
-        void init_to_background(std::uint16_t tile_idx, const bitplane_config& cfg) noexcept {
-            const auto bg_nibble = cfg.background_nibble();
-            const auto bg_row = static_cast<std::uint32_t>(0x11111111u) * bg_nibble;
-            for (auto& row : words) row = bg_row;
-            for (unsigned p = 0; p < 3u; ++p) {
-                for (unsigned r = 0; r < 8u; ++r) {
-                    plane_pixels[p][r] = 0;
-                }
-            }
-            vram_tile = tile_idx;
-            dirty = false;
-        }
-
-        void load_from_vram(std::uint16_t tile_idx) noexcept {
-            auto* tiles = memory_map(gba::registral_cast<tile4bpp[2048]>(mem_tile_4bpp));
-            words = tiles[tile_idx];
-            for (unsigned p = 0; p < 3u; ++p) {
-                for (unsigned r = 0; r < 8u; ++r) {
-                    plane_pixels[p][r] = 0;
-                }
-            }
-            vram_tile = tile_idx;
-            dirty = false;
-        }
-
-        /// @brief Encode only changed pixels, sparsely scanning plane_pixels.
-        void flush() noexcept {
-            if (!dirty || vram_tile == no_tile) return;
-
-            /// Iterate only over rows/cols that contain at least one plane bit set.
-            /// This is much faster than encoding all 64 pixels unconditionally.
-            for (unsigned row = 0; row < 8u; ++row) {
-                std::uint32_t nibble_row = words[row];
-                for (unsigned p = 0; p < 3u; ++p) {
-                    std::uint8_t plane_row = plane_pixels[p][row];
-                    if (!plane_row) continue;  // Skip rows with no pixels set
-
-                    for (unsigned col = 0; col < 8u; ++col) {
-                        if (!((plane_row >> col) & 1u)) continue;  // Skip columns without this plane
-
-                        const auto shift = col * 4u;
-                        const auto old_nibble = (nibble_row >> shift) & 0xFu;
-                        const auto new_nibble = old_nibble | (1u << p);  // Set plane bit
-                        nibble_row = (nibble_row & ~(0xFu << shift)) | (new_nibble << shift);
-                    }
-                }
-                words[row] = nibble_row;
-            }
-
-            auto* tiles = memory_map(gba::registral_cast<tile4bpp[2048]>(mem_tile_4bpp));
-            tiles[vram_tile] = words;
-            dirty = false;
-        }
-
-        void invalidate() noexcept {
-            flush();
-            vram_tile = no_tile;
-            dirty = false;
-        }
-
-        /// @brief Update one pixel bitmap for the given plane (single CPU cycle).
-        void set_pixel(int lx, int ly, std::uint8_t plane_idx, std::uint8_t /* role */,
-                       const bitplane_config& /* cfg */) noexcept {
-            if (lx < 0 || ly < 0 || lx >= 8 || ly >= 8) return;
-            if (plane_idx >= 3u) return;
-            plane_pixels[plane_idx][static_cast<unsigned>(ly)] |=
-                (1u << static_cast<unsigned>(lx));
-            dirty = true;
-        }
-
-        /// @brief Apply one 1bpp row byte across 8 pixels starting at tile_lx (fast path).
-        void apply_row(int ly, std::uint8_t bitmap_byte, int tile_lx,
-                       std::uint8_t plane_idx, std::uint8_t /* fg_role */,
-                       const bitplane_config& /* cfg */) noexcept {
-            if (ly < 0 || ly >= 8) return;
-            if (plane_idx >= 3u) return;
-            if (tile_lx < 0 || tile_lx >= 8) return;
-
-            /// Shift bitmap left by tile_lx and OR into plane row.
-            plane_pixels[plane_idx][static_cast<unsigned>(ly)] |=
-                (bitmap_byte << static_cast<unsigned>(tile_lx));
-            dirty = true;
-        }
-    };
 
 
 } // namespace gba::text2

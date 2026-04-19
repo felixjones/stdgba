@@ -65,21 +65,29 @@ namespace gba::text2 {
     private:
         Source source;
         std::optional<char> next_char;
-        bool in_escape = false;
+
+        [[nodiscard]]
+        constexpr bool source_in_literal_run() const noexcept {
+            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+                return source.in_literal_run();
+            }
+            return false;
+        }
 
     public:
         using source_type = Source;
 
         constexpr tokenizer(Source s) : source(s), next_char(source.next()) {}
 
+        [[nodiscard]]
         constexpr bool has_next() const noexcept {
             return next_char.has_value();
         }
 
         [[nodiscard]]
         constexpr bool in_literal_run() const noexcept {
-            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
-                return !Source::reveal_runs_type::literal_has_escape_prefix && source.in_literal_run();
+            if constexpr (requires { typename Source::reveal_runs_type; }) {
+                return !Source::reveal_runs_type::literal_has_escape_prefix && source_in_literal_run();
             }
             return false;
         }
@@ -117,28 +125,18 @@ namespace gba::text2 {
         constexpr std::optional<std::variant<char_token, color_token>> next() noexcept {
             if (!next_char.has_value()) return std::nullopt;
 
-            bool current_literal = false;
-            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
-                current_literal = source.in_literal_run();
-            }
+            const bool current_literal = source_in_literal_run();
 
             const char c = *next_char;
             next_char = source.next();
 
-            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+            if constexpr (requires { typename Source::reveal_runs_type; }) {
                 if (!Source::reveal_runs_type::literal_has_escape_prefix && current_literal) {
                     return char_token{static_cast<unsigned int>(static_cast<unsigned char>(c))};
                 }
             }
 
-            if (in_escape) {
-                in_escape = false;
-                const auto nibble = decode_color_escape_nibble(c);
-                return color_token{nibble};
-            }
-
             if (is_color_escape_prefix(c)) {
-                in_escape = false;
                 if (!next_char.has_value()) {
                     return std::nullopt;
                 }
@@ -154,16 +152,16 @@ namespace gba::text2 {
         constexpr void reset() noexcept {
             source.reset();
             next_char = source.next();
-            in_escape = false;
         }
     };
 
     struct cstr_source {
     private:
+        const char* begin = nullptr;
         const char* ptr = nullptr;
 
     public:
-        constexpr cstr_source(const char* str) : ptr(str) {}
+        constexpr cstr_source(const char* str) : begin(str), ptr(str) {}
 
         [[nodiscard]]
         constexpr std::optional<char> next() noexcept {
@@ -172,10 +170,7 @@ namespace gba::text2 {
         }
 
         constexpr void reset() noexcept {
-            if (ptr != nullptr) {
-                while (*ptr != '\0') ++ptr;
-                ptr = nullptr;
-            }
+            ptr = begin;
         }
     };
 

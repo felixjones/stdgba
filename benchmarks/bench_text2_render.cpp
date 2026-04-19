@@ -256,6 +256,7 @@ volatile const void* sink_ptr = nullptr;
 
 namespace {
     using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
+    using layer_cell_state_type = layer_type::cell_state_map;
 
     constexpr int iters = 64;
 
@@ -309,9 +310,16 @@ namespace {
     // Keep old alias for the existing one_plane_full_color benchmarks.
     constexpr auto& config = config_1p_full;
 
+    layer_cell_state_type g_layer_cell_state{};
+
+    [[nodiscard]]
+    layer_type make_layer_for(const gba::text2::bitplane_config& cfg) noexcept {
+        return layer_type{31, cfg, {.next_tile = 1, .end_tile = 512}, g_layer_cell_state};
+    }
+
     [[nodiscard]]
     layer_type make_layer() noexcept {
-        return layer_type{config};
+        return make_layer_for(config);
     }
 
     void clear_tiles() noexcept {
@@ -539,7 +547,7 @@ namespace {
     [[gnu::noinline]]
     void draw_single_char_2p3c() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_2p3c};
+        auto layer = make_layer_for(config_2p3c);
         layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
         layer.flush_cache();
         sink_u32 = layer.cursor_column();
@@ -548,7 +556,7 @@ namespace {
     [[gnu::noinline]]
     void draw_full_screen_fill_2p3c() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_2p3c};
+        auto layer = make_layer_for(config_2p3c);
         for (int row = 0; row < 20; ++row) {
             const int y = row * static_cast<int>(font.line_height());
             for (int col = 0; col < 30; ++col) {
@@ -564,7 +572,7 @@ namespace {
     [[gnu::noinline]]
     void draw_single_char_2pbin() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_2pbin};
+        auto layer = make_layer_for(config_2pbin);
         layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
         layer.flush_cache();
         sink_u32 = layer.cursor_column();
@@ -573,7 +581,7 @@ namespace {
     [[gnu::noinline]]
     void draw_full_screen_fill_2pbin() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_2pbin};
+        auto layer = make_layer_for(config_2pbin);
         for (int row = 0; row < 20; ++row) {
             const int y = row * static_cast<int>(font.line_height());
             for (int col = 0; col < 30; ++col) {
@@ -589,7 +597,7 @@ namespace {
     [[gnu::noinline]]
     void draw_single_char_3pbin() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_3pbin};
+        auto layer = make_layer_for(config_3pbin);
         layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
         layer.flush_cache();
         sink_u32 = layer.cursor_column();
@@ -598,7 +606,7 @@ namespace {
     [[gnu::noinline]]
     void draw_full_screen_fill_3pbin() noexcept {
         clear_tiles();
-        auto layer = layer_type{config_3pbin};
+        auto layer = make_layer_for(config_3pbin);
         for (int row = 0; row < 20; ++row) {
             const int y = row * static_cast<int>(font.line_height());
             for (int col = 0; col < 30; ++col) {

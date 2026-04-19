@@ -27,6 +27,44 @@
 
 namespace gba::text2 {
 
+    template<std::size_t CellCount>
+    struct packed_cell_state_map {
+        static constexpr std::uint16_t empty_state = 0x0FFFu;
+        static constexpr std::size_t storage_size = (CellCount * 12u + 7u) / 8u;
+
+        std::array<std::uint8_t, storage_size> bytes{};
+
+        [[nodiscard]]
+        std::uint16_t get(std::size_t index) const noexcept {
+            const auto bit_offset = index * 12u;
+            const auto byte_index = bit_offset >> 3u;
+            const auto shift = static_cast<unsigned>(bit_offset & 7u);
+            std::uint32_t chunk = static_cast<std::uint32_t>(bytes[byte_index]);
+            if (byte_index + 1u < storage_size) chunk |= static_cast<std::uint32_t>(bytes[byte_index + 1u]) << 8u;
+            if (byte_index + 2u < storage_size) chunk |= static_cast<std::uint32_t>(bytes[byte_index + 2u]) << 16u;
+            return static_cast<std::uint16_t>((chunk >> shift) & 0x0FFFu);
+        }
+
+        void set(std::size_t index, std::uint16_t value) noexcept {
+            const auto bit_offset = index * 12u;
+            const auto byte_index = bit_offset >> 3u;
+            const auto shift = static_cast<unsigned>(bit_offset & 7u);
+            const auto masked = static_cast<std::uint32_t>(value & 0x0FFFu);
+            std::uint32_t chunk = static_cast<std::uint32_t>(bytes[byte_index]);
+            if (byte_index + 1u < storage_size) chunk |= static_cast<std::uint32_t>(bytes[byte_index + 1u]) << 8u;
+            if (byte_index + 2u < storage_size) chunk |= static_cast<std::uint32_t>(bytes[byte_index + 2u]) << 16u;
+            const auto clear_mask = ~(0x0FFFu << shift);
+            chunk = (chunk & clear_mask) | (masked << shift);
+            bytes[byte_index] = static_cast<std::uint8_t>(chunk & 0xFFu);
+            if (byte_index + 1u < storage_size) bytes[byte_index + 1u] = static_cast<std::uint8_t>((chunk >> 8u) & 0xFFu);
+            if (byte_index + 2u < storage_size) bytes[byte_index + 2u] = static_cast<std::uint8_t>((chunk >> 16u) & 0xFFu);
+        }
+
+        void clear() noexcept {
+            std::memset(bytes.data(), 0xFF, bytes.size());
+        }
+    };
+
     template<typename Layer, typename Font, typename Stream>
     class draw_cursor {
     public:
@@ -57,10 +95,10 @@ namespace gba::text2 {
         template<typename T>
             requires requires { typename T::source_type::reveal_runs_type; }
         struct stream_reveal_runs<T> {
-            using type = typename T::source_type::reveal_runs_type;
+            using type = T::source_type::reveal_runs_type;
         };
 
-        using reveal_runs_type = typename stream_reveal_runs<Stream>::type;
+        using reveal_runs_type = stream_reveal_runs<Stream>::type;
 
         static constexpr bool has_compiled_reveal_runs = has_stream_reveal_runs<Stream>::value;
 
@@ -161,34 +199,20 @@ namespace gba::text2 {
             return m_ascii_advances[encoding];
         }
 
-        void ensure_literal_prefix_advances_ready() const noexcept {
-            if constexpr (has_compiled_reveal_runs) {
-                if (!m_literal_prefix_advances_ready) {
-                    for (std::size_t i = 0; i < reveal_runs_type::run_count; ++i) {
-                        const auto& run = reveal_runs_type::runs[i];
-                        if (run.kind != glyph_run_kind::literal) continue;
-                        const auto prefix_start = static_cast<std::size_t>(run.literal_prefix_start);
-                        m_literal_prefix_advances[prefix_start] = 0;
-                        for (std::size_t j = 0; j < run.lit_length; ++j) {
-                            const char ch = reveal_runs_type::ast.format_str.data[run.lit_start + j];
-                            m_literal_prefix_advances[prefix_start + j + 1] = static_cast<unsigned short>(
-                                m_literal_prefix_advances[prefix_start + j] + glyph_advance(ch));
-                        }
-                    }
-                    m_literal_prefix_advances_ready = true;
-                }
-            }
+        [[nodiscard]]
+        int line_advance_px() const noexcept {
+            return static_cast<int>(m_font->line_height() + m_metrics.line_spacing_px);
         }
 
         [[nodiscard]]
         int literal_span_width_px(const glyph_run& run, std::uint16_t local_offset,
                                   std::uint16_t span_len, bool saw_glyph) const noexcept {
             if (span_len == 0) return 0;
-            ensure_literal_prefix_advances_ready();
-            const auto prefix_start = static_cast<std::size_t>(run.literal_prefix_start);
-            const auto begin = prefix_start + local_offset;
-            const auto end = begin + span_len;
-            int width = static_cast<int>(m_literal_prefix_advances[end] - m_literal_prefix_advances[begin]);
+            int width = 0;
+            for (std::uint16_t i = 0; i < span_len; ++i) {
+                const auto idx = static_cast<std::size_t>(run.lit_start) + local_offset + i;
+                width += glyph_advance(reveal_runs_type::ast.format_str.data[idx]);
+            }
             const int spacing_slots = static_cast<int>(span_len - 1) + (saw_glyph ? 1 : 0);
             if (spacing_slots > 0) {
                 width += spacing_slots * static_cast<int>(m_metrics.letter_spacing_px);
@@ -238,7 +262,7 @@ namespace gba::text2 {
         bool consume_char(char ch) {
             if (ch == '\n') {
                 m_cursor_x = m_start_x;
-                m_baseline_y += static_cast<int>(m_font->line_height() + m_metrics.line_spacing_px);
+                m_baseline_y += line_advance_px();
                 m_prev_break = true;
                 ++m_emitted;
                 return true;
@@ -254,7 +278,7 @@ namespace gba::text2 {
                 const auto word_width = measure_until_break_px();
                 if (m_cursor_x + word_width > m_start_x + static_cast<int>(m_metrics.wrap_width_px)) {
                     m_cursor_x = m_start_x;
-                    m_baseline_y += static_cast<int>(m_font->line_height() + m_metrics.line_spacing_px);
+                    m_baseline_y += line_advance_px();
                 }
             }
 
@@ -293,11 +317,6 @@ namespace gba::text2 {
         unsigned char m_foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground);
         mutable std::array<unsigned short, 128> m_ascii_advances{};
         mutable std::array<std::uint32_t, 4> m_ascii_advance_known{};
-        mutable std::array<unsigned short,
-                           (reveal_runs_type::literal_prefix_entry_count == 0 ? 1
-                                                                              : reveal_runs_type::literal_prefix_entry_count)>
-            m_literal_prefix_advances{};
-        mutable bool m_literal_prefix_advances_ready = false;
         std::size_t m_emitted = 0;
         bool m_done = false;
         bool m_prev_break = true;
@@ -311,32 +330,51 @@ namespace gba::text2 {
         static constexpr unsigned short tile_grid_height = (Height + 7) / 8;
         static constexpr unsigned short max_tiles        = tile_grid_width * tile_grid_height;
         static constexpr unsigned short map_dim          = 32;
-        // Compile-time toggle: set to true to benchmark v2, false for v1 (default)
-        static constexpr bool use_optimized_cache_v2 = false;
-        using cache_type = std::conditional_t<use_optimized_cache_v2, tile_plane_cache_v2, tile_plane_cache>;
+        using cell_state_map_type = packed_cell_state_map<max_tiles>;
+        static constexpr std::uint16_t unallocated_cell_state = cell_state_map_type::empty_state;
+        inline static cell_state_map_type shared_cell_state{};
 
         unsigned short m_screenblock = 31;
         bitplane_config m_config{};
         linear_tile_allocator m_allocator{};
         linear_tile_allocator m_initial_allocator{};
-        std::array<std::uint16_t, max_tiles> m_cell_state{};
+        cell_state_map_type* m_cell_state = nullptr;
         std::uint16_t m_current_vram_tile = no_tile;
         std::uint8_t  m_current_plane     = no_plane;
-        cache_type m_cache{};
+        tile_plane_cache m_cache{};
         int m_pen_x = 0;
         int m_pen_y = 0;
         unsigned char m_foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground);
 
         [[nodiscard]]
+        static constexpr std::uint16_t encode_cell_state(std::uint16_t vram_tile, std::uint8_t plane_idx) noexcept {
+            return static_cast<std::uint16_t>((vram_tile & 0x03FFu) | ((plane_idx & 0x03u) << 10u));
+        }
+
+        [[nodiscard]]
+        static constexpr std::uint16_t decode_tile(std::uint16_t state) noexcept {
+            if (state == unallocated_cell_state) return no_tile;
+            return static_cast<std::uint16_t>(state & 0x03FFu);
+        }
+
+        [[nodiscard]]
+        static constexpr std::uint8_t decode_plane(std::uint16_t state) noexcept {
+            if (state == unallocated_cell_state) return no_plane;
+            return static_cast<std::uint8_t>((state >> 10u) & 0x03u);
+        }
+
+        [[nodiscard]]
         bool prepare_cache_for_cell(unsigned int cell_idx, std::uint8_t& plane_idx) noexcept {
-            const bool is_new = (m_cell_state[cell_idx] == 0xFFFFu);
+            auto state = m_cell_state->get(cell_idx);
+            const bool is_new = (state == unallocated_cell_state);
             if (is_new) {
                 allocate_cell(cell_idx);
-                if (m_cell_state[cell_idx] == 0xFFFFu) return false;
+                state = m_cell_state->get(cell_idx);
+                if (state == unallocated_cell_state) return false;
             }
 
-            const auto vram_tile = unpack_tile(m_cell_state[cell_idx]);
-            plane_idx = unpack_plane(m_cell_state[cell_idx]);
+            const auto vram_tile = decode_tile(state);
+            plane_idx = decode_plane(state);
             if (vram_tile == no_tile || plane_idx == no_plane) return false;
 
             if (m_cache.vram_tile != vram_tile) {
@@ -398,22 +436,6 @@ namespace gba::text2 {
             }
         }
 
-        void draw_pixel(int x, int y, unsigned char role) noexcept {
-            if (x < 0 || y < 0) return;
-            const auto ux = static_cast<unsigned>(x);
-            const auto uy = static_cast<unsigned>(y);
-            const auto tx = static_cast<unsigned short>(ux >> 3u);
-            const auto ty = static_cast<unsigned short>(uy >> 3u);
-            if (tx >= tile_grid_width || ty >= tile_grid_height) return;
-
-            const auto cell_idx = static_cast<unsigned>(ty) * tile_grid_width + tx;
-            std::uint8_t plane_idx = no_plane;
-            if (!prepare_cache_for_cell(cell_idx, plane_idx)) return;
-
-            m_cache.set_pixel(static_cast<int>(ux & 7u), static_cast<int>(uy & 7u),
-                              plane_idx, role, m_config);
-        }
-
         void allocate_cell(unsigned int cell_idx) noexcept {
             const auto plane_count = profile_plane_count(m_config.profile);
             if (m_current_plane == no_plane || m_current_plane >= plane_count) {
@@ -424,7 +446,7 @@ namespace gba::text2 {
 
             const auto plane_idx = m_current_plane;
             m_current_plane = static_cast<std::uint8_t>(m_current_plane + 1);
-            m_cell_state[cell_idx] = pack_cell_state(m_current_vram_tile, plane_idx);
+            m_cell_state->set(cell_idx, encode_cell_state(m_current_vram_tile, plane_idx));
 
             const auto ty = static_cast<unsigned short>(cell_idx / tile_grid_width);
             const auto tx = static_cast<unsigned short>(cell_idx % tile_grid_width);
@@ -497,16 +519,25 @@ namespace gba::text2 {
         }
 
     public:
+        using cell_state_map = cell_state_map_type;
+
         /// @brief Construct a text layer.
         /// @param screenblock  GBA screenblock index (0-31).
         /// @param cfg          Bitplane encoding/palette config.
         /// @param allocator    Tile allocator for glyph tiles.
+        /// @param cell_state   External packed cell-state storage.
         bg4bpp_text_layer(unsigned short screenblock, const bitplane_config& cfg,
-                          linear_tile_allocator allocator = {.next_tile = 1, .end_tile = 512})
+                          linear_tile_allocator allocator,
+                          cell_state_map_type& cell_state)
             : m_screenblock(screenblock), m_config(cfg),
-              m_allocator(allocator), m_initial_allocator(allocator) {
+              m_allocator(allocator), m_initial_allocator(allocator), m_cell_state(&cell_state) {
             clear();
         }
+
+        /// @brief Construct a text layer using shared fallback cell-state storage.
+        bg4bpp_text_layer(unsigned short screenblock, const bitplane_config& cfg,
+                          linear_tile_allocator allocator = {.next_tile = 1, .end_tile = 512})
+            : bg4bpp_text_layer(screenblock, cfg, allocator, shared_cell_state) {}
 
         /// @brief Construct without screenblock (uses default 31, legacy compat).
         explicit bg4bpp_text_layer(const bitplane_config& cfg)
@@ -523,10 +554,11 @@ namespace gba::text2 {
             m_current_vram_tile = no_tile;
             m_current_plane = no_plane;
             m_cache.invalidate();
+            clear_background_tile();
             m_pen_x = 0;
             m_pen_y = 0;
             m_foreground_nibble = static_cast<unsigned char>(bitplane_role::foreground);
-            std::memset(m_cell_state.data(), 0xFF, sizeof(m_cell_state));
+            m_cell_state->clear();
             clear_screenblock();
         }
 
@@ -570,6 +602,7 @@ namespace gba::text2 {
             if (!str) return 0;
             int cursor_x = start_x;
             int baseline_y = start_y + font.ascent;
+            const int line_advance = static_cast<int>(font.line_height() + metrics.line_spacing_px);
             const auto full_color = uses_full_color();
             auto fg_nibble = static_cast<unsigned char>(bitplane_role::foreground);
             std::size_t emitted = 0;
@@ -580,7 +613,7 @@ namespace gba::text2 {
 
                 if (ch == '\n') {
                     cursor_x = start_x;
-                    baseline_y += static_cast<int>(font.line_height() + metrics.line_spacing_px);
+                    baseline_y += line_advance;
                     prev_break = true;
                     ++emitted;
                     continue;
@@ -600,7 +633,7 @@ namespace gba::text2 {
                     const auto word_px = measure_word_px(font, str - 1, metrics);
                     if (cursor_x + word_px > start_x + static_cast<int>(metrics.wrap_width_px)) {
                         cursor_x = start_x;
-                        baseline_y += static_cast<int>(font.line_height() + metrics.line_spacing_px);
+                        baseline_y += line_advance;
                     }
                 }
 
@@ -670,6 +703,15 @@ namespace gba::text2 {
         [[nodiscard]] unsigned char role_count()  const noexcept { return m_config.role_count(); }
 
     private:
+        void clear_background_tile() noexcept {
+            auto* tiles = gba::memory_map(gba::registral_cast<gba::tile4bpp[2048]>(gba::mem_tile_4bpp));
+            const auto bg_nibble = m_config.background_nibble();
+            const auto bg_row = static_cast<std::uint32_t>(0x11111111u) * bg_nibble;
+            for (auto& row : tiles[0]) {
+                row = bg_row;
+            }
+        }
+
         template<typename Font>
         int measure_word_px(const Font& font, const char* p, const stream_metrics& metrics) noexcept {
             int w = 0;
@@ -684,23 +726,23 @@ namespace gba::text2 {
 
         void clear_screenblock() noexcept {
             const auto palbank_0 = static_cast<unsigned short>((m_config.palbank_0 != 255u) ? m_config.palbank_0 : 0u);
-            auto* screen_entries = gba::memory_map(gba::mem_se);
-            auto* screenblock = &screen_entries[m_screenblock][0];
             if (palbank_0 == 0u) {
-                std::memset(screenblock, 0, sizeof(gba::screen_entry[1024]));
+                for (unsigned int i = 0; i < map_dim * map_dim; ++i) {
+                    gba::mem_se[m_screenblock][i] = {
+                        .tile_index = 0,
+                        .palette_index = 0,
+                    };
+                }
                 return;
             }
 
             for (unsigned int i = 0; i < map_dim * map_dim; ++i) {
-                screenblock[i] = {
+                gba::mem_se[m_screenblock][i] = {
                     .tile_index = 0,
                     .palette_index = palbank_0,
                 };
             }
         }
     };
-
-    template<unsigned short Width, unsigned short Height>
-    using bg4_text_layer = bg4bpp_text_layer<Width, Height>;
 
 } // namespace gba::text2

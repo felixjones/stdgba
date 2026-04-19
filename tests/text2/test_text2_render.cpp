@@ -81,6 +81,26 @@ ENDFONT
     static_assert(gba::text2::GlyphFont<decltype(cursor_font_outlined)>,
                   "decorated_font_result (outline) must satisfy text2::GlyphFont");
 
+    using layer_240x160 = gba::text2::bg4bpp_text_layer<240, 160>;
+    using layer_120x80 = gba::text2::bg4bpp_text_layer<120, 80>;
+    using layer_32x32 = gba::text2::bg4bpp_text_layer<32, 32>;
+    [[nodiscard]]
+    layer_240x160 make_layer_240x160(const gba::text2::bitplane_config& cfg) noexcept {
+        static layer_240x160::cell_state_map state{};
+        return layer_240x160{31, cfg, {.next_tile = 1, .end_tile = 512}, state};
+    }
+    [[nodiscard]]
+    layer_120x80 make_layer_120x80(const gba::text2::bitplane_config& cfg) noexcept {
+        static layer_120x80::cell_state_map state{};
+        return layer_120x80{31, cfg, {.next_tile = 1, .end_tile = 512}, state};
+    }
+    [[nodiscard]]
+    layer_32x32 make_layer_32x32(const gba::text2::bitplane_config& cfg,
+                                 gba::text2::linear_tile_allocator alloc = {.next_tile = 1, .end_tile = 512}) noexcept {
+        static layer_32x32::cell_state_map state{};
+        return layer_32x32{31, cfg, alloc, state};
+    }
+
     struct mock_layer {
         struct call {
             unsigned int codepoint = 0;
@@ -118,7 +138,7 @@ int main() {
             .palbank_1 = 2,
             .start_index = 1,
         };
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         gba::test.eq(layer.cursor_column(), 0u);
         gba::test.eq(layer.cursor_row(), 0u);
         gba::test.eq(layer.palette(), 1u);
@@ -127,7 +147,7 @@ int main() {
     // Test: Palette setting
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         gba::test.eq(layer.palette(), 5u);
     }
@@ -135,7 +155,7 @@ int main() {
     // Test: Palette bounds (invalid palette should clamp)
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         layer.set_palette(20);
         gba::test.eq(layer.palette(), 5u);
@@ -144,7 +164,7 @@ int main() {
     // Test: Reset clears state
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         layer.set_palette(7);
         layer.reset();
         gba::test.eq(layer.palette(), 1u);
@@ -155,14 +175,14 @@ int main() {
     // Test: Max tile count calculation (240x160 = 30×20 tiles)
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         gba::test.eq(layer.max_tile_count(), 600u);
     }
 
     // Test: Different layer dimensions
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<120, 80> layer(config);
+        auto layer = make_layer_120x80(config);
         gba::test.eq(layer.max_tile_count(), 150u);
     }
 
@@ -234,7 +254,7 @@ int main() {
     // Test: Tile index calculation
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         auto idx = layer.tile_index_from_row_col(0, 0);
         gba::test.eq(idx, 0u);
         idx = layer.tile_index_from_row_col(0, 1);
@@ -246,7 +266,7 @@ int main() {
     // Test: Multiple tiles on same row
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         auto idx1 = layer.tile_index_from_row_col(2, 5);
         auto idx2 = layer.tile_index_from_row_col(2, 6);
         gba::test.eq(idx2 - idx1, 1u);
@@ -255,7 +275,7 @@ int main() {
     // Test: Current tile count tracking
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         gba::test.eq(layer.current_tile_count(), 0u);
         gba::test.eq(layer.max_tile_count(), 600u); // 30 × 20 tiles
     }
@@ -263,7 +283,7 @@ int main() {
     // Test: Reset clears tile count
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         layer.reset();
         gba::test.eq(layer.current_tile_count(), 0u);
         gba::test.eq(layer.cursor_column(), 0u);
@@ -273,7 +293,7 @@ int main() {
     // Test: Color escape with palette clamp
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<240, 160> layer(config);
+        auto layer = make_layer_240x160(config);
         layer.set_palette(5);
         gba::test.eq(layer.palette(), 5u);
         layer.set_palette(20); // Out of range
@@ -324,7 +344,7 @@ int main() {
     // Test: Layer make_cursor is available and can draw incrementally
     {
         auto config = gba::text2::bitplane_config{};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(config);
+        auto layer = make_layer_32x32(config);
         auto cursor = layer.make_cursor(cursor_font, gba::text2::cstr_stream("A"), 0, 0);
         gba::test.is_true(cursor.next_visible());
         gba::test.eq(cursor.emitted(), 1u);
@@ -520,7 +540,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         layer.draw_char(cursor_font, static_cast<unsigned int>('A'),
                         5, cursor_font.ascent, 1);
@@ -548,7 +568,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         // glyph_y = baseline_y - height - y_offset = 11 - 7 - 0 = 4
         // rows 0-3 -> abs_y=4..7 -> tile row 0
@@ -580,7 +600,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         // glyph_x=5, glyph_y=4 -> spans cells (tx=0,ty=0),(tx=1,ty=0),(tx=0,ty=1),(tx=1,ty=1)
         layer.draw_char(cursor_font, static_cast<unsigned int>('A'),
@@ -618,7 +638,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         // 'A' at pen_x=0 (glyph_x=0, pixels abs_x=0..4, all in tx=0)
         // 'B' at pen_x=8 via dwidth advance (glyph_x=8, pixels abs_x=8..12, all in tx=1)
@@ -643,7 +663,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         layer.draw_char(cursor_font_shadowed, static_cast<unsigned int>('A'),
                         0, cursor_font_shadowed.ascent, 1);
@@ -682,7 +702,7 @@ int main() {
             .start_index = 1,
         };
         constexpr gba::text2::linear_tile_allocator alloc{.next_tile = 100, .end_tile = 200};
-        gba::text2::bg4bpp_text_layer<32, 32> layer(31, cfg, alloc);
+        auto layer = make_layer_32x32(cfg, alloc);
 
         const auto& g = cursor_font_shadowed.glyph_or_default('A');
         const auto view = cursor_font_shadowed.decoration_view_for(g);
@@ -790,60 +810,6 @@ int main() {
             .start_index = 1,
         }, 3u, 2u);
     }
-
-    // Section: Optimized cache (v2) validation
-
-    // Test: tile_plane_cache_v2 produces identical VRAM output to v1 for one_plane_full_color
-    {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
-            .start_index = 1,
-        };
-
-        // Setup v1 cache
-        gba::text2::tile_plane_cache cache_v1;
-        cache_v1.init_to_background(100, cfg);
-
-        // Setup v2 cache
-        gba::text2::tile_plane_cache_v2 cache_v2;
-        cache_v2.init_to_background(100, cfg);
-
-        // Apply same operations to both
-        for (int x = 0; x < 8; ++x) {
-            for (int y = 0; y < 8; ++y) {
-                if ((x + y) % 3 == 0) {
-                    cache_v1.set_pixel(x, y, 0, static_cast<unsigned char>(gba::text2::bitplane_role::foreground), cfg);
-                    cache_v2.set_pixel(x, y, 0, static_cast<unsigned char>(gba::text2::bitplane_role::foreground), cfg);
-                }
-            }
-        }
-
-        // For v2, we need to handle start_index properly. v2 encodes roles (bits), so we need to apply start_index
-        // during flush. For now, just verify v2 structure is valid.
-        gba::test.is_true(cache_v2.vram_tile == 100u);
-        gba::test.is_true(!cache_v2.dirty || cache_v2.dirty);  // Just verify it's set to some valid state
-    }
-
-    // Test: tile_plane_cache_v2 row apply compiles and runs
-    {
-        constexpr auto cfg = gba::text2::bitplane_config{
-            .profile     = gba::text2::bitplane_profile::one_plane_full_color,
-            .start_index = 1,
-        };
-
-        gba::text2::tile_plane_cache_v2 cache_v2;
-        cache_v2.init_to_background(101, cfg);
-
-        // Test apply_row fast path
-        cache_v2.apply_row(0, 0xFFu, 0, 0,
-                          static_cast<unsigned char>(gba::text2::bitplane_role::foreground), cfg);
-        cache_v2.apply_row(1, 0x55u, 0, 0,
-                          static_cast<unsigned char>(gba::text2::bitplane_role::foreground), cfg);
-
-        gba::test.is_true(cache_v2.dirty);
-        gba::test.is_true(!cache_v2.plane_pixels[0][0] == 0 || cache_v2.plane_pixels[0][0] == 0u);
-    }
-
 
     return gba::test.finish();
 }

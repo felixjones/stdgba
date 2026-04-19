@@ -224,6 +224,13 @@ namespace {
         }
     }
 
+    [[nodiscard]]
+    gba::text2::bg4bpp_text_layer<32, 32> make_text2_layer_32(const gba::text2::bitplane_config& cfg,
+                                                               gba::text2::linear_tile_allocator alloc) noexcept {
+        static gba::text2::bg4bpp_text_layer<32, 32>::cell_state_map cell_state{};
+        return gba::text2::bg4bpp_text_layer<32, 32>{31, cfg, alloc, cell_state};
+    }
+
     template<test_profile Profile, typename Font>
     class bench_text_single_char {
     public:
@@ -246,7 +253,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = layer.draw_char(font, 'H', 0, font.ascent);
             layer.flush_cache();
         }
@@ -276,7 +283,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, "HP: 42/99", 0, 0, text2_stream_metrics));
         }
         const Font& font;
@@ -305,7 +312,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, "123 456 789 00 1", 0, 0, text2_stream_metrics));
         }
         const Font& font;
@@ -334,7 +341,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, "HP: 42/99", 0, 0, text2_stream_metrics, 5));
         }
         const Font& font;
@@ -370,7 +377,7 @@ namespace {
             fmt_hp_text2.to(buffer, "hp"_arg = hp, "max"_arg = mx);
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, buffer, 0, 0, text2_stream_metrics));
         }
         const Font& font;
@@ -406,7 +413,7 @@ namespace {
             fmt_hp_text2.to(buffer, "hp"_arg = [&] { return hp; }, "max"_arg = [&] { return mx; });
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, buffer, 0, 0, text2_stream_metrics));
         }
         const Font& font;
@@ -456,7 +463,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             for (int row = 0; row < 20; ++row) {
                 const int y = row * 8;
                 for (int col = 0; col < 30; ++col) {
@@ -478,7 +485,7 @@ namespace {
             clear_tiles();
             const auto cfg = get_profile_config(Profile);
             gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-            gba::text2::bg4bpp_text_layer<32, 32> layer{31, cfg.text2, alloc};
+            auto layer = make_text2_layer_32(cfg.text2, alloc);
             sink_u32 = static_cast<unsigned int>(layer.draw_stream(font, "\x1B" "2HP: " "\x1B" "3" "42/99", 0, 0, text2_stream_metrics));
         }
         const Font& font;

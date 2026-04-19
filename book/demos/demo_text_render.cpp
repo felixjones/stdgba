@@ -46,7 +46,8 @@ int main() {
 
     gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
     using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
-    layer_type layer{31, config, alloc};
+    static layer_type::cell_state_map cell_state{};
+    layer_type layer{31, config, alloc, cell_state};
 
     gba::text2::stream_metrics metrics{
         .letter_spacing_px = 1,
@@ -69,7 +70,7 @@ int main() {
 
         if (!cursor.next_visible() && frame % 120 == 0) {
             alloc = {.next_tile = 1, .end_tile = 512};
-            layer = layer_type{31, config, alloc};
+            layer = layer_type{31, config, alloc, cell_state};
             cursor = make_cursor();
         }
     }
