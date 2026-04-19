@@ -11,8 +11,11 @@
 
 namespace gba::format::bits {
 
-    template<typename T>
+    template<typename Config = default_format_config, typename T>
     constexpr std::size_t render_value(char* out, std::size_t cap, const T& value, const format_spec& spec) {
+        if (spec.fmt_type == format_spec::format_kind::extension) {
+            return Config::template render_extension<T>(out, cap, value, spec);
+        }
         if constexpr (std::is_same_v<std::decay_t<T>, const char*> || std::is_same_v<std::decay_t<T>, char*>) {
             return render_string_value(out, cap, value, spec);
         } else if constexpr (std::is_integral_v<T>) {

@@ -1,0 +1,6 @@
+/// @file gba/text2_format
+/// @brief text2-specific format extensions.
+
+#pragma once
+
+#include <gba/bits/text2/text2_format.hpp>

@@ -14,9 +14,9 @@ namespace gba::format::bits {
         std::size_t right_pad = 0;
     };
 
-    constexpr format_spec::grouping_t normalized_decimal_grouping(const format_spec& spec) {
-        if (spec.fmt_type == format_spec::type_t::grouped && spec.grouping == format_spec::grouping_t::none) {
-            return format_spec::grouping_t::comma;
+    constexpr format_spec::grouping_kind normalized_decimal_grouping(const format_spec& spec) {
+        if (spec.fmt_type == format_spec::format_kind::grouped && spec.grouping == format_spec::grouping_kind::none) {
+            return format_spec::grouping_kind::comma;
         }
         return spec.grouping;
     }
@@ -31,14 +31,14 @@ namespace gba::format::bits {
         layout.fill = effective_fill(spec, true);
 
         switch (align) {
-            case format_spec::align_t::left: layout.right_pad = pad; break;
-            case format_spec::align_t::center:
+            case format_spec::align_kind::left: layout.right_pad = pad; break;
+            case format_spec::align_kind::center:
                 layout.left_pad = pad / 2;
                 layout.right_pad = pad - layout.left_pad;
                 break;
-            case format_spec::align_t::sign_aware: layout.middle_pad = pad; break;
-            case format_spec::align_t::right:
-            case format_spec::align_t::none:
+            case format_spec::align_kind::sign_aware: layout.middle_pad = pad; break;
+            case format_spec::align_kind::right:
+            case format_spec::align_kind::none:
             default: layout.left_pad = pad; break;
         }
 
@@ -47,7 +47,7 @@ namespace gba::format::bits {
 
     template<typename UInt>
     constexpr std::size_t render_decimal_integer_part(UInt value, const format_spec& spec, char* out) {
-        return write_grouped_digits(value, 10, false, normalized_decimal_grouping(spec), format_spec::type_t::decimal,
+        return write_grouped_digits(value, 10, false, normalized_decimal_grouping(spec), format_spec::format_kind::decimal,
                                     out);
     }
 
@@ -140,7 +140,7 @@ namespace gba::format::bits {
         if (isGeneral) {
             if (exponent >= -4 && exponent < static_cast<int>(precision)) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::type_t::fixed_upper : format_spec::type_t::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
                 const int fracDigits = static_cast<int>(precision) - 1 - exponent;
                 if (fracDigits > 0) {
                     adjusted.has_precision = true;
@@ -349,7 +349,7 @@ namespace gba::format::bits {
         if (numerator == 0) {
             if (isGeneral) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::type_t::fixed_upper : format_spec::type_t::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
                 adjusted.has_precision = false;
                 return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, 0u, 0u, denominator, adjusted, 0u, false);
             }
@@ -370,7 +370,7 @@ namespace gba::format::bits {
         if (isGeneral) {
             if (exponent >= -4 && exponent < static_cast<int>(precision)) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::type_t::fixed_upper : format_spec::type_t::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
                 const int fracDigits = static_cast<int>(precision) - 1 - exponent;
                 if (fracDigits > 0) {
                     adjusted.has_precision = true;

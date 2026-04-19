@@ -19,7 +19,7 @@ namespace gba::format {
 
     /// @brief Parsed format specification following Python's mini-language.
     struct format_spec {
-        enum class align_t : std::uint8_t {
+        enum class align_kind : std::uint8_t {
             none,
             left,      // <
             right,     // >
@@ -27,14 +27,14 @@ namespace gba::format {
             sign_aware // =
         };
 
-        enum class sign_t : std::uint8_t {
+        enum class sign_kind : std::uint8_t {
             none,  // default: only show '-'
             plus,  // '+'
             minus, // '-'
             space  // ' '
         };
 
-        enum class type_t : std::uint8_t {
+        enum class format_kind : std::uint8_t {
             default_fmt,
             // Integer / shared numeric
             decimal,   // 'd'
@@ -57,27 +57,62 @@ namespace gba::format {
             // Angle
             radians, // 'r'
             turns,   // 't'
-            raw_int  // 'i'
+            raw_int, // 'i'
+            extension
         };
 
-        enum class grouping_t : std::uint8_t {
+        enum class grouping_kind : std::uint8_t {
             none,
             comma,     // ','
             underscore // '_'
         };
 
-        align_t alignment = align_t::none;
-        sign_t sign = sign_t::none;
-        type_t fmt_type = type_t::default_fmt;
-        grouping_t grouping = grouping_t::none;
+        align_kind alignment = align_kind::none;
+        sign_kind sign = sign_kind::none;
+        format_kind fmt_type = format_kind::default_fmt;
+        grouping_kind grouping = grouping_kind::none;
         char fill = ' ';
         std::uint8_t width = 0;
         std::uint8_t precision = 0;
+        std::uint8_t extension_type_len = 0;
+        unsigned int extension_type_hash = 0;
         bool has_precision = false;
         bool alternate_form = false;
         bool zero_pad = false;
 
         constexpr format_spec() = default;
+
+        constexpr void set_extension_type(unsigned int hash, std::uint8_t len) {
+            fmt_type = format_kind::extension;
+            extension_type_hash = hash;
+            extension_type_len = len;
+        }
+    };
+
+    struct default_format_config {
+        static consteval bool parse_extension_type(const char* str, std::size_t& pos, std::size_t end,
+                                                   format_spec& spec) {
+            (void)str;
+            (void)pos;
+            (void)end;
+            (void)spec;
+            return false;
+        }
+
+        static consteval bool validate(const format_spec& spec) {
+            (void)spec;
+            return true;
+        }
+
+        template<typename T>
+        static constexpr std::size_t render_extension(char* out, std::size_t cap, const T& value,
+                                                      const format_spec& spec) {
+            (void)out;
+            (void)cap;
+            (void)value;
+            (void)spec;
+            return 0;
+        }
     };
 
     // Segment types
@@ -205,69 +240,82 @@ namespace gba::format {
             return c == '<' || c == '>' || c == '^' || c == '=';
         }
 
-        consteval format_spec::align_t align_from_char(char c) {
+        consteval format_spec::align_kind align_from_char(char c) {
             switch (c) {
-                case '<': return format_spec::align_t::left;
-                case '>': return format_spec::align_t::right;
-                case '^': return format_spec::align_t::center;
-                case '=': return format_spec::align_t::sign_aware;
-                default: return format_spec::align_t::none;
+                case '<': return format_spec::align_kind::left;
+                case '>': return format_spec::align_kind::right;
+                case '^': return format_spec::align_kind::center;
+                case '=': return format_spec::align_kind::sign_aware;
+                default: return format_spec::align_kind::none;
             }
         }
 
-        consteval format_spec::type_t type_from_char(char c) {
+        consteval format_spec::format_kind type_from_char(char c) {
             switch (c) {
-                case 'd': return format_spec::type_t::decimal;
-                case 'b': return format_spec::type_t::binary;
-                case 'o': return format_spec::type_t::octal;
-                case 'x': return format_spec::type_t::hex_lower;
-                case 'X': return format_spec::type_t::hex_upper;
-                case 's': return format_spec::type_t::string;
-                case 'n': return format_spec::type_t::grouped;
-                case 'c': return format_spec::type_t::character;
-                case 'f': return format_spec::type_t::fixed_lower;
-                case 'F': return format_spec::type_t::fixed_upper;
-                case '%': return format_spec::type_t::percent;
-                case 'e': return format_spec::type_t::scientific_lower;
-                case 'E': return format_spec::type_t::scientific_upper;
-                case 'g': return format_spec::type_t::general_lower;
-                case 'G': return format_spec::type_t::general_upper;
-                case 'r': return format_spec::type_t::radians;
-                case 't': return format_spec::type_t::turns;
-                case 'i': return format_spec::type_t::raw_int;
-                default: return format_spec::type_t::default_fmt;
+                case 'd': return format_spec::format_kind::decimal;
+                case 'b': return format_spec::format_kind::binary;
+                case 'o': return format_spec::format_kind::octal;
+                case 'x': return format_spec::format_kind::hex_lower;
+                case 'X': return format_spec::format_kind::hex_upper;
+                case 's': return format_spec::format_kind::string;
+                case 'n': return format_spec::format_kind::grouped;
+                case 'c': return format_spec::format_kind::character;
+                case 'f': return format_spec::format_kind::fixed_lower;
+                case 'F': return format_spec::format_kind::fixed_upper;
+                case '%': return format_spec::format_kind::percent;
+                case 'e': return format_spec::format_kind::scientific_lower;
+                case 'E': return format_spec::format_kind::scientific_upper;
+                case 'g': return format_spec::format_kind::general_lower;
+                case 'G': return format_spec::format_kind::general_upper;
+                case 'r': return format_spec::format_kind::radians;
+                case 't': return format_spec::format_kind::turns;
+                case 'i': return format_spec::format_kind::raw_int;
+                default: return format_spec::format_kind::default_fmt;
             }
         }
 
         consteval bool is_type_char(char c) {
-            return type_from_char(c) != format_spec::type_t::default_fmt;
+            return type_from_char(c) != format_spec::format_kind::default_fmt;
         }
 
+        template<typename Config>
         consteval bool validate_format_spec(const format_spec& spec) {
-            if (spec.fmt_type == format_spec::type_t::string) {
-                if (spec.sign != format_spec::sign_t::none) return false;
+            if (spec.fmt_type == format_spec::format_kind::string) {
+                if (spec.sign != format_spec::sign_kind::none) return false;
                 if (spec.alternate_form) return false;
-                if (spec.grouping != format_spec::grouping_t::none) return false;
-                if (spec.alignment == format_spec::align_t::sign_aware) return false;
+                if (spec.grouping != format_spec::grouping_kind::none) return false;
+                if (spec.alignment == format_spec::align_kind::sign_aware) return false;
             }
 
-            if (spec.fmt_type == format_spec::type_t::character) {
+            if (spec.fmt_type == format_spec::format_kind::character) {
                 if (spec.has_precision) return false;
-                if (spec.grouping != format_spec::grouping_t::none) return false;
+                if (spec.grouping != format_spec::grouping_kind::none) return false;
                 if (spec.alternate_form) return false;
-                if (spec.sign != format_spec::sign_t::none) return false;
+                if (spec.sign != format_spec::sign_kind::none) return false;
             }
 
-            if (spec.fmt_type == format_spec::type_t::raw_int) {
+            if (spec.fmt_type == format_spec::format_kind::raw_int) {
                 if (spec.has_precision) return false;
             }
 
-            return true;
+            return Config::validate(spec);
+        }
+
+        template<typename Config>
+        consteval bool parse_type_token(const char* str, std::size_t& pos, std::size_t end, format_spec& spec) {
+            if (pos >= end) return true;
+            if (is_type_char(str[pos])) {
+                spec.fmt_type = type_from_char(str[pos]);
+                ++pos;
+                return true;
+            }
+            return Config::parse_extension_type(str, pos, end, spec);
         }
 
         /// @brief Parse format spec following Python canonical order.
         ///
         /// Grammar: [[fill]align][sign][#][0][width][grouping][.precision][type]
+        template<typename Config>
         consteval format_spec parse_format_spec(const char* str, std::size_t& pos, std::size_t end) {
             format_spec spec{};
             if (pos >= end) return spec;
@@ -286,15 +334,15 @@ namespace gba::format {
             if (pos < end) {
                 switch (str[pos]) {
                     case '+':
-                        spec.sign = format_spec::sign_t::plus;
+                        spec.sign = format_spec::sign_kind::plus;
                         ++pos;
                         break;
                     case '-':
-                        spec.sign = format_spec::sign_t::minus;
+                        spec.sign = format_spec::sign_kind::minus;
                         ++pos;
                         break;
                     case ' ':
-                        spec.sign = format_spec::sign_t::space;
+                        spec.sign = format_spec::sign_kind::space;
                         ++pos;
                         break;
                     default: break;
@@ -320,8 +368,8 @@ namespace gba::format {
 
             // 6. [grouping]
             if (pos < end && (str[pos] == ',' || str[pos] == '_')) {
-                spec.grouping = (str[pos] == ',') ? format_spec::grouping_t::comma
-                                                  : format_spec::grouping_t::underscore;
+                spec.grouping = (str[pos] == ',') ? format_spec::grouping_kind::comma
+                                                  : format_spec::grouping_kind::underscore;
                 ++pos;
             }
 
@@ -333,9 +381,8 @@ namespace gba::format {
             }
 
             // 8. [type]
-            if (pos < end && is_type_char(str[pos])) {
-                spec.fmt_type = type_from_char(str[pos]);
-                ++pos;
+            if (pos < end) {
+                parse_type_token<Config>(str, pos, end, spec);
             }
 
             return spec;
@@ -345,7 +392,7 @@ namespace gba::format {
 
     // Main parser
 
-    template<fixed_string Fmt>
+    template<fixed_string Fmt, typename Config = default_format_config>
     consteval auto parse_format() {
         format_ast<Fmt.size + 1> ast{Fmt};
         const char* str = Fmt.data;
@@ -394,8 +441,8 @@ namespace gba::format {
                 format_spec spec{};
                 if (colon < close) {
                     std::size_t spec_pos = colon + 1;
-                    spec = bits::parse_format_spec(str, spec_pos, close);
-                    if (spec_pos != close || !bits::validate_format_spec(spec)) {
+                    spec = bits::parse_format_spec<Config>(str, spec_pos, close);
+                    if (spec_pos != close || !bits::validate_format_spec<Config>(spec)) {
                         ast.set_error(colon + 1);
                         return ast;
                     }

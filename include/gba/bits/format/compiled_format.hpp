@@ -13,16 +13,16 @@
 #include <utility>
 
 namespace gba::format {
-    template<fixed_string Fmt>
+    template<fixed_string Fmt, typename Config = default_format_config>
     struct compiled_format {
         static constexpr auto fmt = Fmt;
-        static constexpr auto ast = parse_format<Fmt>();
+        static constexpr auto ast = parse_format<Fmt, Config>();
         static_assert(ast.valid, "Invalid format string");
 
         template<typename... Args>
         constexpr auto generator(Args... args) const {
             using pack_t = arg_pack<Args...>;
-            return format_generator<Fmt, pack_t>{pack_t{std::move(args)...}};
+            return format_generator<Fmt, pack_t, Config>{pack_t{std::move(args)...}};
         }
 
         template<typename... Args>
@@ -124,13 +124,60 @@ namespace gba::format {
                                                          const format_spec& spec) {
             char tmp[320]{};
             std::size_t len = 0;
-            if constexpr (std::is_same_v<std::decay_t<decltype(value)>, literals::fixed_literal>) {
+            if (spec.fmt_type == format_spec::format_kind::extension) {
+                len = Config::render_extension(tmp, sizeof(tmp), value, spec);
+            } else if constexpr (std::is_same_v<std::decay_t<decltype(value)>, literals::fixed_literal>) {
                 len = bits::render_fixed_literal_value(tmp, sizeof(tmp), value, spec);
             } else {
-                len = bits::render_value(tmp, sizeof(tmp), value, spec);
+                len = bits::render_value<Config>(tmp, sizeof(tmp), value, spec);
             }
             for (std::size_t i = 0; i < len && pos < N - 1; ++i) out[pos++] = tmp[i];
             return pos;
+        }
+    };
+
+    template<fixed_string Fmt>
+    struct format_literal {
+        static constexpr auto fmt = Fmt;
+
+        template<typename Config>
+        consteval operator compiled_format<Fmt, Config>() const {
+            return compiled_format<Fmt, Config>{};
+        }
+
+        template<typename Config = default_format_config>
+        [[nodiscard]] consteval auto with_config() const {
+            return compiled_format<Fmt, Config>{};
+        }
+
+        template<typename... Args>
+        constexpr auto generator(Args... args) const {
+            return compiled_format<Fmt>{}.generator(std::move(args)...);
+        }
+
+        template<typename... Args>
+        constexpr auto generator_with(external_workspace ws, Args... args) const {
+            return compiled_format<Fmt>{}.generator_with(ws, std::move(args)...);
+        }
+
+        template<typename... Args>
+        constexpr std::size_t to(char* buf, Args... args) const {
+            return compiled_format<Fmt>{}.to(buf, std::move(args)...);
+        }
+
+        template<std::size_t N = 64, typename... Args>
+        constexpr auto to_array(Args... args) const {
+            return compiled_format<Fmt>{}.template to_array<N>(std::move(args)...);
+        }
+
+        template<std::size_t N = 64, typename... Args>
+        static consteval auto to_static(Args... args) {
+            return compiled_format<Fmt>::template to_static<N>(std::move(args)...);
+        }
+
+        template<typename... Args>
+        constexpr auto operator()(Args... args) const {
+            return to_array(std::move(args)...);
         }
     };
 } // namespace gba::format

@@ -23,7 +23,7 @@ namespace gba::format::bits {
 
     template<typename T>
     constexpr std::size_t render_angle_hex_value(char* out, std::size_t cap, T value, const format_spec& spec) {
-        const auto uppercase = spec.fmt_type == format_spec::type_t::hex_upper;
+        const auto uppercase = spec.fmt_type == format_spec::format_kind::hex_upper;
         const auto raw = angle_raw_storage(value);
         const auto nativeDigits = angle_native_hex_digits<T>();
         const auto requestedDigits = spec.has_precision ? static_cast<std::size_t>(spec.precision) : nativeDigits;
@@ -42,7 +42,7 @@ namespace gba::format::bits {
 
         char groupedDigits[120]{};
         std::size_t digitsLen = 0;
-        if (spec.grouping == format_spec::grouping_t::none) {
+        if (spec.grouping == format_spec::grouping_kind::none) {
             for (std::size_t i = 0; i < shownDigits; ++i) groupedDigits[digitsLen++] = digits[i];
         } else {
             const auto separator = grouping_char(spec.grouping);
@@ -70,14 +70,14 @@ namespace gba::format::bits {
         std::size_t middlePad = 0;
 
         switch (align) {
-            case format_spec::align_t::left: rightPad = pad; break;
-            case format_spec::align_t::center:
+            case format_spec::align_kind::left: rightPad = pad; break;
+            case format_spec::align_kind::center:
                 leftPad = pad / 2u;
                 rightPad = pad - leftPad;
                 break;
-            case format_spec::align_t::sign_aware: middlePad = pad; break;
-            case format_spec::align_t::right:
-            case format_spec::align_t::none:
+            case format_spec::align_kind::sign_aware: middlePad = pad; break;
+            case format_spec::align_kind::right:
+            case format_spec::align_kind::none:
             default: leftPad = pad; break;
         }
 
@@ -92,26 +92,26 @@ namespace gba::format::bits {
 
     template<typename T, bool Runtime>
     constexpr std::size_t render_angle_value_impl(char* out, std::size_t cap, T value, const format_spec& spec) {
-        if (spec.fmt_type == format_spec::type_t::raw_int) {
+        if (spec.fmt_type == format_spec::format_kind::raw_int) {
             format_spec adjusted = spec;
-            adjusted.fmt_type = format_spec::type_t::decimal;
+            adjusted.fmt_type = format_spec::format_kind::decimal;
             return render_integer_value(out, cap, angle_raw_storage(value), adjusted);
         }
-        if (spec.fmt_type == format_spec::type_t::hex_lower || spec.fmt_type == format_spec::type_t::hex_upper) {
+        if (spec.fmt_type == format_spec::format_kind::hex_lower || spec.fmt_type == format_spec::format_kind::hex_upper) {
             return render_angle_hex_value(out, cap, value, spec);
         }
 
         const auto raw32 = bit_cast(static_cast<angle>(value));
-        if (spec.fmt_type == format_spec::type_t::default_fmt || spec.fmt_type == format_spec::type_t::decimal) {
+        if (spec.fmt_type == format_spec::format_kind::default_fmt || spec.fmt_type == format_spec::format_kind::decimal) {
             const auto scaled = static_cast<unsigned long long>(raw32) * 360ULL;
             const auto integerPart = scaled >> 32;
             const auto fractionalNumerator = static_cast<std::uint32_t>(scaled);
             return render_fraction_parts_u32(out, cap, false, integerPart, fractionalNumerator, spec, 6u, false);
         }
-        if (spec.fmt_type == format_spec::type_t::turns) {
+        if (spec.fmt_type == format_spec::format_kind::turns) {
             return render_fraction_parts_u32(out, cap, false, 0u, raw32, spec, 6u, false);
         }
-        if (spec.fmt_type == format_spec::type_t::radians) {
+        if (spec.fmt_type == format_spec::format_kind::radians) {
             if constexpr (!Runtime) {
                 constexpr unsigned long long two_pi_scaled = 628318530ULL;
                 constexpr unsigned long long turns_den_scaled = 4294967296ULL * 100000000ULL;

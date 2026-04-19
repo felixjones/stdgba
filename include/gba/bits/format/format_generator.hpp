@@ -32,9 +32,9 @@ namespace gba::format {
         }
     };
 
-    template<fixed_string Fmt, typename ArgPack>
+    template<fixed_string Fmt, typename ArgPack, typename Config = default_format_config>
     struct format_generator {
-        static constexpr auto ast = parse_format<Fmt>();
+        static constexpr auto ast = parse_format<Fmt, Config>();
         static constexpr std::size_t segment_count = ast.segment_count;
 
         ArgPack args;
@@ -131,7 +131,7 @@ namespace gba::format {
         template<typename T>
         constexpr static void render_arg_into(arg_stream_state& out, const T& value, const format_spec& spec) {
             out.reset();
-            out.len = bits::render_value(out.rendered.data(), out.rendered.size(), value, spec);
+            out.len = bits::render_value<Config>(out.rendered.data(), out.rendered.size(), value, spec);
         }
 
         constexpr void advance_segment() {

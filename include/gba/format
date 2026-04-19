@@ -120,6 +120,6 @@ namespace gba::format {
 namespace gba::literals {
 	template<format::fixed_string Fmt>
 	consteval auto operator""_fmt() {
-		return format::compiled_format<Fmt>{};
+		return format::format_literal<Fmt>{};
 	}
 } // namespace gba::literals

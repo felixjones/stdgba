@@ -11,11 +11,11 @@
 namespace gba::format::bits {
     template<fixed_point T>
     constexpr std::size_t render_fixed_point_value(char* out, std::size_t cap, T value, const format_spec& spec) {
-        if (spec.fmt_type == format_spec::type_t::percent) {
+        if (spec.fmt_type == format_spec::format_kind::percent) {
             auto percentValue = value * 100;
             format_spec adjusted = spec;
-            adjusted.fmt_type = spec.has_precision ? format_spec::type_t::fixed_lower
-                                                   : format_spec::type_t::default_fmt;
+            adjusted.fmt_type = spec.has_precision ? format_spec::format_kind::fixed_lower
+                                                   : format_spec::format_kind::default_fmt;
             const auto len = render_fixed_point_value(out, cap > 0 ? cap - 1 : 0, percentValue, adjusted);
             if (len < cap) {
                 out[len] = '%';
@@ -75,7 +75,7 @@ namespace gba::format::bits {
                                                      const format_spec& spec) {
         auto v = value.value;
         bool appendPercent = false;
-        if (spec.fmt_type == format_spec::type_t::percent) {
+        if (spec.fmt_type == format_spec::format_kind::percent) {
             v *= 100.0;
             appendPercent = true;
         }
