@@ -120,6 +120,15 @@ namespace gba::format {
             return count;
         }
 
+        constexpr void skip_literal_chars(std::size_t count) {
+            if (count == 0 || done()) return;
+            const auto& seg = ast.segments[segment_idx];
+            if (seg.type != segment_type::literal) return;
+            const auto remaining = (char_idx < seg.lit_length) ? (seg.lit_length - char_idx) : 0u;
+            if (count > remaining) count = remaining;
+            char_idx += count;
+        }
+
         constexpr void reset() {
             segment_idx = 0;
             char_idx = 0;

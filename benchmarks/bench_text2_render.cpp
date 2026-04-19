@@ -5,11 +5,13 @@
 #include <gba/embed>
 #include <gba/format>
 #include <gba/interrupt>
+#include <gba/bits/text/font_variants.hpp>
 #include <gba/text2>
 #include <gba/video>
 
 #include <array>
 #include <cstddef>
+
 
 using namespace gba::literals;
 
@@ -243,20 +245,69 @@ ENDFONT
 }
 
 static constexpr auto font = gba::embed::bdf([] { return make_bench_bdf(); });
+static constexpr auto font_shadowed = gba::text::with_shadow<1, 1>(font);
 static constexpr auto fmt_hp = gba::text2::text2_format<"HP: {hp}/{max}">{ };
 static constexpr auto fmt_hp_color = gba::text2::text2_format<"{pal:pal}HP: {hp}/{max}">{ };
+static constexpr auto fmt_cursor_wrap_literal = gba::text2::text2_format<"AA A{{B}}C AA A{{B}}C">{ };
+static constexpr auto fmt_cursor_wrap_mixed = gba::text2::text2_format<"AA A{value}B AA A{value}B">{ };
 
 volatile unsigned int sink_u32 = 0;
+volatile const void* sink_ptr = nullptr;
 
 namespace {
     using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
 
     constexpr int iters = 64;
-    constexpr auto config = gba::text2::bitplane_config{
+
+    constexpr auto cursor_metrics = gba::text2::stream_metrics{
+        .letter_spacing_px = 1,
+        .line_spacing_px = 2,
+        .tab_width_px = 16,
+        .wrap_width_px = 40,
+    };
+
+    template<typename Cursor>
+    [[gnu::noinline]]
+    void keep_cursor_live(const Cursor& cursor) noexcept {
+        sink_ptr = &cursor;
+    }
+
+    template<typename Layer>
+    [[gnu::noinline]]
+    void keep_layer_live(const Layer& layer) noexcept {
+        sink_ptr = &layer;
+    }
+
+    constexpr auto config_1p_full = gba::text2::bitplane_config{
         .profile = gba::text2::bitplane_profile::one_plane_full_color,
         .palbank_0 = 0,
         .start_index = 1,
     };
+
+    constexpr auto config_2p3c = gba::text2::bitplane_config{
+        .profile   = gba::text2::bitplane_profile::two_plane_three_color,
+        .palbank_0 = 0,
+        .palbank_1 = 1,
+        .start_index = 1,
+    };
+
+    constexpr auto config_2pbin = gba::text2::bitplane_config{
+        .profile   = gba::text2::bitplane_profile::two_plane_binary,
+        .palbank_0 = 0,
+        .palbank_1 = 1,
+        .start_index = 1,
+    };
+
+    constexpr auto config_3pbin = gba::text2::bitplane_config{
+        .profile   = gba::text2::bitplane_profile::three_plane_binary,
+        .palbank_0 = 0,
+        .palbank_1 = 1,
+        .palbank_2 = 2,
+        .start_index = 1,
+    };
+
+    // Keep old alias for the existing one_plane_full_color benchmarks.
+    constexpr auto& config = config_1p_full;
 
     [[nodiscard]]
     layer_type make_layer() noexcept {
@@ -275,6 +326,15 @@ namespace {
         clear_tiles();
         auto layer = make_layer();
         layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
+        layer.flush_cache();
+        sink_u32 = layer.cursor_column();
+    }
+
+    [[gnu::noinline]]
+    void draw_single_char_shadow() noexcept {
+        clear_tiles();
+        auto layer = make_layer();
+        layer.draw_char(font_shadowed, static_cast<unsigned int>('H'), 0, font_shadowed.ascent);
         layer.flush_cache();
         sink_u32 = layer.cursor_column();
     }
@@ -336,6 +396,221 @@ namespace {
         sink_u32 = layer.cursor_row();
     }
 
+    [[gnu::noinline]]
+    void draw_full_screen_fill_shadow() noexcept {
+        clear_tiles();
+        auto layer = make_layer();
+        for (int row = 0; row < 20; ++row) {
+            const int y = row * static_cast<int>(font_shadowed.line_height());
+            for (int col = 0; col < 30; ++col) {
+                const int x = col * static_cast<int>(font_shadowed.font_width);
+                layer.draw_char(font_shadowed, static_cast<unsigned int>('0' + (col % 10)),
+                                x, y + font_shadowed.ascent);
+            }
+        }
+        layer.flush_cache();
+        sink_u32 = layer.cursor_row();
+    }
+
+    [[gnu::noinline]]
+    void draw_cursor_literal_wrap() noexcept {
+        clear_tiles();
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+            gba::text2::stream(fmt_cursor_wrap_literal),
+            0, 0, cursor_metrics);
+        while (cursor.next_visible()) {}
+        sink_u32 = static_cast<unsigned int>(cursor.emitted());
+    }
+
+    [[gnu::noinline]]
+    void draw_cursor_mixed_wrap() noexcept {
+        volatile int value = 7;
+        clear_tiles();
+        auto layer = make_layer();
+        auto gen = fmt_cursor_wrap_mixed.generator("value"_arg = value);
+        auto cursor = layer.make_cursor(font, gba::text2::stream(gen, font, cursor_metrics),
+                                        0, 0, cursor_metrics);
+        while (cursor.next_visible()) {}
+        sink_u32 = static_cast<unsigned int>(cursor.emitted());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_cstr() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::cstr_stream("AA A{B}C AA A{B}C"),
+                                        0, 0, cursor_metrics);
+        keep_cursor_live(cursor);
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_literal_stream() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(fmt_cursor_wrap_literal),
+                                        0, 0, cursor_metrics);
+        keep_cursor_live(cursor);
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_mixed_stream() noexcept {
+        volatile int value = 7;
+        auto layer = make_layer();
+        auto gen = fmt_cursor_wrap_mixed.generator("value"_arg = value);
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(gen, font, cursor_metrics),
+                                        0, 0, cursor_metrics);
+        keep_cursor_live(cursor);
+    }
+
+    [[gnu::noinline]]
+    void init_layer_only() noexcept {
+        auto layer = make_layer();
+        keep_layer_live(layer);
+    }
+
+    [[gnu::noinline]]
+    void init_layer_first_draw() noexcept {
+        auto layer = make_layer();
+        layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
+        layer.flush_cache();
+        sink_u32 = layer.cursor_column();
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_cstr_first_visible() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::cstr_stream("AA A{B}C AA A{B}C"),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next_visible());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_literal_stream_first_visible() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(fmt_cursor_wrap_literal),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next_visible());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_mixed_stream_first_visible() noexcept {
+        volatile int value = 7;
+        auto layer = make_layer();
+        auto gen = fmt_cursor_wrap_mixed.generator("value"_arg = value);
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(gen, font, cursor_metrics),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next_visible());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_cstr_first_step() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::cstr_stream("AA A{B}C AA A{B}C"),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_literal_stream_first_step() noexcept {
+        auto layer = make_layer();
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(fmt_cursor_wrap_literal),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next());
+    }
+
+    [[gnu::noinline]]
+    void init_cursor_mixed_stream_first_step() noexcept {
+        volatile int value = 7;
+        auto layer = make_layer();
+        auto gen = fmt_cursor_wrap_mixed.generator("value"_arg = value);
+        auto cursor = layer.make_cursor(font,
+                                        gba::text2::stream(gen, font, cursor_metrics),
+                                        0, 0, cursor_metrics);
+        sink_u32 = static_cast<unsigned int>(cursor.next());
+    }
+
+    [[gnu::noinline]]
+    void draw_single_char_2p3c() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_2p3c};
+        layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
+        layer.flush_cache();
+        sink_u32 = layer.cursor_column();
+    }
+
+    [[gnu::noinline]]
+    void draw_full_screen_fill_2p3c() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_2p3c};
+        for (int row = 0; row < 20; ++row) {
+            const int y = row * static_cast<int>(font.line_height());
+            for (int col = 0; col < 30; ++col) {
+                const int x = col * static_cast<int>(font.font_width);
+                layer.draw_char(font, static_cast<unsigned int>('0' + (col % 10)),
+                                x, y + font.ascent);
+            }
+        }
+        layer.flush_cache();
+        sink_u32 = layer.cursor_row();
+    }
+
+    [[gnu::noinline]]
+    void draw_single_char_2pbin() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_2pbin};
+        layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
+        layer.flush_cache();
+        sink_u32 = layer.cursor_column();
+    }
+
+    [[gnu::noinline]]
+    void draw_full_screen_fill_2pbin() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_2pbin};
+        for (int row = 0; row < 20; ++row) {
+            const int y = row * static_cast<int>(font.line_height());
+            for (int col = 0; col < 30; ++col) {
+                const int x = col * static_cast<int>(font.font_width);
+                layer.draw_char(font, static_cast<unsigned int>('0' + (col % 10)),
+                                x, y + font.ascent);
+            }
+        }
+        layer.flush_cache();
+        sink_u32 = layer.cursor_row();
+    }
+
+    [[gnu::noinline]]
+    void draw_single_char_3pbin() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_3pbin};
+        layer.draw_char(font, static_cast<unsigned int>('H'), 0, font.ascent);
+        layer.flush_cache();
+        sink_u32 = layer.cursor_column();
+    }
+
+    [[gnu::noinline]]
+    void draw_full_screen_fill_3pbin() noexcept {
+        clear_tiles();
+        auto layer = layer_type{config_3pbin};
+        for (int row = 0; row < 20; ++row) {
+            const int y = row * static_cast<int>(font.line_height());
+            for (int col = 0; col < 30; ++col) {
+                const int x = col * static_cast<int>(font.font_width);
+                layer.draw_char(font, static_cast<unsigned int>('0' + (col % 10)),
+                                x, y + font.ascent);
+            }
+        }
+        layer.flush_cache();
+        sink_u32 = layer.cursor_row();
+    }
+
 } // namespace
 
 int main() {
@@ -368,6 +643,12 @@ int main() {
     }
 
     {
+        auto single = gba::benchmark::measure(draw_single_char_shadow);
+        auto avg = gba::benchmark::measure_avg(iters, draw_single_char_shadow);
+        gba::benchmark::with_logger([&] { log_row("single put_char shadow ('H')", single, avg); });
+    }
+
+    {
         auto single = gba::benchmark::measure(draw_cstr_short);
         auto avg = gba::benchmark::measure_avg(iters, draw_cstr_short);
         gba::benchmark::with_logger([&] { log_row("cstr short (\"HP: 42/99\")", single, avg); });
@@ -395,6 +676,157 @@ int main() {
         auto single = gba::benchmark::measure(draw_full_screen_fill);
         auto avg = gba::benchmark::measure_avg(iters, draw_full_screen_fill);
         gba::benchmark::with_logger([&] { log_row("full-screen fill (600 glyphs)", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_full_screen_fill_shadow);
+        auto avg = gba::benchmark::measure_avg(iters, draw_full_screen_fill_shadow);
+        gba::benchmark::with_logger([&] { log_row("full-screen fill shadow (600 glyphs)", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_cursor_literal_wrap);
+        auto avg = gba::benchmark::measure_avg(iters, draw_cursor_literal_wrap);
+        gba::benchmark::with_logger([&] { log_row("cursor wrap literal runs", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_cursor_mixed_wrap);
+        auto avg = gba::benchmark::measure_avg(iters, draw_cursor_mixed_wrap);
+        gba::benchmark::with_logger([&] { log_row("cursor wrap mixed runs", single, avg); });
+    }
+
+    unsigned int layer_init_avg = 0;
+    {
+        auto single = gba::benchmark::measure(init_layer_only);
+        auto avg = gba::benchmark::measure_avg(iters, init_layer_only);
+        layer_init_avg = avg;
+        gba::benchmark::with_logger([&] { log_row("layer init only", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_layer_first_draw);
+        auto avg = gba::benchmark::measure_avg(iters, init_layer_first_draw);
+        gba::benchmark::with_logger([&] { log_row("layer init+1st draw", single, avg); });
+        const auto delta = (avg >= layer_init_avg) ? (avg - layer_init_avg) : 0u;
+        gba::benchmark::with_logger([&] { log_row("layer 1st-draw delta", 0u, delta); });
+    }
+
+    unsigned int cursor_init_cstr_avg = 0;
+    {
+        auto single = gba::benchmark::measure(init_cursor_cstr);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_cstr);
+        cursor_init_cstr_avg = avg;
+        gba::benchmark::with_logger([&] { log_row("cursor init cstr", single, avg); });
+    }
+
+    unsigned int cursor_init_literal_avg = 0;
+    {
+        auto single = gba::benchmark::measure(init_cursor_literal_stream);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_literal_stream);
+        cursor_init_literal_avg = avg;
+        gba::benchmark::with_logger([&] { log_row("cursor init literal stream", single, avg); });
+    }
+
+    unsigned int cursor_init_mixed_avg = 0;
+    {
+        auto single = gba::benchmark::measure(init_cursor_mixed_stream);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_mixed_stream);
+        cursor_init_mixed_avg = avg;
+        gba::benchmark::with_logger([&] { log_row("cursor init mixed stream", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_cstr_first_step);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_cstr_first_step);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st step cstr", single, avg); });
+        const auto delta = (avg >= cursor_init_cstr_avg) ? (avg - cursor_init_cstr_avg) : 0u;
+        gba::benchmark::with_logger([&] { log_row("cursor 1st-step delta cstr", 0u, delta); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_literal_stream_first_step);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_literal_stream_first_step);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st step literal", single, avg); });
+        const auto delta = (avg >= cursor_init_literal_avg) ? (avg - cursor_init_literal_avg) : 0u;
+        gba::benchmark::with_logger([&] { log_row("cursor 1st-step delta literal", 0u, delta); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_mixed_stream_first_step);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_mixed_stream_first_step);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st step mixed", single, avg); });
+        const auto delta = (avg >= cursor_init_mixed_avg) ? (avg - cursor_init_mixed_avg) : 0u;
+        gba::benchmark::with_logger([&] { log_row("cursor 1st-step delta mixed", 0u, delta); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_cstr_first_visible);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_cstr_first_visible);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st visible cstr", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_literal_stream_first_visible);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_literal_stream_first_visible);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st visible literal", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(init_cursor_mixed_stream_first_visible);
+        auto avg = gba::benchmark::measure_avg(iters, init_cursor_mixed_stream_first_visible);
+        gba::benchmark::with_logger([&] { log_row("cursor init+1st visible mixed", single, avg); });
+    }
+
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "--- two_plane_three_color profile ---");
+    });
+
+    {
+        auto single = gba::benchmark::measure(draw_single_char_2p3c);
+        auto avg = gba::benchmark::measure_avg(iters, draw_single_char_2p3c);
+        gba::benchmark::with_logger([&] { log_row("2p3c single put_char ('H')", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_full_screen_fill_2p3c);
+        auto avg = gba::benchmark::measure_avg(iters, draw_full_screen_fill_2p3c);
+        gba::benchmark::with_logger([&] { log_row("2p3c full-screen fill (600 glyphs)", single, avg); });
+    }
+
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "--- two_plane_binary profile ---");
+    });
+
+    {
+        auto single = gba::benchmark::measure(draw_single_char_2pbin);
+        auto avg = gba::benchmark::measure_avg(iters, draw_single_char_2pbin);
+        gba::benchmark::with_logger([&] { log_row("2pbin single put_char ('H')", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_full_screen_fill_2pbin);
+        auto avg = gba::benchmark::measure_avg(iters, draw_full_screen_fill_2pbin);
+        gba::benchmark::with_logger([&] { log_row("2pbin full-screen fill (600 glyphs)", single, avg); });
+    }
+
+    gba::benchmark::with_logger([] {
+        gba::benchmark::log(gba::log::level::info, "");
+        gba::benchmark::log(gba::log::level::info, "--- three_plane_binary profile ---");
+    });
+
+    {
+        auto single = gba::benchmark::measure(draw_single_char_3pbin);
+        auto avg = gba::benchmark::measure_avg(iters, draw_single_char_3pbin);
+        gba::benchmark::with_logger([&] { log_row("3pbin single put_char ('H')", single, avg); });
+    }
+
+    {
+        auto single = gba::benchmark::measure(draw_full_screen_fill_3pbin);
+        auto avg = gba::benchmark::measure_avg(iters, draw_full_screen_fill_3pbin);
+        gba::benchmark::with_logger([&] { log_row("3pbin full-screen fill (600 glyphs)", single, avg); });
     }
 
     gba::benchmark::with_logger([] {

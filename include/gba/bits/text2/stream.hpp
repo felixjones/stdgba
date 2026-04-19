@@ -4,6 +4,7 @@
 #pragma once
 
 #include <gba/bits/format/compiled_format.hpp>
+#include <gba/bits/text2/reveal_runs.hpp>
 #include <gba/bits/text2/text2_format.hpp>
 
 #include <cstdint>
@@ -14,6 +15,24 @@
 
 namespace gba::text2 {
     inline constexpr char color_escape_prefix = '\x1B';
+
+    struct no_reveal_runs {
+        static constexpr bool has_runtime_runs = true;
+        static constexpr bool literal_only = false;
+        static constexpr bool literal_has_escape_prefix = true;
+    };
+
+    template<typename Generator>
+    struct generator_reveal_runs {
+        using type = no_reveal_runs;
+        static constexpr bool available = false;
+    };
+
+    template<gba::format::fixed_string Fmt, typename ArgPack, typename Config>
+    struct generator_reveal_runs<gba::format::format_generator<Fmt, ArgPack, Config>> {
+        using type = compiled_reveal_runs<Fmt, Config>;
+        static constexpr bool available = true;
+    };
 
     [[nodiscard]]
     constexpr bool is_color_escape_prefix(char c) noexcept {
@@ -36,6 +55,11 @@ namespace gba::text2 {
         unsigned int codepoint;
     };
 
+    struct literal_run_cursor {
+        std::size_t segment_index = 0;
+        std::uint16_t char_offset = 0;
+    };
+
     template<typename Source>
     struct tokenizer {
     private:
@@ -44,17 +68,68 @@ namespace gba::text2 {
         bool in_escape = false;
 
     public:
+        using source_type = Source;
+
         constexpr tokenizer(Source s) : source(s), next_char(source.next()) {}
 
         constexpr bool has_next() const noexcept {
             return next_char.has_value();
         }
 
+        [[nodiscard]]
+        constexpr bool in_literal_run() const noexcept {
+            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+                return !Source::reveal_runs_type::literal_has_escape_prefix && source.in_literal_run();
+            }
+            return false;
+        }
+
+        constexpr std::optional<char> next_literal_char() noexcept {
+            if (!next_char.has_value()) return std::nullopt;
+            if (!in_literal_run()) return std::nullopt;
+            const char c = *next_char;
+            next_char = source.next();
+            return c;
+        }
+
+        [[nodiscard]]
+        constexpr std::optional<literal_run_cursor> current_literal_position() const noexcept {
+            if (!next_char.has_value() || !in_literal_run()) return std::nullopt;
+            if constexpr (requires { source.current_literal_position(); }) {
+                return source.current_literal_position();
+            }
+            return std::nullopt;
+        }
+
+        constexpr bool skip_literal_chars(std::size_t count) noexcept {
+            if (count == 0 || !next_char.has_value() || !in_literal_run()) return false;
+            if constexpr (requires { source.skip_literal_chars(std::size_t{}); }) {
+                source.skip_literal_chars(count - 1);
+                next_char = source.next();
+                return true;
+            }
+            for (std::size_t i = 0; i < count && next_char.has_value() && in_literal_run(); ++i) {
+                next_char = source.next();
+            }
+            return true;
+        }
+
         constexpr std::optional<std::variant<char_token, color_token>> next() noexcept {
             if (!next_char.has_value()) return std::nullopt;
 
+            bool current_literal = false;
+            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+                current_literal = source.in_literal_run();
+            }
+
             const char c = *next_char;
             next_char = source.next();
+
+            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+                if (!Source::reveal_runs_type::literal_has_escape_prefix && current_literal) {
+                    return char_token{static_cast<unsigned int>(static_cast<unsigned char>(c))};
+                }
+            }
 
             if (in_escape) {
                 in_escape = false;
@@ -112,6 +187,8 @@ namespace gba::text2 {
         Generator generator;
 
     public:
+        using reveal_runs_type = typename generator_reveal_runs<Generator>::type;
+
         constexpr explicit generator_source(Generator g)
             : generator(std::move(g)) {}
 
@@ -123,6 +200,36 @@ namespace gba::text2 {
         constexpr void reset() noexcept {
             if constexpr (requires { generator.reset(); }) {
                 generator.reset();
+            }
+        }
+
+        [[nodiscard]]
+        constexpr bool in_literal_run() const noexcept {
+            if constexpr (generator_reveal_runs<Generator>::available) {
+                if (generator.segment_idx >= Generator::segment_count) return false;
+                return Generator::ast.segments[generator.segment_idx].type ==
+                    gba::format::segment_type::literal;
+            }
+            return false;
+        }
+
+        [[nodiscard]]
+        constexpr std::optional<literal_run_cursor> current_literal_position() const noexcept {
+            if constexpr (generator_reveal_runs<Generator>::available) {
+                if (!in_literal_run() || generator.char_idx == 0) return std::nullopt;
+                return literal_run_cursor{
+                    .segment_index = generator.segment_idx,
+                    .char_offset = static_cast<std::uint16_t>(generator.char_idx - 1),
+                };
+            }
+            return std::nullopt;
+        }
+
+        constexpr void skip_literal_chars(std::size_t count) noexcept {
+            if constexpr (generator_reveal_runs<Generator>::available) {
+                generator.skip_literal_chars(count);
+            } else {
+                (void)count;
             }
         }
     };
@@ -149,6 +256,8 @@ namespace gba::text2 {
         format_gen gen;
 
     public:
+        using reveal_runs_type = compiled_reveal_runs<Fmt>;
+
         template<typename... Args>
         constexpr format_source(Args... args)
             : gen(gba::text2::text2_format<Fmt>{}.generator(std::move(args)...)) {}
@@ -161,9 +270,33 @@ namespace gba::text2 {
         constexpr void reset() noexcept {
             gen.reset();
         }
+
+        [[nodiscard]]
+        constexpr bool in_literal_run() const noexcept {
+            if (gen.segment_idx >= format_gen::segment_count) return false;
+            return format_gen::ast.segments[gen.segment_idx].type == gba::format::segment_type::literal;
+        }
+
+        [[nodiscard]]
+        constexpr std::optional<literal_run_cursor> current_literal_position() const noexcept {
+            if (!in_literal_run() || gen.char_idx == 0) return std::nullopt;
+            return literal_run_cursor{
+                .segment_index = gen.segment_idx,
+                .char_offset = static_cast<std::uint16_t>(gen.char_idx - 1),
+            };
+        }
+
+        constexpr void skip_literal_chars(std::size_t count) noexcept {
+            gen.skip_literal_chars(count);
+        }
     };
 
     template<fixed_string Fmt, typename... Args>
     using format_stream = tokenizer<format_source<Fmt>>;
+
+    template<fixed_string Fmt, typename... Args>
+    constexpr auto stream(text2_format<Fmt>, Args... args) {
+        return format_stream<Fmt, Args...>{format_source<Fmt>{std::move(args)...}};
+    }
 
 } // namespace gba::text2
