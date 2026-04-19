@@ -172,6 +172,54 @@ int main() {
         gba::test.eq(layer.cursor_row(), 0u);
     }
 
+    // Test: Clear/reset reinitialize blank tile 0 and screenblock entries
+    {
+        constexpr auto config = gba::text2::bitplane_config{
+            .profile = gba::text2::bitplane_profile::two_plane_three_color,
+            .palbank_0 = 1,
+            .palbank_1 = 2,
+            .start_index = 1,
+        };
+
+        auto* tiles = gba::memory_map(gba::registral_cast<gba::tile4bpp[2048]>(gba::mem_tile_4bpp));
+        for (auto& row : tiles[0]) row = 0xAAAAAAAAu;
+        for (unsigned int i = 0; i < 32u * 32u; ++i) {
+            gba::mem_se[31u][i] = {
+                .tile_index = 123u,
+                .palette_index = 7u,
+            };
+        }
+
+        auto layer = make_layer_240x160(config);
+        const auto expected_bg_row = 0x11111111u * config.background_nibble();
+        for (const auto row : tiles[0]) {
+            gba::test.eq(row, expected_bg_row);
+        }
+        for (unsigned int i = 0; i < 32u * 32u; ++i) {
+            const auto se = gba::mem_se[31u][i].value();
+            gba::test.eq(static_cast<unsigned int>(se.tile_index), 0u);
+            gba::test.eq(static_cast<unsigned int>(se.palette_index), 1u);
+        }
+
+        for (auto& row : tiles[0]) row = 0x55555555u;
+        for (unsigned int i = 0; i < 32u * 32u; ++i) {
+            gba::mem_se[31u][i] = {
+                .tile_index = 456u,
+                .palette_index = 6u,
+            };
+        }
+
+        layer.reset();
+        for (const auto row : tiles[0]) {
+            gba::test.eq(row, expected_bg_row);
+        }
+        for (unsigned int i = 0; i < 32u * 32u; ++i) {
+            const auto se = gba::mem_se[31u][i].value();
+            gba::test.eq(static_cast<unsigned int>(se.tile_index), 0u);
+            gba::test.eq(static_cast<unsigned int>(se.palette_index), 1u);
+        }
+    }
+
     // Test: Max tile count calculation (240x160 = 30×20 tiles)
     {
         auto config = gba::text2::bitplane_config{};
