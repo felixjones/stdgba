@@ -5,6 +5,7 @@
 #include <gba/embed>
 #include <gba/format>
 #include <gba/interrupt>
+#include <gba/text2>
 #include <gba/text>
 
 #include <array>
@@ -27,38 +28,37 @@ int main() {
     gba::reg_dispcnt = {.video_mode = 0, .enable_bg0 = true};
     gba::reg_bgcnt[0] = {.screenblock = 31};
 
-    // Configure bitplane rendering with two planes using palette banks 1 and 2
-    constexpr auto config = gba::text::bitplane_config{
-        .profile = gba::text::bitplane_profile::two_plane_three_color,
+    constexpr auto config = gba::text2::bitplane_config{
+        .profile = gba::text2::bitplane_profile::two_plane_three_color,
         .palbank_0 = 1,
         .palbank_1 = 2,
         .start_index = 1,
     };
 
-    gba::text::set_theme(config, {
-                                     .background = "#304060"_clr,
-                                     .foreground = "white"_clr,
-                                     .shadow = "#102040"_clr,
-                                 });
+    gba::text2::set_theme(config, {
+                                      .background = "#304060"_clr,
+                                      .foreground = "white"_clr,
+                                      .shadow = "#102040"_clr,
+                                  });
     gba::pal_bg_mem[0] = "#304060"_clr;
 
     unsigned int frame = 0;
 
-    gba::text::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
-    gba::text::bg4_text_layer layer{31, config, alloc};
+    gba::text2::linear_tile_allocator alloc{.next_tile = 1, .end_tile = 512};
+    using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
+    layer_type layer{31, config, alloc};
 
-    gba::text::draw_metrics drawMetrics{
+    gba::text2::stream_metrics metrics{
         .letter_spacing_px = 1,
         .line_spacing_px = 2,
+        .tab_width_px = 32,
         .wrap_width_px = 220,
-        .break_chars = gba::text::break_policy::whitespace,
     };
-    gba::text::stream_metrics streamMetrics{.letter_spacing_px = 1};
 
     auto make_cursor = [&] {
         auto gen = fmt.generator("value"_arg = [&] { return frame; });
-        auto s = gba::text::stream(gen, font, streamMetrics);
-        return layer.make_cursor(font, s, 0, 0, drawMetrics);
+        auto s = gba::text2::stream(gen, font, metrics);
+        return layer.make_cursor(font, s, 0, 0, metrics);
     };
 
     auto cursor = make_cursor();
@@ -69,7 +69,7 @@ int main() {
 
         if (!cursor.next_visible() && frame % 120 == 0) {
             alloc = {.next_tile = 1, .end_tile = 512};
-            layer = gba::text::bg4_text_layer{31, config, alloc};
+            layer = layer_type{31, config, alloc};
             cursor = make_cursor();
         }
     }

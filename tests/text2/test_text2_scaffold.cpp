@@ -41,5 +41,40 @@ int main() {
     using fmt_t = gba::text2::text2_format<"Test: {x}">;
     static_assert(true, "text2_format type is accessible");
 
+    // Test: compile-time reveal run metadata
+    {
+        using literal_runs = gba::text2::compiled_reveal_runs<"Hello">;
+        static_assert(literal_runs::run_count == 1);
+        static_assert(literal_runs::literal_run_count == 1);
+        static_assert(literal_runs::runtime_run_count == 0);
+        static_assert(literal_runs::literal_only);
+        static_assert(literal_runs::runs[0].kind == gba::text2::glyph_run_kind::literal);
+        gba::test.eq(literal_runs::runs[0].lit_length, 5u);
+
+        using mixed_runs = gba::text2::compiled_reveal_runs<"Foo {} Bar">;
+        static_assert(mixed_runs::run_count == 3);
+        static_assert(mixed_runs::literal_run_count == 2);
+        static_assert(mixed_runs::runtime_run_count == 1);
+        static_assert(mixed_runs::has_runtime_runs);
+        static_assert(mixed_runs::runs[0].kind == gba::text2::glyph_run_kind::literal);
+        static_assert(mixed_runs::runs[1].kind == gba::text2::glyph_run_kind::runtime);
+        static_assert(mixed_runs::runs[2].kind == gba::text2::glyph_run_kind::literal);
+        gba::test.eq(mixed_runs::runs[0].lit_length, 4u);
+        gba::test.eq(mixed_runs::runs[2].lit_length, 4u);
+
+        using pal_runs = gba::text2::compiled_reveal_runs<"A{p:pal}B">;
+        static_assert(pal_runs::run_count == 3);
+        static_assert(pal_runs::runtime_run_count == 1);
+        static_assert(pal_runs::runs[1].kind == gba::text2::glyph_run_kind::runtime);
+        gba::test.eq(pal_runs::runs[0].lit_length, 1u);
+        gba::test.eq(pal_runs::runs[2].lit_length, 1u);
+
+        using escaped_runs = decltype(gba::text2::make_reveal_runs<"{{A}}">());
+        static_assert(escaped_runs::run_count == 2);
+        static_assert(escaped_runs::literal_run_count == 2);
+        static_assert(escaped_runs::runtime_run_count == 0);
+        static_assert(escaped_runs::literal_only);
+    }
+
     return gba::test.finish();
 }

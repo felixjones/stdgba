@@ -249,7 +249,7 @@ static constexpr auto fmt_hp_color = gba::text2::text2_format<"{pal:pal}HP: {hp}
 volatile unsigned int sink_u32 = 0;
 
 namespace {
-    using layer_type = gba::text2::bg4bpp_text_layer<decltype(font), 240, 160>;
+    using layer_type = gba::text2::bg4bpp_text_layer<240, 160>;
 
     constexpr int iters = 64;
     constexpr auto config = gba::text2::bitplane_config{
@@ -260,7 +260,7 @@ namespace {
 
     [[nodiscard]]
     layer_type make_layer() noexcept {
-        return layer_type{&font, config};
+        return layer_type{config};
     }
 
     void clear_tiles() noexcept {

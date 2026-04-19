@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <optional>
+#include <type_traits>
+#include <utility>
 #include <variant>
 
 namespace gba::text2 {
@@ -61,7 +63,7 @@ namespace gba::text2 {
             }
 
             if (is_color_escape_prefix(c)) {
-                in_escape = true;
+                in_escape = false;
                 if (!next_char.has_value()) {
                     return std::nullopt;
                 }
@@ -103,6 +105,41 @@ namespace gba::text2 {
     };
 
     using cstr_stream = tokenizer<cstr_source>;
+
+    template<typename Generator>
+    struct generator_source {
+    private:
+        Generator generator;
+
+    public:
+        constexpr explicit generator_source(Generator g)
+            : generator(std::move(g)) {}
+
+        [[nodiscard]]
+        constexpr std::optional<char> next() noexcept {
+            return generator();
+        }
+
+        constexpr void reset() noexcept {
+            if constexpr (requires { generator.reset(); }) {
+                generator.reset();
+            }
+        }
+    };
+
+    template<typename Generator>
+    using generated_stream = tokenizer<generator_source<Generator>>;
+
+    template<typename Generator>
+    constexpr auto stream(Generator gen) {
+        using gen_t = std::decay_t<Generator>;
+        return generated_stream<gen_t>{generator_source<gen_t>{std::move(gen)}};
+    }
+
+    template<typename Generator, typename Font, typename Metrics>
+    constexpr auto stream(Generator gen, const Font&, const Metrics&) {
+        return stream(std::move(gen));
+    }
 
     template<fixed_string Fmt>
     struct format_source {
