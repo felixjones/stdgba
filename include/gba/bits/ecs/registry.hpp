@@ -215,8 +215,8 @@ namespace gba::ecs {
 
             /// @brief Iterate all matching entities with a callback.
             ///
-            /// Callback signature: `void(ViewCs&...)` or `void(entity_id, ViewCs&...)`.
-            /// The entity_id overload is auto-detected at compile time.
+            /// Callback signature: `void(ViewCs&...)` or `void(gba::entity, ViewCs&...)`.
+            /// The `gba::entity` overload is auto-detected at compile time.
             ///
             /// Three runtime paths selected by per-component count metadata:
             ///   1. Dense + all-match: slot == j, no mask check (fastest).
@@ -228,8 +228,8 @@ namespace gba::ecs {
                 const bool allMatch = ((m_reg->m_component_count[index_of<ViewCs>] == m_reg->m_alive) && ...);
 
                 auto invoke = [&](unsigned int slot) {
-                    if constexpr (std::is_invocable_v<Fn, entity_id, ViewCs&...>) {
-                        fn(entity_id::make(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
+                    if constexpr (std::is_invocable_v<Fn, const entity, ViewCs&...>) {
+                        fn(entity(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
                            m_reg->template pool_ref<ViewCs>(slot)...);
                     } else {
                         fn(m_reg->template pool_ref<ViewCs>(slot)...);
@@ -274,8 +274,8 @@ namespace gba::ecs {
                 const bool allMatch = ((m_reg->m_component_count[index_of<ViewCs>] == m_reg->m_alive) && ...);
 
                 auto invoke = [&](unsigned int slot) {
-                    if constexpr (std::is_invocable_v<Fn, entity_id, ViewCs&...>) {
-                        fn(entity_id::make(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
+                    if constexpr (std::is_invocable_v<Fn, const entity, ViewCs&...>) {
+                        fn(entity(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
                            m_reg->template pool_ref<ViewCs>(slot)...);
                     } else {
                         fn(m_reg->template pool_ref<ViewCs>(slot)...);
@@ -301,17 +301,17 @@ namespace gba::ecs {
         ///
         /// Consteval: throws if capacity exceeded. Runtime: UB if exceeded
         /// (no runtime capacity check).
-        [[nodiscard]] constexpr entity_id create() {
+        [[nodiscard]] constexpr const entity create() {
             if consteval {
                 if (m_alive >= static_cast<std::uint8_t>(Capacity)) throw "registry::create: capacity exceeded";
             }
             const auto slot = allocate_slot();
-            return entity_id::make(slot, m_gen[slot]);
+            return entity(slot, m_gen[slot]);
         }
 
         /// @brief Create and attach a fixed component set in a single pass.
         template<typename... Cs, typename... Values>
-        [[nodiscard]] constexpr entity_id create_emplace(Values&&... values) {
+        [[nodiscard]] constexpr const entity create_emplace(Values&&... values) {
             static_assert(sizeof...(Cs) > 0, "create_emplace requires at least one component");
             static_assert(sizeof...(Cs) == sizeof...(Values), "create_emplace requires one value per component");
             if consteval {
@@ -322,15 +322,15 @@ namespace gba::ecs {
             m_mask[slot] = alive_bit | (bit_of<Cs> | ...);
             (++m_component_count[index_of<Cs>], ...);
             ((std::get<index_of<Cs>>(m_pools)[slot] = Cs{std::forward<Values>(values)}), ...);
-            return entity_id::make(slot, m_gen[slot]);
+            return entity(slot, m_gen[slot]);
         }
 
         /// @brief Destroy an entity, freeing its slot for reuse.
-        constexpr void destroy(entity_id e) {
+        constexpr void destroy(const entity e) {
             if consteval {
                 if (!valid(e)) throw "registry::destroy: invalid entity";
             }
-            const auto slot = e.slot();
+            const auto slot = e.slot;
             if constexpr (sizeof...(Components) <= 8) {
                 ((m_mask[slot] & bit_of<Components> ? --m_component_count[index_of<Components>] : 0), ...);
             } else {
@@ -356,10 +356,10 @@ namespace gba::ecs {
             }
         }
 
-        /// @brief Check whether an entity id still refers to a live entity.
-        [[nodiscard]] constexpr bool valid(entity_id e) const noexcept {
-            const auto slot = e.slot();
-            return slot < Capacity && (m_mask[slot] & alive_bit) && m_gen[slot] == e.generation();
+        /// @brief Check whether a `gba::entity` still refers to a live entity.
+        [[nodiscard]] constexpr bool valid(const entity e) const noexcept {
+            const auto slot = e.slot;
+            return slot < Capacity && (m_mask[slot] & alive_bit) && m_gen[slot] == e.generation;
         }
 
         /// @brief Number of currently alive entities.
@@ -382,12 +382,12 @@ namespace gba::ecs {
         /// @brief Attach a component to an entity, constructed from @p args.
         /// @return Reference to the emplaced component.
         template<typename C, typename... Args>
-        constexpr C& emplace(entity_id e, Args&&... args) {
+        constexpr C& emplace(const entity e, Args&&... args) {
             if consteval {
                 if (!valid(e)) throw "registry::emplace: invalid entity";
-                if (m_mask[e.slot()] & bit_of<C>) throw "registry::emplace: component already exists";
+                if (m_mask[e.slot] & bit_of<C>) throw "registry::emplace: component already exists";
             }
-            const auto slot = e.slot();
+            const auto slot = e.slot;
             m_mask[slot] |= bit_of<C>;
             ++m_component_count[index_of<C>];
             auto& comp = std::get<index_of<C>>(m_pools)[slot];
@@ -397,19 +397,19 @@ namespace gba::ecs {
 
         /// @brief Remove a component from an entity.
         template<typename C>
-        constexpr void remove(entity_id e) {
+        constexpr void remove(const entity e) {
             if consteval {
                 if (!valid(e)) throw "registry::remove: invalid entity";
             }
-            m_mask[e.slot()] &= ~bit_of<C>;
+            m_mask[e.slot] &= ~bit_of<C>;
             --m_component_count[index_of<C>];
         }
 
         /// @brief Remove one or more components without validity/presence checks.
         template<typename... Cs>
-        constexpr void remove_unchecked(entity_id e) noexcept {
+        constexpr void remove_unchecked(const entity e) noexcept {
             static_assert(sizeof...(Cs) > 0, "remove_unchecked requires at least one component");
-            const auto slot = e.slot();
+            const auto slot = e.slot;
             constexpr std::uint32_t clear_mask = (bit_of<Cs> | ...);
             m_mask[slot] &= ~clear_mask;
             (--m_component_count[index_of<Cs>], ...);
@@ -427,30 +427,30 @@ namespace gba::ecs {
 
         /// @brief Get a mutable reference to an entity's component.
         template<typename C>
-        [[nodiscard]] constexpr C& get(entity_id e) noexcept {
-            return std::get<index_of<C>>(m_pools)[e.slot()];
+        [[nodiscard]] constexpr C& get(const entity e) noexcept {
+            return std::get<index_of<C>>(m_pools)[e.slot];
         }
 
         /// @brief Get a const reference to an entity's component.
         template<typename C>
-        [[nodiscard]] constexpr const C& get(entity_id e) const noexcept {
-            return std::get<index_of<C>>(m_pools)[e.slot()];
+        [[nodiscard]] constexpr const C& get(const entity e) const noexcept {
+            return std::get<index_of<C>>(m_pools)[e.slot];
         }
 
         /// @brief Try to get a mutable component pointer. Returns nullptr if missing/invalid.
         template<typename C>
-        [[nodiscard]] constexpr C* try_get(entity_id e) noexcept {
+        [[nodiscard]] constexpr C* try_get(const entity e) noexcept {
             if (!valid(e)) return nullptr;
-            const auto slot = e.slot();
+            const auto slot = e.slot;
             if ((m_mask[slot] & bit_of<C>) == 0) return nullptr;
             return &std::get<index_of<C>>(m_pools)[slot];
         }
 
         /// @brief Try to get a const component pointer. Returns nullptr if missing/invalid.
         template<typename C>
-        [[nodiscard]] constexpr const C* try_get(entity_id e) const noexcept {
+        [[nodiscard]] constexpr const C* try_get(const entity e) const noexcept {
             if (!valid(e)) return nullptr;
-            const auto slot = e.slot();
+            const auto slot = e.slot;
             if ((m_mask[slot] & bit_of<C>) == 0) return nullptr;
             return &std::get<index_of<C>>(m_pools)[slot];
         }
@@ -458,9 +458,9 @@ namespace gba::ecs {
         /// @brief Run callback with mutable component reference if present.
         /// @return true if callback executed, false if component missing/invalid entity.
         template<typename C, typename Fn>
-        constexpr bool with(entity_id e, Fn&& fn) {
+        constexpr bool with(const entity e, Fn&& fn) {
             if (auto* c = try_get<C>(e)) {
-                if constexpr (std::is_invocable_v<Fn, entity_id, C&>) {
+                if constexpr (std::is_invocable_v<Fn, const entity, C&>) {
                     fn(e, *c);
                 } else {
                     fn(*c);
@@ -473,9 +473,9 @@ namespace gba::ecs {
         /// @brief Run callback with const component reference if present.
         /// @return true if callback executed, false if component missing/invalid entity.
         template<typename C, typename Fn>
-        constexpr bool with(entity_id e, Fn&& fn) const {
+        constexpr bool with(const entity e, Fn&& fn) const {
             if (auto* c = try_get<C>(e)) {
-                if constexpr (std::is_invocable_v<Fn, entity_id, const C&>) {
+                if constexpr (std::is_invocable_v<Fn, const entity, const C&>) {
                     fn(e, *c);
                 } else {
                     fn(*c);
@@ -487,16 +487,16 @@ namespace gba::ecs {
 
         /// @brief Check if an entity has ALL of the listed components.
         template<typename... Cs>
-        [[nodiscard]] constexpr bool all_of(entity_id e) const noexcept {
+        [[nodiscard]] constexpr bool all_of(const entity e) const noexcept {
             constexpr auto req = (bit_of<Cs> | ...);
-            return (m_mask[e.slot()] & req) == req;
+            return (m_mask[e.slot] & req) == req;
         }
 
         /// @brief Check if an entity has ANY of the listed components.
         template<typename... Cs>
-        [[nodiscard]] constexpr bool any_of(entity_id e) const noexcept {
+        [[nodiscard]] constexpr bool any_of(const entity e) const noexcept {
             constexpr auto req = (bit_of<Cs> | ...);
-            return (m_mask[e.slot()] & req) != 0;
+            return (m_mask[e.slot] & req) != 0;
         }
 
         /// @brief Create a view over entities that have all listed components.
@@ -570,17 +570,17 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr bool all_of_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
+        [[nodiscard]] constexpr bool all_of_flat_impl(const entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
             return m_impl.template all_of<std::tuple_element_t<Is, std::tuple<Cs...>>...>(e);
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr bool any_of_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
+        [[nodiscard]] constexpr bool any_of_flat_impl(const entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
             return m_impl.template any_of<std::tuple_element_t<Is, std::tuple<Cs...>>...>(e);
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr decltype(auto) get_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
+        [[nodiscard]] constexpr decltype(auto) get_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
             if constexpr (sizeof...(Is) == 1) {
                 return (m_impl.template get<std::tuple_element_t<0, std::tuple<Cs...>>>(e));
             } else {
@@ -589,7 +589,7 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr decltype(auto) get_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
+        [[nodiscard]] constexpr decltype(auto) get_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
             if constexpr (sizeof...(Is) == 1) {
                 return (m_impl.template get<std::tuple_element_t<0, std::tuple<Cs...>>>(e));
             } else {
@@ -598,7 +598,7 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr decltype(auto) try_get_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
+        [[nodiscard]] constexpr decltype(auto) try_get_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
             if constexpr (sizeof...(Is) == 1) {
                 return (m_impl.template try_get<std::tuple_element_t<0, std::tuple<Cs...>>>(e));
             } else {
@@ -607,7 +607,7 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr decltype(auto) try_get_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
+        [[nodiscard]] constexpr decltype(auto) try_get_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const noexcept {
             if constexpr (sizeof...(Is) == 1) {
                 return (m_impl.template try_get<std::tuple_element_t<0, std::tuple<Cs...>>>(e));
             } else {
@@ -616,10 +616,10 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is, typename Fn>
-        constexpr bool with_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) {
+        constexpr bool with_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) {
             auto ptrs = std::tuple{m_impl.template try_get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...};
             if (!((std::get<Is>(ptrs) != nullptr) && ...)) return false;
-            if constexpr (std::is_invocable_v<Fn, entity_id, std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
+            if constexpr (std::is_invocable_v<Fn, const entity, std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
                 fn(e, (*std::get<Is>(ptrs))...);
             } else {
                 fn((*std::get<Is>(ptrs))...);
@@ -628,10 +628,10 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is, typename Fn>
-        constexpr bool with_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) const {
+        constexpr bool with_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) const {
             auto ptrs = std::tuple{m_impl.template try_get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...};
             if (!((std::get<Is>(ptrs) != nullptr) && ...)) return false;
-            if constexpr (std::is_invocable_v<Fn, entity_id, const std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
+            if constexpr (std::is_invocable_v<Fn, const entity, const std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
                 fn(e, (*std::get<Is>(ptrs))...);
             } else {
                 fn((*std::get<Is>(ptrs))...);
@@ -640,27 +640,27 @@ namespace gba::ecs {
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is, typename... Values>
-        [[nodiscard]] constexpr entity_id create_emplace_flat_impl(std::index_sequence<Is...>*, std::tuple<Cs...>*, Values&&... values) {
+        [[nodiscard]] constexpr const entity create_emplace_flat_impl(std::index_sequence<Is...>*, std::tuple<Cs...>*, Values&&... values) {
             return m_impl.template create_emplace<std::tuple_element_t<Is, std::tuple<Cs...>>...>(std::forward<Values>(values)...);
         }
 
         template<typename... Query, typename... Cs, std::size_t... Is>
-        constexpr void remove_unchecked_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
+        constexpr void remove_unchecked_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) noexcept {
             m_impl.template remove_unchecked<std::tuple_element_t<Is, std::tuple<Cs...>>...>(e);
         }
 
         template<typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr bool case_matches_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) {
+        [[nodiscard]] constexpr bool case_matches_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) {
             return m_impl.template all_of<std::tuple_element_t<Is, std::tuple<Cs...>>...>(e);
         }
 
         template<typename... Cs, std::size_t... Is>
-        [[nodiscard]] constexpr bool case_matches_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const {
+        [[nodiscard]] constexpr bool case_matches_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*) const {
             return m_impl.template all_of<std::tuple_element_t<Is, std::tuple<Cs...>>...>(e);
         }
 
         template<typename Case>
-        [[nodiscard]] constexpr bool case_matches(entity_id e) {
+        [[nodiscard]] constexpr bool case_matches(entity e) {
             using flattened = flatten_groups_t<Case>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -672,7 +672,7 @@ namespace gba::ecs {
         }
 
         template<typename Case>
-        [[nodiscard]] constexpr bool case_matches(entity_id e) const {
+        [[nodiscard]] constexpr bool case_matches(entity e) const {
             using flattened = flatten_groups_t<Case>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -684,8 +684,8 @@ namespace gba::ecs {
         }
 
         template<typename... Cs, std::size_t... Is, typename Fn>
-        constexpr void invoke_case_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) {
-            if constexpr (std::is_invocable_v<Fn, entity_id, std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
+        constexpr void invoke_case_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) {
+            if constexpr (std::is_invocable_v<Fn, const entity, std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
                 fn(e, m_impl.template get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...);
             } else {
                 fn(m_impl.template get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...);
@@ -693,8 +693,8 @@ namespace gba::ecs {
         }
 
         template<typename... Cs, std::size_t... Is, typename Fn>
-        constexpr void invoke_case_flat_impl(entity_id e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) const {
-            if constexpr (std::is_invocable_v<Fn, entity_id, const std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
+        constexpr void invoke_case_flat_impl(entity e, std::index_sequence<Is...>*, std::tuple<Cs...>*, Fn&& fn) const {
+            if constexpr (std::is_invocable_v<Fn, const entity, const std::tuple_element_t<Is, std::tuple<Cs...>>&...>) {
                 fn(e, m_impl.template get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...);
             } else {
                 fn(m_impl.template get<std::tuple_element_t<Is, std::tuple<Cs...>>>(e)...);
@@ -702,7 +702,7 @@ namespace gba::ecs {
         }
 
         template<typename Case, typename Fn>
-        constexpr void invoke_case(entity_id e, Fn&& fn) {
+        constexpr void invoke_case(entity e, Fn&& fn) {
             using flattened = flatten_groups_t<Case>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -715,7 +715,7 @@ namespace gba::ecs {
         }
 
         template<typename Case, typename Fn>
-        constexpr void invoke_case(entity_id e, Fn&& fn) const {
+        constexpr void invoke_case(entity e, Fn&& fn) const {
             using flattened = flatten_groups_t<Case>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -728,7 +728,7 @@ namespace gba::ecs {
         }
 
         template<typename... Cases, typename FnTuple, std::size_t... Is>
-        [[nodiscard]] constexpr bool invoke_matched_cases(entity_id e,
+        [[nodiscard]] constexpr bool invoke_matched_cases(entity e,
                                                           const std::array<bool, sizeof...(Cases)>& matched,
                                                           FnTuple&& fns,
                                                           std::index_sequence<Is...>) {
@@ -738,7 +738,7 @@ namespace gba::ecs {
         }
 
         template<typename... Cases, typename FnTuple, std::size_t... Is>
-        [[nodiscard]] constexpr bool invoke_matched_cases(entity_id e,
+        [[nodiscard]] constexpr bool invoke_matched_cases(entity e,
                                                           const std::array<bool, sizeof...(Cases)>& matched,
                                                           FnTuple&& fns,
                                                           std::index_sequence<Is...>) const {
@@ -750,14 +750,14 @@ namespace gba::ecs {
     public:
 
         /// @brief Create a new entity.
-        [[nodiscard]] constexpr entity_id create() { return m_impl.create(); }
+        [[nodiscard]] constexpr const entity create() { return m_impl.create(); }
 
         /// @brief Create and attach a fixed component set in one call.
         ///
         /// Supports mixed component/group query packs, e.g.
         /// `create_emplace<physics, health>(...)`.
         template<typename... Query, typename... Values>
-        [[nodiscard]] constexpr entity_id create_emplace(Values&&... values) {
+        [[nodiscard]] constexpr const entity create_emplace(Values&&... values) {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -769,10 +769,10 @@ namespace gba::ecs {
         }
 
         /// @brief Destroy an entity.
-        constexpr void destroy(entity_id e) { m_impl.destroy(e); }
+        constexpr void destroy(const entity e) { m_impl.destroy(e); }
 
         /// @brief Check if entity is valid.
-        [[nodiscard]] constexpr bool valid(entity_id e) const noexcept { return m_impl.valid(e); }
+        [[nodiscard]] constexpr bool valid(const entity e) const noexcept { return m_impl.valid(e); }
 
         /// @brief Number of alive entities.
         [[nodiscard]] constexpr std::size_t size() const noexcept { return m_impl.size(); }
@@ -782,13 +782,13 @@ namespace gba::ecs {
 
         /// @brief Attach a component to an entity.
         template<typename C, typename... Args>
-        constexpr C& emplace(entity_id e, Args&&... args) {
+        constexpr C& emplace(const entity e, Args&&... args) {
             return m_impl.template emplace<C>(e, std::forward<Args>(args)...);
         }
 
         /// @brief Remove a component from an entity.
         template<typename C>
-        constexpr void remove(entity_id e) {
+        constexpr void remove(const entity e) {
             m_impl.template remove<C>(e);
         }
 
@@ -796,7 +796,7 @@ namespace gba::ecs {
         ///
         /// Supports mixed component/group query packs.
         template<typename... Query>
-        constexpr void remove_unchecked(entity_id e) noexcept {
+        constexpr void remove_unchecked(const entity e) noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -818,7 +818,7 @@ namespace gba::ecs {
         /// - Single resolved component -> returns `C&`
         /// - Multiple resolved components -> returns `std::tuple<...&>`
         template<typename... Query>
-        [[nodiscard]] constexpr decltype(auto) get(entity_id e) noexcept {
+        [[nodiscard]] constexpr decltype(auto) get(const entity e) noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -831,7 +831,7 @@ namespace gba::ecs {
 
         /// @brief Get one or more components using a mixed component/group query pack. Const overload.
         template<typename... Query>
-        [[nodiscard]] constexpr decltype(auto) get(entity_id e) const noexcept {
+        [[nodiscard]] constexpr decltype(auto) get(const entity e) const noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -847,7 +847,7 @@ namespace gba::ecs {
         /// - Single resolved component -> returns `C*`
         /// - Multiple resolved components -> returns `std::tuple<...*>`
         template<typename... Query>
-        [[nodiscard]] constexpr decltype(auto) try_get(entity_id e) noexcept {
+        [[nodiscard]] constexpr decltype(auto) try_get(const entity e) noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -860,7 +860,7 @@ namespace gba::ecs {
 
         /// @brief Try to get one or more components using a mixed component/group query pack. Const overload.
         template<typename... Query>
-        [[nodiscard]] constexpr decltype(auto) try_get(entity_id e) const noexcept {
+        [[nodiscard]] constexpr decltype(auto) try_get(const entity e) const noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -873,10 +873,10 @@ namespace gba::ecs {
 
         /// @brief Run callback if all components from a mixed component/group query pack are present.
         ///
-        /// Callback signature: `void(QueryComponents&...)` or `void(entity_id, QueryComponents&...)`.
+        /// Callback signature: `void(QueryComponents&...)` or `void(gba::entity, QueryComponents&...)`.
         /// Returns false when entity is invalid or any requested component is missing.
         template<typename... Query, typename Fn>
-        constexpr bool with(entity_id e, Fn&& fn) {
+        constexpr bool with(const entity e, Fn&& fn) {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -890,7 +890,7 @@ namespace gba::ecs {
 
         /// @brief Run callback if all components from a mixed component/group query pack are present. Const overload.
         template<typename... Query, typename Fn>
-        constexpr bool with(entity_id e, Fn&& fn) const {
+        constexpr bool with(const entity e, Fn&& fn) const {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -908,7 +908,7 @@ namespace gba::ecs {
         /// All cases that match at entry execute in order and return true.
         /// Matching is snapshotted before callbacks run.
         template<typename... Cases, typename... Fns>
-        constexpr bool match(entity_id e, Fns&&... fns) {
+        constexpr bool match(entity e, Fns&&... fns) {
             static_assert(sizeof...(Cases) > 0, "match requires at least one case query");
             static_assert(sizeof...(Cases) == sizeof...(Fns), "match requires one lambda per case query");
             const std::array<bool, sizeof...(Cases)> matched{case_matches<Cases>(e)...};
@@ -918,7 +918,7 @@ namespace gba::ecs {
 
         /// @brief Match an entity against ordered component/group query cases. Const overload.
         template<typename... Cases, typename... Fns>
-        constexpr bool match(entity_id e, Fns&&... fns) const {
+        constexpr bool match(entity e, Fns&&... fns) const {
             static_assert(sizeof...(Cases) > 0, "match requires at least one case query");
             static_assert(sizeof...(Cases) == sizeof...(Fns), "match requires one lambda per case query");
             const std::array<bool, sizeof...(Cases)> matched{case_matches<Cases>(e)...};
@@ -929,7 +929,7 @@ namespace gba::ecs {
         /// @brief ARM/IWRAM version of match() for hot conditional dispatch paths.
         template<typename... Cases, typename... Fns>
         [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_match"), gnu::noinline, gnu::flatten]]
-        bool match_arm(entity_id e, Fns&&... fns) {
+        bool match_arm(entity e, Fns&&... fns) {
             static_assert(sizeof...(Cases) > 0, "match_arm requires at least one case query");
             static_assert(sizeof...(Cases) == sizeof...(Fns), "match_arm requires one lambda per case query");
             const std::array<bool, sizeof...(Cases)> matched{case_matches<Cases>(e)...};
@@ -940,7 +940,7 @@ namespace gba::ecs {
         /// @brief ARM/IWRAM version of match() for const registries.
         template<typename... Cases, typename... Fns>
         [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_match"), gnu::noinline, gnu::flatten]]
-        bool match_arm(entity_id e, Fns&&... fns) const {
+        bool match_arm(entity e, Fns&&... fns) const {
             static_assert(sizeof...(Cases) > 0, "match_arm requires at least one case query");
             static_assert(sizeof...(Cases) == sizeof...(Fns), "match_arm requires one lambda per case query");
             const std::array<bool, sizeof...(Cases)> matched{case_matches<Cases>(e)...};
@@ -950,7 +950,7 @@ namespace gba::ecs {
 
         /// @brief Check if entity has ALL components from a mixed component/group query pack.
         template<typename... Query>
-        [[nodiscard]] constexpr bool all_of(entity_id e) const noexcept {
+        [[nodiscard]] constexpr bool all_of(const entity e) const noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;
@@ -963,7 +963,7 @@ namespace gba::ecs {
 
         /// @brief Check if entity has ANY component from a mixed component/group query pack.
         template<typename... Query>
-        [[nodiscard]] constexpr bool any_of(entity_id e) const noexcept {
+        [[nodiscard]] constexpr bool any_of(const entity e) const noexcept {
             using flattened = flatten_groups_t<Query...>;
             using components_tpl = typename detail::extract_components<flattened>::type;
             constexpr std::size_t count = std::tuple_size_v<components_tpl>;

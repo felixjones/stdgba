@@ -90,7 +90,7 @@ namespace {
 
     // Mutable benchmark context used by no-arg microbench wrappers.
     registry_type* g_with_reg = nullptr;
-    gba::ecs::entity_id g_with_entity = gba::ecs::null;
+    gba::entity g_with_entity = gba::entity_null;
 
     // -- EWRAM-resident registry for realistic game scenario measurement ----------
     // A real game typically has the registry as a global/static (EWRAM BSS).
@@ -150,7 +150,7 @@ namespace {
     // -- Group batch access (should compile to identical code as manual get calls) --
 
     [[gnu::noinline]]
-    void batch_update_manual(registry_type* reg, gba::ecs::entity_id entity) {
+    void batch_update_manual(registry_type* reg, gba::entity entity) {
         auto& pos = reg->get<position>(entity);
         auto& vel = reg->get<velocity>(entity);
         auto& hp = reg->get<health>(entity);
@@ -161,7 +161,7 @@ namespace {
     }
 
     [[gnu::noinline]]
-    void batch_update_group(registry_type* reg, gba::ecs::entity_id entity) {
+    void batch_update_group(registry_type* reg, gba::entity entity) {
         auto [pos, vel, hp] = reg->get<full>(entity);
         pos.x += vel.vx;
         pos.y += vel.vy;
@@ -172,7 +172,7 @@ namespace {
     // -- with() microbench kernels -----------------------------------------------
 
     [[gnu::noinline]]
-    void with_hit_thumb(registry_type* reg, gba::ecs::entity_id entity) {
+    void with_hit_thumb(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->with<position, velocity, health>(entity, [&](position& pos, const velocity& vel, health& hp) {
             pos.x += vel.vx;
@@ -184,7 +184,7 @@ namespace {
     }
 
     [[gnu::noinline]]
-    void with_miss_thumb(registry_type* reg, gba::ecs::entity_id entity) {
+    void with_miss_thumb(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->with<position, velocity, health>(entity, [&](position&, const velocity&, health&) {
             ++acc;
@@ -193,7 +193,7 @@ namespace {
     }
 
     [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_with"), gnu::noinline, gnu::flatten]]
-    void with_hit_arm(registry_type* reg, gba::ecs::entity_id entity) {
+    void with_hit_arm(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->with<position, velocity, health>(entity, [&](position& pos, const velocity& vel, health& hp) {
             pos.x += vel.vx;
@@ -205,7 +205,7 @@ namespace {
     }
 
     [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_with"), gnu::noinline, gnu::flatten]]
-    void with_miss_arm(registry_type* reg, gba::ecs::entity_id entity) {
+    void with_miss_arm(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->with<position, velocity, health>(entity, [&](position&, const velocity&, health&) {
             ++acc;
@@ -219,7 +219,7 @@ namespace {
     [[gnu::noinline]] void bench_with_miss_arm() { with_miss_arm(g_with_reg, g_with_entity); }
 
     [[gnu::noinline]]
-    void match_hit_thumb(registry_type* reg, gba::ecs::entity_id entity) {
+    void match_hit_thumb(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->template match<sprite_id, gba::ecs::group<position, velocity, health>>(
             entity,
@@ -234,7 +234,7 @@ namespace {
     }
 
     [[gnu::noinline]]
-    void match_miss_thumb(registry_type* reg, gba::ecs::entity_id entity) {
+    void match_miss_thumb(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->template match<gba::ecs::group<position, velocity, health>, health>(
             entity,
@@ -245,7 +245,7 @@ namespace {
     }
 
     [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_match"), gnu::noinline, gnu::flatten]]
-    void match_hit_arm(registry_type* reg, gba::ecs::entity_id entity) {
+    void match_hit_arm(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->template match_arm<sprite_id, gba::ecs::group<position, velocity, health>>(
             entity,
@@ -260,7 +260,7 @@ namespace {
     }
 
     [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_match"), gnu::noinline, gnu::flatten]]
-    void match_miss_arm(registry_type* reg, gba::ecs::entity_id entity) {
+    void match_miss_arm(registry_type* reg, gba::entity entity) {
         int acc = 0;
         const bool ok = reg->template match_arm<gba::ecs::group<position, velocity, health>, health>(
             entity,
@@ -290,7 +290,7 @@ namespace {
         });
 
         gba::ecs::registry<128, position, velocity, health, sprite_id> reg;
-        std::array<gba::ecs::entity_id, N> entities{};
+        std::array<gba::entity, N> entities{};
 
         // -- spawn: Nxcreate + Nx4 emplace --------------------------------
         {
@@ -370,7 +370,7 @@ namespace {
 
         auto& reg = g_ewram_reg;
         reg.clear();
-        std::array<gba::ecs::entity_id, N> entities{};
+        std::array<gba::entity, N> entities{};
 
         {
             const auto spawn_cyc = gba::benchmark::measure([&] {
@@ -443,7 +443,7 @@ namespace {
         // -- Test 0: spawn manual vs fused create_emplace -------------------------
         {
             registry_type manual_reg;
-            std::array<gba::ecs::entity_id, 128> manual_entities{};
+            std::array<gba::entity, 128> manual_entities{};
             const auto manual_cyc = gba::benchmark::measure([&] {
                 for (int i = 0; i < 128; ++i) {
                     const auto e = manual_reg.create();
@@ -456,7 +456,7 @@ namespace {
             });
 
             registry_type fused_reg;
-            std::array<gba::ecs::entity_id, 128> fused_entities{};
+            std::array<gba::entity, 128> fused_entities{};
             const auto fused_cyc = gba::benchmark::measure([&] {
                 for (int i = 0; i < 128; ++i) {
                     fused_entities[i] = fused_reg.template create_emplace<spawn>(
@@ -484,7 +484,7 @@ namespace {
         }
 
         gba::ecs::registry<128, position, velocity, health, sprite_id> reg;
-        std::array<gba::ecs::entity_id, 128> entities{};
+        std::array<gba::entity, 128> entities{};
 
         // Setup: create 128 entities with all components
         for (int i = 0; i < 128; ++i) {
@@ -560,7 +560,7 @@ namespace {
         // -- Test 4: dense fast-path recovery after churn -------------------------
         {
             registry_type churn_reg;
-            std::array<gba::ecs::entity_id, 128> churn_entities{};
+            std::array<gba::entity, 128> churn_entities{};
             for (int i = 0; i < 128; ++i) {
                 const auto e = churn_reg.create();
                 churn_entities[i] = e;
@@ -601,7 +601,7 @@ namespace {
         // -- Test 5: destroy scaling with wide sparse/full occupancy --------------
         {
             wide_registry_type sparse_reg;
-            std::array<gba::ecs::entity_id, 128> sparse_entities{};
+            std::array<gba::entity, 128> sparse_entities{};
             for (int i = 0; i < 128; ++i) {
                 const auto e = sparse_reg.create();
                 sparse_entities[i] = e;
@@ -614,7 +614,7 @@ namespace {
             });
 
             wide_registry_type full_reg;
-            std::array<gba::ecs::entity_id, 128> full_entities{};
+            std::array<gba::entity, 128> full_entities{};
             for (int i = 0; i < 128; ++i) {
                 const auto e = full_reg.create();
                 full_entities[i] = e;
@@ -718,7 +718,7 @@ namespace {
                                 "operation"_arg = "operation", "cycles"_arg = "cycles", "diff"_arg = "diff");
         });
 
-        std::array<gba::ecs::entity_id, n> entities{};
+        std::array<gba::entity, n> entities{};
         std::array<health*, n> health_ptrs{};
 
         registry_type reg_remove;
@@ -736,7 +736,7 @@ namespace {
         }
 
         registry_type reg_unchecked_ref;
-        std::array<gba::ecs::entity_id, n> ref_entities{};
+        std::array<gba::entity, n> ref_entities{};
         for (int i = 0; i < n; ++i) {
             const auto e = reg_unchecked_ref.create();
             ref_entities[i] = e;

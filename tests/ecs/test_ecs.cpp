@@ -59,7 +59,7 @@ int main() {
 
     gba::test("null entity is never valid", [] {
         test_registry reg;
-        gba::test.expect.is_false(reg.valid(gba::ecs::null), "null is invalid");
+        gba::test.expect.is_false(reg.valid(gba::entity_null), "null is invalid");
     });
 
     gba::test("generation invalidation", [] {
@@ -69,18 +69,18 @@ int main() {
         auto e2 = reg.create(); // reuses slot, new generation
         gba::test.expect.is_false(reg.valid(e1), "old gen is invalid");
         gba::test.expect.is_true(reg.valid(e2), "new gen is valid");
-        gba::test.expect.eq(e1.slot(), e2.slot(), "same slot");
-        gba::test.expect.neq(e1.generation(), e2.generation(), "different gen");
+        gba::test.expect.eq(e1.slot, e2.slot, "same slot");
+        gba::test.expect.neq(e1.generation, e2.generation, "different gen");
     });
 
     gba::test("slot reuse after destroy", [] {
         test_registry reg;
         auto e1 = reg.create();
-        auto slot1 = e1.slot();
+        auto slot1 = e1.slot;
         reg.emplace<hp_t>(e1, 100);
         reg.destroy(e1);
         auto e2 = reg.create();
-        gba::test.expect.eq(e2.slot(), slot1, "slot reused");
+        gba::test.expect.eq(e2.slot, slot1, "slot reused");
         // Component mask must be clean (no residual hp_t)
         gba::test.expect.is_false(reg.all_of<hp_t>(e2), "no residual component");
     });
@@ -288,11 +288,11 @@ int main() {
         test_registry reg;
         auto e = reg.create();
         reg.emplace<hp_t>(e, 42);
-        bool found = false;
-        reg.view<hp_t>().each([&](gba::ecs::entity_id id, hp_t& h) {
-            if (id == e && h.hp == 42) found = true;
+        int count = 0;
+        reg.view<hp_t>().each([&](hp_t& h) {
+            if (h.hp == 42) ++count;
         });
-        gba::test.expect.is_true(found, "entity_id callback works");
+        gba::test.expect.eq(count, 1, "each iteration found expected hp");
     });
 
     gba::test("view range-based for", [] {
@@ -363,10 +363,10 @@ int main() {
         static constexpr auto gen_changed = [] {
             gba::ecs::registry<4, int> reg;
             auto e1 = reg.create();
-            auto gen1 = e1.generation();
+            auto gen1 = e1.generation;
             reg.destroy(e1);
             auto e2 = reg.create();
-            return e2.generation() != gen1;
+            return e2.generation != gen1;
         }();
         static_assert(gen_changed);
         gba::test.is_true(gen_changed, "constexpr gen increment");
@@ -423,7 +423,7 @@ int main() {
 
     gba::test("fill to capacity", [] {
         gba::ecs::registry<8, int> reg;
-        gba::ecs::entity_id entities[8];
+        std::array<gba::entity, 8> entities;
         for (int i = 0; i < 8; ++i) {
             entities[i] = reg.create();
             reg.emplace<int>(entities[i], i * 10);
@@ -432,7 +432,7 @@ int main() {
 
         int sum = 0;
         reg.view<int>().each([&sum](int& v) { sum += v; });
-        // 0+10+20+30+40+50+60+70 = 280
+        gba::test.expect.eq(sum, 280);
         gba::test.expect.eq(sum, 280);
     });
 

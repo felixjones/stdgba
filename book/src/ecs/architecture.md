@@ -8,7 +8,7 @@
 include/gba/ecs              -> public facade
   +- registry<Capacity, Components...>
   +- group<Components...>
-  +- entity_id (handle with generation)
+  +- entity (handle with generation)
   +- pad<N> (padding utility)
 
 include/gba/bits/ecs/        -> internal implementation
@@ -149,7 +149,7 @@ world.view<position, velocity>().each([](position& p, velocity& v) {
 
 ## Entity identity
 
-`entity_id` is a 16-bit handle:
+`entity` is a 16-bit handle:
 
 | Bits        | Meaning            |
 | ----------- | ------------------ |
@@ -166,7 +166,7 @@ world.view<position, velocity>().each([](position& p, velocity& v) {
 Consequences:
 
 - maximum slots per registry: 255
-- `0xFFFF` is reserved for `gba::ecs::null`
+- `0xFFFF` is reserved for `gba::entity_null`
 - stale handles become invalid after `destroy()` increments generation
 
 This is a very good match for GBA games, where worlds are usually dozens or low hundreds of entities, not tens of thousands.

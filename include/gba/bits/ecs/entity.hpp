@@ -5,34 +5,35 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace gba::ecs {
+namespace gba {
 
-    /// @brief Entity identifier: slot (low byte) + generation (high byte) packed in uint16_t.
+    /// @brief Entity handle: slot + generation packed in uint16_t.
     ///
     /// Slot identifies the storage index. Generation detects use-after-destroy.
+    /// Default-constructed entity is null (slot=0xFF, generation=0xFF).
     /// Maximum 255 live entities (slots 0-254); slot 255 is reserved for null.
-    struct entity_id {
-        std::uint16_t value;
+    ///
+    /// Treat as a value type; pass by `const entity` when making semantic immutability clear.
+    struct alignas(std::uint16_t) entity {
+        std::uint8_t slot;
+        std::uint8_t generation;
 
-        /// @brief Extract the storage slot index (low 8 bits).
-        [[nodiscard]] constexpr std::uint8_t slot() const noexcept { return static_cast<std::uint8_t>(value); }
+        /// Default constructor: produces null entity.
+        constexpr entity() noexcept : slot(0xFF), generation(0xFF) {}
 
-        /// @brief Extract the generation counter (high 8 bits).
-        [[nodiscard]] constexpr std::uint8_t generation() const noexcept {
-            return static_cast<std::uint8_t>(value >> 8);
-        }
+        /// Construct from slot and generation.
+        constexpr entity(std::uint8_t s, std::uint8_t g) noexcept : slot(s), generation(g) {}
 
-        /// @brief Construct an entity_id from slot and generation.
-        [[nodiscard]] static constexpr entity_id make(std::uint8_t slot, std::uint8_t gen) noexcept {
-            return {static_cast<std::uint16_t>(static_cast<std::uint16_t>(gen) << 8 | slot)};
-        }
-
-        constexpr bool operator==(const entity_id&) const = default;
-        constexpr bool operator!=(const entity_id&) const = default;
+        constexpr bool operator==(const entity&) const = default;
+        constexpr bool operator!=(const entity&) const = default;
     };
 
-    /// @brief Sentinel entity: never valid in any registry.
-    inline constexpr entity_id null{0xFFFF};
+    /// @brief Sentinel entity handle: default-constructed entity (null by design).
+    inline constexpr entity entity_null;
+
+} // namespace gba
+
+namespace gba::ecs {
 
     /// @brief Padding utility for power-of-two component size compliance.
     ///

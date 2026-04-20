@@ -37,7 +37,7 @@ The result is data-oriented design without sacrificing readability.
 ## The mental model
 
 ```text
-entity_id     -> 16-bit handle (8-bit slot + 8-bit generation)
+entity     -> 16-bit handle (8-bit slot + 8-bit generation)
 registry      -> owns all component arrays inline in EWRAM
 group         -> compile-time logical grouping of components (zero runtime cost)
 view<Cs...>   -> lightweight filtered iterator over entities matching all Cs
@@ -145,9 +145,9 @@ Both are equivalent at runtime; groups flattened to individual components at com
 
 | Operation    | Signature               | Notes                                 |
 | ------------ | ----------------------- | ------------------------------------- |
-| `create()`   | -> `entity_id`          | Allocate a new entity slot            |
-| `destroy(e)` | `(entity_id)` -> `void` | Destroy entity; increment generation  |
-| `valid(e)`   | `(entity_id)` -> `bool` | Check if entity handle is still alive |
+| `create()`   | -> `entity`          | Allocate a new entity slot            |
+| `destroy(e)` | `(entity)` -> `void` | Destroy entity; increment generation  |
+| `valid(e)`   | `(entity)` -> `bool` | Check if entity handle is still alive |
 | `clear()`    | `()` -> `void`          | Destroy all entities at once          |
 | `size()`     | `()` -> `std::size_t`   | Current count of alive entities       |
 
@@ -156,17 +156,17 @@ Both are equivalent at runtime; groups flattened to individual components at com
 | Operation                  | Signature               | Notes                                            |
 | -------------------------- | ----------------------- | ------------------------------------------------ |
 | `emplace<C>(e, args...)`   | -> `C&`                 | Add component C to entity e; construct with args |
-| `remove<C>(e)`             | `(entity_id)` -> `void` | Remove component C from entity e                 |
+| `remove<C>(e)`             | `(entity)` -> `void` | Remove component C from entity e                 |
 | `remove_unchecked<C>(ref)` | `(C&)` -> `void`        | Remove by component reference (faster)           |
-| `get<C>(e)`                | `(entity_id)` -> `C&`   | Access component (unchecked)                     |
-| `try_get<C>(e)`            | `(entity_id)` -> `C*`   | Access component (returns nullptr if absent)     |
+| `get<C>(e)`                | `(entity)` -> `C&`   | Access component (unchecked)                     |
+| `try_get<C>(e)`            | `(entity)` -> `C*`   | Access component (returns nullptr if absent)     |
 
 ### Queries and predicates
 
 | Operation          | Signature               | Notes                                |
 | ------------------ | ----------------------- | ------------------------------------ |
-| `all_of<Cs...>(e)` | `(entity_id)` -> `bool` | Entity has **all** listed components |
-| `any_of<Cs...>(e)` | `(entity_id)` -> `bool` | Entity has **any** listed component  |
+| `all_of<Cs...>(e)` | `(entity)` -> `bool` | Entity has **all** listed components |
+| `any_of<Cs...>(e)` | `(entity)` -> `bool` | Entity has **any** listed component  |
 
 ### Iteration APIs
 
@@ -175,7 +175,7 @@ Both are equivalent at runtime; groups flattened to individual components at com
 | `view<Cs...>()` and range-for | Ergonomic gameplay systems with structured bindings  |
 | `.each(fn)`                   | Portable systems; constexpr-friendly                 |
 | `.each_arm(fn)`               | Measured hot loops requiring ARM mode + IWRAM        |
-| `.each(entity_id, fn)`        | Systems that need the entity ID alongside components |
+| `.each(entity, fn)`        | Systems that need the entity ID alongside components |
 
 ### Conditional dispatch APIs
 
@@ -199,7 +199,7 @@ world.view<position, velocity>().each([](position& pos, velocity& vel) {
 });
 
 // With entity ID
-world.view<health>().each([](gba::ecs::entity_id id, health& hp) {
+world.view<health>().each([](gba::entity id, health& hp) {
 	if (hp.hp <= 0) world.destroy(id);
 });
 

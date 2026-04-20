@@ -77,7 +77,7 @@ namespace {
         });
 
         gba::ecs::registry<128, position, velocity, health, sprite_id> reg;
-        std::array<gba::ecs::entity_id, N> entities{};
+        std::array<gba::entity, N> entities{};
 
         {
             const auto spawn_cyc = gba::benchmark::measure([&] {
@@ -138,8 +138,8 @@ namespace {
         {
             gba::ecs::registry<128, position, velocity, health, sprite_id> checked_reg;
             gba::ecs::registry<128, position, velocity, health, sprite_id> unchecked_reg;
-            std::array<gba::ecs::entity_id, N> checked_entities{};
-            std::array<gba::ecs::entity_id, N> unchecked_entities{};
+            std::array<gba::entity, N> checked_entities{};
+            std::array<gba::entity, N> unchecked_entities{};
 
             for (int i = 0; i < N; ++i) {
                 const auto ce = checked_reg.create();

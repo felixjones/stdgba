@@ -342,7 +342,7 @@ int main() {
         gba::test.expect.is_false(world.all_of<health>(e), "health removed via mixed remove_unchecked");
     });
 
-    gba::test("with supports mixed groups and entity_id callback", [] {
+    gba::test("with supports mixed groups and entity callback", [] {
         grouped_registry world;
         auto e = world.create();
         world.emplace<position>(e, 30, 40);
@@ -351,7 +351,7 @@ int main() {
         world.emplace<health>(e, 90);
 
         bool called = false;
-        const bool ok = world.with<physics, health>(e, [&](gba::ecs::entity_id id, position& p, velocity& v, acceleration& a, health& h) {
+        const bool ok = world.with<physics, health>(e, [&](gba::entity id, position& p, velocity& v, acceleration& a, health& h) {
             called = (id == e);
             p.x += v.vx + a.ax;
             h.hp -= 10;
@@ -522,7 +522,7 @@ int main() {
 
         int visited = 0;
         int removed = 0;
-        world.view<physics>().each([&](gba::ecs::entity_id id, position&, velocity&, acceleration&) {
+        world.view<physics>().each([&](gba::entity id, position&, velocity&, acceleration&) {
             ++visited;
             world.destroy(id);
             ++removed;

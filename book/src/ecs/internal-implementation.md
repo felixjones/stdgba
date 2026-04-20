@@ -31,7 +31,7 @@ mark slot alive
 append slot to m_alive_list
 record reverse index in m_alive_index
 increment m_alive
-return entity_id(slot, generation)
+return entity(slot, generation)
 ```
 
 That makes slot reuse deterministic and cheap.
@@ -93,10 +93,10 @@ Both range-for and `.each()` are implemented on top of the same storage model, b
 | `.each()`     | explicit callback, easy to specialise or switch to `.each_arm()` |
 | `.each_arm()` | hottest runtime path                                             |
 
-The callback path also auto-detects whether your lambda wants an `entity_id` first:
+The callback path also auto-detects whether your lambda wants an `entity` first:
 
 ```cpp
-world.view<health>().each([](gba::ecs::entity_id e, health& hp) {
+world.view<health>().each([](gba::entity e, health& hp) {
 	// id-aware system
 });
 ```
@@ -281,7 +281,7 @@ void collision_system(world_type& world) {
 
 // With entity IDs for selective destruction
 void health_system(world_type& world) {
-	world.view<health>().each([](gba::ecs::entity_id e, health& hp) {
+	world.view<health>().each([](gba::entity e, health& hp) {
 		if (hp.hp <= 0) {
 			world.destroy(e);  // safe due to generation
 		}
