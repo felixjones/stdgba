@@ -6,7 +6,7 @@
 
 namespace gba::bits {
 
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L && defined(__cpp_exceptions)
     inline constexpr bool supports_constexpr_throw = true;
 #else
     inline constexpr bool supports_constexpr_throw = false;
@@ -15,7 +15,7 @@ namespace gba::bits {
     extern "C" [[noreturn]] void __assert_func(const char* file, int line, const char* func, const char* expr);
 
     [[noreturn]] consteval inline void constexpr_fail(const char* message) {
-#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L
+#if defined(__cpp_constexpr) && __cpp_constexpr >= 202306L && defined(__cpp_exceptions)
         throw message;
 #else
         (void)message;
