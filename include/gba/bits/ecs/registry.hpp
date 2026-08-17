@@ -311,10 +311,10 @@ namespace gba::ecs {
 
         template<typename... ViewCs, typename... ExcludeCs>
         class basic_view<detail::view_query<group<ViewCs...>, group<ExcludeCs...>>> {
-            static_assert(sizeof...(ViewCs) > 0, "view requires at least one component");
+            static_assert(sizeof...(ViewCs) > 0 || sizeof...(ExcludeCs) > 0, "view requires at least one component");
 
             /// Required mask: alive + all requested components.
-            static constexpr std::uint32_t required = (bit_of<ViewCs> | ...) | alive_bit;
+            static constexpr std::uint32_t required = (alive_bit | ... | bit_of<ViewCs>);
             /// Forbidden mask: excluded components must all be absent.
             static constexpr std::uint32_t forbidden = (0u | ... | bit_of<ExcludeCs>);
 
