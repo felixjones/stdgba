@@ -554,6 +554,9 @@ namespace gba::ecs {
         /// @brief Number of currently alive entities.
         [[nodiscard]] constexpr std::size_t size() const noexcept { return m_alive; }
 
+        /// @brief True when no additional entities can be created.
+        [[nodiscard]] constexpr bool full() const noexcept { return m_alive >= Capacity; }
+
         /// @brief Destroy all entities, incrementing their generations.
         constexpr void clear() {
             for (unsigned int j = 0; j < m_alive; ++j) {
@@ -999,12 +1002,27 @@ namespace gba::ecs {
         /// @brief Number of alive entities.
         [[nodiscard]] constexpr std::size_t size() const noexcept { return m_impl.size(); }
 
+        /// @brief True when registry has reached entity capacity.
+        [[nodiscard]] constexpr bool full() const noexcept { return m_impl.full(); }
+
         /// @brief Clear all entities.
         constexpr void clear() { m_impl.clear(); }
 
         /// @brief Attach a component to an entity.
         template<typename C, typename... Args>
         constexpr C& emplace(const entity e, Args&&... args) {
+            return m_impl.template emplace<C>(e, std::forward<Args>(args)...);
+        }
+
+        /// @brief Emplace or replace a component on an entity.
+        ///
+        /// Creates the component when missing, otherwise assigns a new value.
+        template<typename C, typename... Args>
+        constexpr C& emplace_or_replace(const entity e, Args&&... args) {
+            if (auto* existing = m_impl.template try_get<C>(e)) {
+                *existing = C{std::forward<Args>(args)...};
+                return *existing;
+            }
             return m_impl.template emplace<C>(e, std::forward<Args>(args)...);
         }
 

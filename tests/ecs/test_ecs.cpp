@@ -414,6 +414,22 @@ int main() {
         gba::test.expect.is_true(reg.valid(e3));
     });
 
+    gba::test("full reports capacity state", [] {
+        gba::ecs::registry<2, int> reg;
+        gba::test.expect.is_false(reg.full(), "empty registry is not full");
+
+        const auto e0 = reg.create();
+        reg.emplace<int>(e0, 1);
+        gba::test.expect.is_false(reg.full(), "partially populated registry is not full");
+
+        const auto e1 = reg.create();
+        reg.emplace<int>(e1, 2);
+        gba::test.expect.is_true(reg.full(), "registry is full at capacity");
+
+        reg.destroy(e0);
+        gba::test.expect.is_false(reg.full(), "registry is not full after destroy");
+    });
+
     gba::test("clear then repopulate", [] {
         test_registry reg;
         for (int i = 0; i < 10; ++i) {
@@ -445,6 +461,19 @@ int main() {
         reg.view<int>().each([&sum](int& v) { sum += v; });
         gba::test.expect.eq(sum, 280);
         gba::test.expect.eq(sum, 280);
+    });
+
+    gba::test("emplace_or_replace replaces existing component", [] {
+        gba::ecs::registry<8, hp_t> reg;
+        const auto e = reg.create();
+
+        auto& initial = reg.emplace_or_replace<hp_t>(e, 5);
+        gba::test.expect.eq(initial.hp, 5, "first call emplaces");
+        gba::test.expect.eq(reg.get<hp_t>(e).hp, 5, "stored initial value");
+
+        auto& replaced = reg.emplace_or_replace<hp_t>(e, 99);
+        gba::test.expect.eq(replaced.hp, 99, "second call replaces");
+        gba::test.expect.eq(reg.get<hp_t>(e).hp, 99, "stored replaced value");
     });
 
     return gba::test.finish();
