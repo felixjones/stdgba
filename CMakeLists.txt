@@ -9,6 +9,7 @@ add_library(stdgba INTERFACE
         include/gba/codegen
         include/gba/color
         include/gba/compress
+        include/gba/critical_section
         include/gba/dma
         include/gba/ecs
         include/gba/embed

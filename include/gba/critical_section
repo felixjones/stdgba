@@ -1,0 +1,59 @@
+/// @file critical_section
+/// @brief Scoped interrupt masking.
+#pragma once
+
+namespace gba {
+
+    /// @brief Disables interrupts for the lifetime of the object.
+    ///
+    /// Construction saves and sets the CPSR IRQ disable flag. Destruction restores
+    /// the saved flag, so critical sections may be nested safely.
+    ///
+    /// @code{.cpp}
+    /// {
+    ///     const gba::critical_section section;
+    ///     // Interrupts are disabled here.
+    /// }
+    ///
+    /// if (const gba::critical_section section{}) {
+    ///     // Interrupts are disabled here.
+    /// }
+    /// @endcode
+    struct critical_section final {
+        [[gnu::target("arm")]]
+        critical_section() noexcept {
+            unsigned int disabled_state;
+            asm volatile("mrs %[previous], cpsr\n"
+                         "orr %[disabled], %[previous], #0x80\n"
+                         "msr cpsr_c, %[disabled]"
+                         : [previous] "=&r"(m_previous_interrupt_state), [disabled] "=&r"(disabled_state)
+                         :
+                         : "cc", "memory");
+            m_previous_interrupt_state &= 0x80;
+        }
+
+        [[gnu::target("arm")]]
+        ~critical_section() noexcept {
+            unsigned int restored_state;
+            asm volatile("mrs %[restored], cpsr\n"
+                         "bic %[restored], %[restored], #0x80\n"
+                         "orr %[restored], %[restored], %[previous]\n"
+                         "msr cpsr_c, %[restored]"
+                         : [restored] "=&r"(restored_state)
+                         : [previous] "r"(m_previous_interrupt_state)
+                         : "cc", "memory");
+        }
+
+        critical_section(const critical_section&) = delete;
+        critical_section& operator=(const critical_section&) = delete;
+        critical_section(critical_section&&) = delete;
+        critical_section& operator=(critical_section&&) = delete;
+
+        /// @brief Supports using a critical section as an if condition.
+        explicit operator bool() const noexcept { return true; }
+
+    private:
+        unsigned int m_previous_interrupt_state;
+    };
+
+} // namespace gba
