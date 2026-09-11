@@ -2,7 +2,7 @@
 /// @brief Unit tests for format module using mgba test framework.
 
 #include <gba/format>
-#include <gba/text_format>
+#include <gba/text>
 #include <gba/angle>
 #include <gba/fixed_point>
 #include <gba/testing>

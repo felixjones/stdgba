@@ -56,4 +56,3 @@
 #include <gba/bits/text/stream.hpp>
 #include <gba/bits/text/tile_allocator.hpp>
 #include <gba/bits/text/types.hpp>
-#include <gba/text_format>
