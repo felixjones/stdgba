@@ -375,12 +375,12 @@ namespace gba::codegen::bits {
         return 0xE0200090u | (reg_bits(rd) << 16u) | (reg_bits(rn) << 12u) | (reg_bits(rs) << 8u) | reg_bits(rm);
     }
 
-
     constexpr std::uint32_t bl_to(const std::size_t current_index, const std::size_t target_index) {
         const auto current = static_cast<long long>(current_index);
         const auto target = static_cast<long long>(target_index);
         const auto offset_words = target - (current + 2);
-        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23), "bl_to: branch target out of ARM BL range");
+        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23),
+                                      "bl_to: branch target out of ARM BL range");
         const auto encoded = static_cast<std::uint32_t>(offset_words) & 0x00FFFFFFu;
         return 0xEB000000u | encoded;
     }
@@ -395,7 +395,8 @@ namespace gba::codegen::bits {
         const auto target = static_cast<long long>(target_index);
         const auto offset_words = target - (current + 2);
 
-        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23), "b_if_to: branch target out of ARM B range");
+        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23),
+                                      "b_if_to: branch target out of ARM B range");
 
         const auto encoded = static_cast<std::uint32_t>(offset_words) & 0x00FFFFFFu;
         return cond_bits(cond) | 0x0A000000u | encoded;
@@ -406,7 +407,8 @@ namespace gba::codegen::bits {
         const auto target = static_cast<long long>(target_index);
         const auto offset_words = target - (current + 2);
 
-        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23), "b_to: branch target out of ARM B range");
+        ::gba::bits::constexpr_assert(offset_words < -(1LL << 23) || offset_words >= (1LL << 23),
+                                      "b_to: branch target out of ARM B range");
 
         const auto encoded = static_cast<std::uint32_t>(offset_words) & 0x00FFFFFFu;
         return 0xEA000000u | encoded;

@@ -22,38 +22,42 @@ namespace gba {
     ///   - Subtracts 0.5 before truncating for negative values
     template<conversion_wrapper W>
     struct rounding_wrapper {
+        // The meta-wrapper is a short-lived non-owning view over the converter it decorates.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
         const W& wrapped;
 
+        // Meta-converters are constructed implicitly from the wrapper they decorate.
+        // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
         constexpr rounding_wrapper(const W& w) noexcept : wrapped(w) {}
 
         constexpr decltype(auto) get() const noexcept { return wrapped.get(); }
 
-        using wrapped_type = typename W::wrapped_type;
+        using wrapped_type = W::wrapped_type;
 
         template<fixed_point From, fixed_point To>
         static constexpr To convert_with_rounding(const From& from) noexcept {
             using from_traits = fixed_point_traits<std::remove_cvref_t<From>>;
             using to_traits = fixed_point_traits<std::remove_cvref_t<To>>;
-            using from_rep = typename from_traits::underlying_type;
+            using from_rep = from_traits::underlying_type;
 
-            const auto from_data = __builtin_bit_cast(from_rep, from);
+            const auto fromData = __builtin_bit_cast(from_rep, from);
 
             constexpr auto shift_amount = from_traits::fractional_digits - to_traits::fractional_digits;
 
             if constexpr (shift_amount > 0) {
                 const auto half = from_rep{1} << (shift_amount - 1);
 
-                from_rep rounded_data;
+                from_rep roundedData;
                 if constexpr (std::is_signed_v<from_rep>) {
-                    rounded_data = from_data + (from_data >= 0 ? half : -half);
+                    roundedData = fromData + (fromData >= 0 ? half : -half);
                 } else {
-                    rounded_data = from_data + half;
+                    roundedData = fromData + half;
                 }
 
-                using to_rep = typename to_traits::underlying_type;
-                const auto shifted = rounded_data >> shift_amount;
-                const auto target_data = static_cast<to_rep>(shifted);
-                return __builtin_bit_cast(To, target_data);
+                using to_rep = to_traits::underlying_type;
+                const auto shifted = roundedData >> shift_amount;
+                const auto targetData = static_cast<to_rep>(shifted);
+                return __builtin_bit_cast(To, targetData);
             } else {
                 return static_cast<To>(from);
             }

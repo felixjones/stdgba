@@ -3,7 +3,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/bdf_pack.hpp>
 #include <gba/bits/embed/bdf_types.hpp>
 
@@ -288,7 +287,8 @@ namespace gba::embed::bits {
         }
 
         ::gba::bits::constexpr_assert(!seen_chars, "bdf: CHARS missing or zero");
-        ::gba::bits::constexpr_assert(seen_bbx != header.glyph_count, "bdf: CHARS count does not match parsed BBX blocks");
+        ::gba::bits::constexpr_assert(seen_bbx != header.glyph_count,
+                                      "bdf: CHARS count does not match parsed BBX blocks");
 
         if (header.ascent == 0 && header.descent == 0 && header.font_height != 0) {
             header.ascent = static_cast<unsigned int>(header.font_height + header.font_y);
@@ -393,7 +393,8 @@ namespace gba::embed::bits {
 
             if (line_starts_with(line, "ENDCHAR")) {
                 ::gba::bits::constexpr_assert(glyph_index >= GlyphCount, "bdf: glyph count mismatch");
-                ::gba::bits::constexpr_assert(bitmap_row != current.height, "bdf: bitmap row count does not match BBX height");
+                ::gba::bits::constexpr_assert(bitmap_row != current.height,
+                                              "bdf: bitmap row count does not match BBX height");
 
                 result.glyphs[glyph_index++] = current;
                 bitmap_offset += current.bitmap_bytes();

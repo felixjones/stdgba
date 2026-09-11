@@ -25,6 +25,8 @@ namespace gba::literals {
     struct fixed_literal {
         double value;
 
+        // A literal type must convert implicitly from every arithmetic literal form the user writes.
+        // NOLINTBEGIN(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
         consteval fixed_literal(double v) noexcept : value(v) {}
         consteval fixed_literal(long double v) noexcept : value(static_cast<double>(v)) {}
         consteval fixed_literal(float v) noexcept : value(static_cast<double>(v)) {}
@@ -32,16 +34,17 @@ namespace gba::literals {
         consteval fixed_literal(unsigned long long v) noexcept : value(static_cast<double>(v)) {}
         consteval fixed_literal(int v) noexcept : value(static_cast<double>(v)) {}
         consteval fixed_literal(unsigned int v) noexcept : value(static_cast<double>(v)) {}
+        // NOLINTEND(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
 
-        consteval fixed_literal operator+(fixed_literal rhs) const noexcept { return fixed_literal(value + rhs.value); }
+        consteval fixed_literal operator+(fixed_literal rhs) const noexcept { return {value + rhs.value}; }
 
-        consteval fixed_literal operator-(fixed_literal rhs) const noexcept { return fixed_literal(value - rhs.value); }
+        consteval fixed_literal operator-(fixed_literal rhs) const noexcept { return {value - rhs.value}; }
 
-        consteval fixed_literal operator*(fixed_literal rhs) const noexcept { return fixed_literal(value * rhs.value); }
+        consteval fixed_literal operator*(fixed_literal rhs) const noexcept { return {value * rhs.value}; }
 
-        consteval fixed_literal operator/(fixed_literal rhs) const noexcept { return fixed_literal(value / rhs.value); }
+        consteval fixed_literal operator/(fixed_literal rhs) const noexcept { return {value / rhs.value}; }
 
-        consteval fixed_literal operator-() const noexcept { return fixed_literal(-value); }
+        consteval fixed_literal operator-() const noexcept { return {-value}; }
 
         consteval fixed_literal operator+() const noexcept { return *this; }
 
@@ -143,11 +146,11 @@ namespace gba::literals {
     };
 
     consteval fixed_literal operator""_fx(unsigned long long value) noexcept {
-        return fixed_literal(static_cast<double>(value));
+        return {static_cast<double>(value)};
     }
 
     consteval fixed_literal operator""_fx(long double value) noexcept {
-        return fixed_literal(static_cast<double>(value));
+        return {static_cast<double>(value)};
     }
 
 } // namespace gba::literals

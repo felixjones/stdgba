@@ -3,11 +3,9 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/png_header.hpp>
 
 namespace gba::embed::bits {
-
 
     struct png_chunk_info {
         struct span {
@@ -50,7 +48,6 @@ namespace gba::embed::bits {
         ::gba::bits::constexpr_assert(info.idat_count == 0, "PNG: no IDAT data found");
         return info;
     }
-
 
     template<std::size_t Size>
     struct png_idat_reader {

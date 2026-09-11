@@ -14,13 +14,11 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/png_convert.hpp>
 #include <gba/bits/embed/png_deflate.hpp>
 #include <gba/bits/embed/png_filter.hpp>
 
 namespace gba::embed::bits {
-
 
     template<std::size_t Size>
     consteval void png_decode_all(const std::array<unsigned char, Size>& data, unsigned int width, unsigned int height,

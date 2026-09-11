@@ -48,9 +48,7 @@ namespace gba::text {
             return next_tile;
         }
 
-        constexpr void reset(std::uint16_t start = 0) noexcept {
-            next_tile = start;
-        }
+        constexpr void reset(std::uint16_t start = 0) noexcept { next_tile = start; }
     };
 
 } // namespace gba::text

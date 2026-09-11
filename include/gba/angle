@@ -92,7 +92,7 @@ namespace gba {
     /// @endcode
     template<unsigned int Bits>
     [[nodiscard]]
-    constexpr typename packed_angle<Bits>::storage_type bit_cast(packed_angle<Bits> value) noexcept;
+    constexpr packed_angle<Bits>::storage_type bit_cast(packed_angle<Bits> value) noexcept;
 
     /// @brief Convert an angle to a lookup-table index.
     /// @tparam TableBits Number of bits for table indexing (table size = 2^TableBits).

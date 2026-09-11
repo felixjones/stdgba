@@ -48,9 +48,8 @@
 /// @see gba::BitUnPack
 #pragma once
 
-#include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bios>
+#include <gba/bits/constexpr_assert.hpp>
 #include <gba/bits/min_heap.hpp>
 #include <gba/bits/ranges.hpp>
 

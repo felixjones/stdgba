@@ -23,7 +23,7 @@ namespace gba::bits {
 
     struct read_ops {
         template<typename Self>
-        typename Self::value_type value(this const Self& self) noexcept;
+        Self::value_type value(this const Self& self) noexcept;
     };
 
     struct write_ops {
@@ -34,10 +34,10 @@ namespace gba::bits {
 
     protected:
         template<typename Self>
-        void write(this const Self& lhs, typename Self::value_type&& rhs) noexcept;
+        void write(this const Self& lhs, Self::value_type&& rhs) noexcept;
 
         template<typename Self>
-        void write(this const Self& lhs, const typename Self::value_type& rhs) noexcept;
+        void write(this const Self& lhs, const Self::value_type& rhs) noexcept;
 
         template<typename Self>
         void write_integer(this const Self& lhs, std::integral auto value) noexcept;
@@ -48,7 +48,7 @@ namespace gba::bits {
         void swap(this const Self& lhs, const Self& rhs) noexcept;
 
         template<typename Self>
-        void swap(this const Self& lhs, typename Self::value_type& rhs) noexcept;
+        void swap(this const Self& lhs, Self::value_type& rhs) noexcept;
     };
 
 } // namespace gba::bits

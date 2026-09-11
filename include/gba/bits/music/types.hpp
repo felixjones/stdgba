@@ -15,13 +15,11 @@
 
 namespace gba::music {
 
-
     /// @brief GBA CPU clock frequency: 2^24 = 16,777,216 Hz.
     inline constexpr std::int64_t cpu_clock = 1 << 24;
 
     /// @brief CPU cycles per frame: 228 scanlines x 1232 cycles = 280,896.
     inline constexpr std::int64_t frame_clocks = 280896;
-
 
     /// @brief Compile-time rational number with GCD reduction.
     ///
@@ -75,7 +73,6 @@ namespace gba::music {
             return a;
         }
     };
-
 
     /// @brief Compile-time tempo value based on Strudel's cycles-per-second.
     ///
@@ -149,7 +146,6 @@ namespace gba::music {
 
     } // namespace literals
 
-
     /// @brief PSG sound channel identifier.
     enum class channel : std::uint8_t {
         sq1 = 0,   ///< Square wave 1 (with sweep).
@@ -157,7 +153,6 @@ namespace gba::music {
         wav = 2,   ///< Wave channel.
         noise = 3, ///< Noise channel.
     };
-
 
     /// @brief Musical note identifier.
     ///
@@ -315,7 +310,6 @@ namespace gba::music {
         return n == note::hold;
     }
 
-
     /// @brief PSG frequency rate values for chromatic notes C1-B8.
     ///
     /// rate = 2048 - (2^17 / freq_hz), where freq_hz is 12-TET A4=440.
@@ -440,8 +434,9 @@ namespace gba::music {
     consteval std::uint16_t note_to_rate(note n) {
         ::gba::bits::constexpr_assert(!is_chromatic(n), "note_to_rate: not a chromatic note");
         if (n < note::c2)
-            ::gba::bits::constexpr_fail("note_to_rate: octave-1 notes (C1-B1) are below the GBA PSG hardware floor (~64 Hz) - use C2 or "
-                  "higher");
+            ::gba::bits::constexpr_fail(
+                "note_to_rate: octave-1 notes (C1-B1) are below the GBA PSG hardware floor (~64 Hz) - use C2 or "
+                "higher");
         return note_rate_table[static_cast<int>(n) - static_cast<int>(first_chromatic)];
     }
 
@@ -459,7 +454,6 @@ namespace gba::music {
         auto sqRate = note_to_rate(n); // inherits all validation
         return static_cast<std::uint16_t>(2048 - (2048 - sqRate) / 4);
     }
-
 
     /// @brief Noise channel frequency parameters for a drum preset.
     struct drum_preset {
@@ -553,7 +547,6 @@ namespace gba::music {
         return drum_preset_table[static_cast<int>(n) - static_cast<int>(first_drum)];
     }
 
-
     /// @brief SQ1 instrument: sweep + duty/envelope.
     struct sq1_instrument {
         // Sweep
@@ -602,7 +595,6 @@ namespace gba::music {
         consteval bool operator==(const noise_instrument&) const = default;
     };
 
-
     /// @brief Create a wav_instrument from 64 raw 4-bit sample values (0-15).
     ///
     /// The GBA wave channel in 1x64 mode plays 64 4-bit samples across both
@@ -633,7 +625,6 @@ namespace gba::music {
         }
         return inst;
     }
-
 
     namespace waves {
         /// @brief Sine waveform - smooth, warm, only fundamental harmonic.
@@ -681,7 +672,6 @@ namespace gba::music {
         }
         return wav_from_samples(samples, volume);
     }
-
 
     namespace wav_detail {
 
@@ -759,7 +749,8 @@ namespace gba::music {
 
             ::gba::bits::constexpr_assert(data_start == 0, "wav_embed: data chunk not found");
             ::gba::bits::constexpr_assert(channels == 0 || channels > 2, "wav_embed: only mono or stereo supported");
-            ::gba::bits::constexpr_assert(bits_per_sample != 8 && bits_per_sample != 16, "wav_embed: only 8-bit or 16-bit samples supported");
+            ::gba::bits::constexpr_assert(bits_per_sample != 8 && bits_per_sample != 16,
+                                          "wav_embed: only 8-bit or 16-bit samples supported");
 
             std::size_t bytes_per_frame = (bits_per_sample / 8) * channels;
             std::size_t total_frames = data_size / bytes_per_frame;
@@ -886,7 +877,6 @@ namespace gba::music {
         const auto raw = supplier();
         return wav_detail::parse_wav(raw.data(), raw.size(), volume, max_samples);
     }
-
 
     /// @brief Parse a note name from a string at compile time.
     ///

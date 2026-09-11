@@ -3,7 +3,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/common.hpp>
 
 namespace gba::embed::bits {
@@ -28,7 +27,8 @@ namespace gba::embed::bits {
         ::gba::bits::constexpr_assert(!is_cmap && !is_true && !is_gray, "TGA: unsupported image type");
 
         ::gba::bits::constexpr_assert(is_cmap && cmap_type != 1, "TGA: color-mapped image requires color map");
-        ::gba::bits::constexpr_assert(is_true && bpp != 15 && bpp != 16 && bpp != 24 && bpp != 32, "TGA: unsupported true-color bit depth");
+        ::gba::bits::constexpr_assert(is_true && bpp != 15 && bpp != 16 && bpp != 24 && bpp != 32,
+                                      "TGA: unsupported true-color bit depth");
         ::gba::bits::constexpr_assert(is_gray && bpp != 8, "TGA: grayscale must be 8bpp");
         ::gba::bits::constexpr_assert(is_cmap && bpp != 8 && bpp != 16, "TGA: color-mapped index must be 8 or 16 bpp");
 

@@ -27,8 +27,8 @@ namespace gba {
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
-            using lhs_rep = typename lhs_traits::underlying_type;
-            using rhs_rep = typename rhs_traits::underlying_type;
+            using lhs_rep = lhs_traits::underlying_type;
+            using rhs_rep = rhs_traits::underlying_type;
 
             constexpr bool needs_signed = std::is_signed_v<lhs_rep> || std::is_signed_v<rhs_rep>;
             using word_type = std::conditional_t<needs_signed, int, unsigned int>;

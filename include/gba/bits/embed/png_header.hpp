@@ -3,7 +3,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/color>
 
 #include <array>
@@ -28,13 +27,13 @@ namespace gba::embed::bits {
     template<std::size_t Size>
     consteval bool png_check_signature(const std::array<unsigned char, Size>& data) {
         if (Size < 8) return false;
-        return data[0] == 137 && data[1] == 80 && data[2] == 78 && data[3] == 71 &&
-               data[4] == 13 && data[5] == 10 && data[6] == 26 && data[7] == 10;
+        return data[0] == 137 && data[1] == 80 && data[2] == 78 && data[3] == 71 && data[4] == 13 && data[5] == 10 &&
+               data[6] == 26 && data[7] == 10;
     }
 
     template<std::size_t Size>
-    consteval bool png_chunk_is(const std::array<unsigned char, Size>& data, std::size_t pos,
-                                unsigned char a, unsigned char b, unsigned char c, unsigned char d) {
+    consteval bool png_chunk_is(const std::array<unsigned char, Size>& data, std::size_t pos, unsigned char a,
+                                unsigned char b, unsigned char c, unsigned char d) {
         return data[pos] == a && data[pos + 1] == b && data[pos + 2] == c && data[pos + 3] == d;
     }
 
@@ -55,7 +54,8 @@ namespace gba::embed::bits {
 
         ::gba::bits::constexpr_assert(hdr.width == 0 || hdr.height == 0, "PNG: invalid dimensions");
         ::gba::bits::constexpr_assert(hdr.bit_depth != 8, "PNG: only 8-bit depth supported");
-        ::gba::bits::constexpr_assert(hdr.color_type != 2 && hdr.color_type != 3 && hdr.color_type != 6, "PNG: unsupported color type (only 2=RGB, 3=indexed, 6=RGBA)");
+        ::gba::bits::constexpr_assert(hdr.color_type != 2 && hdr.color_type != 3 && hdr.color_type != 6,
+                                      "PNG: unsupported color type (only 2=RGB, 3=indexed, 6=RGBA)");
 
         return hdr;
     }

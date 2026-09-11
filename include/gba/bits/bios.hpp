@@ -28,13 +28,13 @@ namespace gba::bits {
          * This Source Code Form is subject to the terms of the Mozilla Public
          * License, v. 2.0. If a copy of the MPL was not distributed with this
          * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-        if (!y) {
+        if (y == 0) {
             if (x >= 0) {
                 return 0;
             }
             return 0x8000;
         }
-        if (!x) {
+        if (x == 0) {
             if (y >= 0) {
                 return 0x4000;
             }

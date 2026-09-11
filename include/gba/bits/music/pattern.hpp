@@ -11,14 +11,12 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/music/parse.hpp>
 
 #include <cstddef>
 #include <cstdint>
 
 namespace gba::music {
-
 
     /// @brief Sentinel value: no channel assigned.
     inline constexpr std::uint8_t no_channel = 0xFF;
@@ -71,7 +69,6 @@ namespace gba::music {
     // Forward declaration needed for pattern::off() return type.
     struct stacked_pattern;
 
-
     namespace pattern_detail {
 
         /// @brief Recursively validate that an AST contains only drum names, rests, and holds.
@@ -82,12 +79,12 @@ namespace gba::music {
             const auto& node = ast.nodes[nodeIdx];
             if (node.type == ast_type::note_literal) {
                 if (node.note_value != note::rest && node.note_value != note::hold && !is_drum(node.note_value))
-                    ::gba::bits::constexpr_fail("s(): only drum names (bd, sd, hh, oh, cp, rs, rim, lt, mt, ht, cb, cr, rd, hc, mc, lc, cl, "
-                          "sh, ma, ag), rests (~), and holds (_) are allowed - use note() for pitched notes");
+                    ::gba::bits::constexpr_fail(
+                        "s(): only drum names (bd, sd, hh, oh, cp, rs, rim, lt, mt, ht, cb, cr, rd, hc, mc, lc, cl, "
+                        "sh, ma, ag), rests (~), and holds (_) are allowed - use note() for pitched notes");
             }
             for (std::uint8_t i = 0; i < node.child_count; ++i) validate_drum_only(ast, node.children[i]);
         }
-
 
         /// @brief Deep-copy an AST subtree, returning the new root index.
         ///
@@ -140,7 +137,8 @@ namespace gba::music {
                 auto idx = static_cast<int>(node.note_value) - static_cast<int>(first_chromatic);
                 idx += semitones;
                 // Validate range: C2 (index 12) to B8 (index 95)
-                ::gba::bits::constexpr_assert(idx < 12, "pattern::add/sub: transposition would go below C2 (GBA PSG floor)");
+                ::gba::bits::constexpr_assert(idx < 12,
+                                              "pattern::add/sub: transposition would go below C2 (GBA PSG floor)");
                 ::gba::bits::constexpr_assert(idx > 95, "pattern::add/sub: transposition would go above B8");
                 node.note_value = static_cast<note>(static_cast<int>(first_chromatic) + idx);
             }
@@ -200,7 +198,6 @@ namespace gba::music {
             for (std::uint8_t i = 0; i < node.child_count; ++i) press_node(ast, node.children[i]);
         }
 
-
         /// @brief Rotate children[] and weights[] of a node left by k positions.
         ///
         /// Only affects sequence and subdivision nodes (which have ordered children).
@@ -237,7 +234,6 @@ namespace gba::music {
                 rotate_children_left(node, k);
             }
         }
-
 
         /// @brief Apply an add_transform to an AST subtree.
         consteval void apply_ast_transform(parsed_pattern& ast, std::uint16_t root, const add_transform& t) {
@@ -317,7 +313,8 @@ namespace gba::music {
         /// @brief Channel + NOISE instrument.
         consteval layer_cfg(music::channel ch, noise_instrument inst)
             : assigned_channel{static_cast<std::uint8_t>(ch)}, noise_inst{inst} {
-            ::gba::bits::constexpr_assert(ch != music::channel::noise, "layer_cfg: noise_instrument requires channel::noise");
+            ::gba::bits::constexpr_assert(ch != music::channel::noise,
+                                          "layer_cfg: noise_instrument requires channel::noise");
         }
     };
 
@@ -368,7 +365,8 @@ namespace gba::music {
 
         /// @brief Assign a channel (default instrument).
         consteval pattern channel(music::channel ch) const {
-            ::gba::bits::constexpr_assert(is_stacked(), "pattern::channel: cannot assign channel to multi-layer pattern");
+            ::gba::bits::constexpr_assert(is_stacked(),
+                                          "pattern::channel: cannot assign channel to multi-layer pattern");
             auto copy = *this;
             copy.assigned_channel = static_cast<std::uint8_t>(ch);
             return copy;
@@ -376,7 +374,8 @@ namespace gba::music {
 
         /// @brief Assign SQ1 channel with custom instrument.
         consteval pattern channel(music::channel ch, sq1_instrument inst) const {
-            ::gba::bits::constexpr_assert(ch != music::channel::sq1, "pattern::channel: sq1_instrument requires channel::sq1");
+            ::gba::bits::constexpr_assert(ch != music::channel::sq1,
+                                          "pattern::channel: sq1_instrument requires channel::sq1");
             auto copy = channel(ch);
             copy.sq1_inst = inst;
             return copy;
@@ -384,7 +383,8 @@ namespace gba::music {
 
         /// @brief Assign SQ2 channel with custom instrument.
         consteval pattern channel(music::channel ch, sq2_instrument inst) const {
-            ::gba::bits::constexpr_assert(ch != music::channel::sq2, "pattern::channel: sq2_instrument requires channel::sq2");
+            ::gba::bits::constexpr_assert(ch != music::channel::sq2,
+                                          "pattern::channel: sq2_instrument requires channel::sq2");
             auto copy = channel(ch);
             copy.sq2_inst = inst;
             return copy;
@@ -392,7 +392,8 @@ namespace gba::music {
 
         /// @brief Assign WAV channel with custom instrument.
         consteval pattern channel(music::channel ch, wav_instrument inst) const {
-            ::gba::bits::constexpr_assert(ch != music::channel::wav, "pattern::channel: wav_instrument requires channel::wav");
+            ::gba::bits::constexpr_assert(ch != music::channel::wav,
+                                          "pattern::channel: wav_instrument requires channel::wav");
             auto copy = channel(ch);
             copy.wav_inst = inst;
             return copy;
@@ -400,7 +401,8 @@ namespace gba::music {
 
         /// @brief Assign NOISE channel with custom instrument.
         consteval pattern channel(music::channel ch, noise_instrument inst) const {
-            ::gba::bits::constexpr_assert(ch != music::channel::noise, "pattern::channel: noise_instrument requires channel::noise");
+            ::gba::bits::constexpr_assert(ch != music::channel::noise,
+                                          "pattern::channel: noise_instrument requires channel::noise");
             auto copy = channel(ch);
             copy.noise_inst = inst;
             return copy;
@@ -423,8 +425,10 @@ namespace gba::music {
         /// @endcode
         template<typename... Cfgs>
         consteval pattern channels(Cfgs... cfgs) const {
-            ::gba::bits::constexpr_assert(!is_stacked(), "pattern::channels: only valid on multi-layer pattern (commas in <>)");
-            ::gba::bits::constexpr_assert(sizeof...(Cfgs) != layer_count(), "pattern::channels: argument count must match layer count");
+            ::gba::bits::constexpr_assert(!is_stacked(),
+                                          "pattern::channels: only valid on multi-layer pattern (commas in <>)");
+            ::gba::bits::constexpr_assert(sizeof...(Cfgs) != layer_count(),
+                                          "pattern::channels: argument count must match layer count");
             ::gba::bits::constexpr_assert(sizeof...(Cfgs) > 4, "pattern::channels: too many layers (max 4)");
 
             auto copy = *this;
@@ -435,7 +439,9 @@ namespace gba::music {
             // Validate no duplicate channels
             for (std::uint8_t i = 0; i < copy.m_layerOverrideCount; ++i)
                 for (std::uint8_t j = i + 1; j < copy.m_layerOverrideCount; ++j)
-                    ::gba::bits::constexpr_assert(copy.m_layerOverrides[i].assigned_channel == copy.m_layerOverrides[j].assigned_channel, "pattern::channels: duplicate channel - each PSG channel can only appear once");
+                    ::gba::bits::constexpr_assert(
+                        copy.m_layerOverrides[i].assigned_channel == copy.m_layerOverrides[j].assigned_channel,
+                        "pattern::channels: duplicate channel - each PSG channel can only appear once");
 
             return copy;
         }
@@ -474,7 +480,6 @@ namespace gba::music {
             copy.ast.root = nodeIdx;
             return copy;
         }
-
 
         /// @brief Reverse the pattern - children of sequence/subdivision nodes play backwards.
         ///
@@ -545,7 +550,6 @@ namespace gba::music {
             return copy;
         }
 
-
         /// @brief Delay the pattern by `num/den` cycles.
         ///
         /// Mirrors Strudel's `late()`. Events fire later by the given fraction
@@ -576,7 +580,6 @@ namespace gba::music {
             copy.m_timeShift = copy.m_timeShift - rational{num, den};
             return copy;
         }
-
 
         /// @brief Rotate the sequence left by 1 step each cycle, producing N variants.
         ///
@@ -609,7 +612,8 @@ namespace gba::music {
             ast_node altNode{};
             altNode.type = ast_type::alternating;
 
-            ::gba::bits::constexpr_assert(static_cast<int>(n) > static_cast<int>(max_children), "pattern::iter: n exceeds max_children");
+            ::gba::bits::constexpr_assert(static_cast<int>(n) > static_cast<int>(max_children),
+                                          "pattern::iter: n exceeds max_children");
 
             for (int i = 0; i < n; ++i) {
                 // Deep-copy the entire subtree
@@ -659,7 +663,6 @@ namespace gba::music {
             copy.ast.root = altIdx;
             return copy;
         }
-
 
         /// @brief Stack the original pattern with a transformed copy.
         ///
@@ -736,7 +739,6 @@ namespace gba::music {
         }
     };
 
-
     /// @brief Create a pattern from a mini-notation string.
     ///
     /// This is the primary API. Parses the string at compile time into an AST.
@@ -753,7 +755,6 @@ namespace gba::music {
         p.ast = parse_mini(str, N - 1);
         return p;
     }
-
 
     /// @brief Create a drum pattern from a mini-notation string.
     ///
@@ -780,7 +781,6 @@ namespace gba::music {
         p.assigned_channel = static_cast<std::uint8_t>(channel::noise);
         return p;
     }
-
 
     namespace literals {
 
@@ -831,7 +831,6 @@ namespace gba::music {
 
     } // namespace literals
 
-
     /// @brief Maximum segments in a seq(). Generous - only consteval intermediate.
     inline constexpr std::size_t max_seq_segments = 32;
 
@@ -868,7 +867,9 @@ namespace gba::music {
             // Validate uniqueness
             for (std::uint8_t i = 0; i < layer_count; ++i)
                 for (std::uint8_t j = i + 1; j < layer_count; ++j)
-                    ::gba::bits::constexpr_assert(layers[i].get_channel() == layers[j].get_channel(), "stacked_pattern: duplicate channel - each PSG channel can only appear once");
+                    ::gba::bits::constexpr_assert(
+                        layers[i].get_channel() == layers[j].get_channel(),
+                        "stacked_pattern: duplicate channel - each PSG channel can only appear once");
         }
     };
 
@@ -879,7 +880,6 @@ namespace gba::music {
         std::uint8_t step_count{};
         bool looping{};
     };
-
 
     /// @brief Combine patterns to play simultaneously on distinct channels.
     ///
@@ -894,7 +894,6 @@ namespace gba::music {
         result.resolve_channels();
         return result;
     }
-
 
     namespace seq_detail {
 
@@ -943,7 +942,6 @@ namespace gba::music {
         return result;
     }
 
-
     /// @brief Wrap a pattern/stack/seq for infinite looping.
     template<typename T>
     consteval sequential_pattern loop(const T& arg) {
@@ -951,7 +949,6 @@ namespace gba::music {
         result.looping = true;
         return result;
     }
-
 
     namespace pattern_detail {
 
@@ -976,7 +973,6 @@ namespace gba::music {
         }
 
     } // namespace pattern_detail
-
 
     /// @brief Delayed overlay implementation (defined after stack() is visible).
     template<typename Transform>

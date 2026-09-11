@@ -41,7 +41,8 @@ namespace gba::bits {
         termc *= -x2; // -x^6
         c += termc / 720.0L;
 
-        long double sin_res, cos_res;
+        long double sin_res;
+        long double cos_res;
         switch (quadrant) {
             case 0:
                 sin_res = s;

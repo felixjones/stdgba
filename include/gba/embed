@@ -327,7 +327,8 @@ namespace gba::embed {
                             }
                             if (!seen) {
                                 if (tile_color_count >= 15) {
-                                    ::gba::bits::constexpr_fail("embed::indexed4: tile uses more than 15 opaque colors");
+                                    ::gba::bits::constexpr_fail(
+                                        "embed::indexed4: tile uses more than 15 opaque colors");
                                 }
                                 tile_colors[tile_color_count++] = idx;
                             }
@@ -378,7 +379,8 @@ namespace gba::embed {
                             if (idx != 0) {
                                 local_idx = find_in_bank(tile_bank, ws.palette[idx]);
                                 if (local_idx == 0) {
-                                    ::gba::bits::constexpr_fail("embed::indexed4: internal palette bank mapping failed");
+                                    ::gba::bits::constexpr_fail(
+                                        "embed::indexed4: internal palette bank mapping failed");
                                 }
                             }
                             word |= (local_idx & 0xFu) << (col * 4);
@@ -616,7 +618,8 @@ namespace gba::embed {
                 else if (c >= 'a' && c <= 'z') idx = 10 + (c - 'a');
                 else if (c >= 'A' && c <= 'Z') idx = 10 + (c - 'A');
                 else ::gba::bits::constexpr_fail("embed::sheet4: invalid character in row sequence string");
-                ::gba::bits::constexpr_assert(idx >= FrameCountInRow, "embed::sheet4: frame index out of range for row");
+                ::gba::bits::constexpr_assert(idx >= FrameCountInRow,
+                                              "embed::sheet4: frame index out of range for row");
                 result.frames[i] = RowStart + idx;
             }
             return result;
@@ -712,7 +715,8 @@ namespace gba::embed {
                 else if (c >= 'a' && c <= 'z') idx = 10 + (c - 'a');
                 else if (c >= 'A' && c <= 'Z') idx = 10 + (c - 'A');
                 else ::gba::bits::constexpr_fail("embed::sheet4: invalid character in sequence string");
-                ::gba::bits::constexpr_assert(idx >= frame_count, "embed::sheet4: frame index out of range in sequence");
+                ::gba::bits::constexpr_assert(idx >= frame_count,
+                                              "embed::sheet4: frame index out of range in sequence");
                 result.frames[i] = idx;
             }
             return result;
@@ -779,8 +783,10 @@ namespace gba::embed {
             const auto raw = supplier();
             const auto hdr = bits::parse_header(raw);
 
-            ::gba::bits::constexpr_assert(hdr.width % FrameW != 0, "indexed4_sheet: image width is not a multiple of frame width");
-            ::gba::bits::constexpr_assert(hdr.height % FrameH != 0, "indexed4_sheet: image height is not a multiple of frame height");
+            ::gba::bits::constexpr_assert(hdr.width % FrameW != 0,
+                                          "indexed4_sheet: image width is not a multiple of frame width");
+            ::gba::bits::constexpr_assert(hdr.height % FrameH != 0,
+                                          "indexed4_sheet: image height is not a multiple of frame height");
 
             const auto cols = hdr.width / FrameW;
             const auto rows = hdr.height / FrameH;
@@ -821,7 +827,8 @@ namespace gba::embed {
                     }
                 }
                 if (!found) {
-                    ::gba::bits::constexpr_assert(r.pal_count >= 16, "indexed4_sheet: sprite sheet has more than 15 opaque colors");
+                    ::gba::bits::constexpr_assert(r.pal_count >= 16,
+                                                  "indexed4_sheet: sprite sheet has more than 15 opaque colors");
                     r.palette[r.pal_count++] = c;
                 }
             }

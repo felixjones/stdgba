@@ -21,7 +21,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/music/types.hpp>
 
 #include <array>
@@ -29,7 +28,6 @@
 #include <cstdint>
 
 namespace gba::music {
-
 
     /// @brief AST node type tags.
     enum class ast_type : std::uint8_t {
@@ -103,7 +101,6 @@ namespace gba::music {
         }
     };
 
-
     namespace parse_detail {
 
         consteval bool is_digit(char c) {
@@ -144,7 +141,8 @@ namespace gba::music {
             }
             if (pos < end && str[pos] == '.') {
                 pos++; // skip '.'
-                ::gba::bits::constexpr_assert(pos >= end || !is_digit(str[pos]), "parse_number: expected digit after decimal point");
+                ::gba::bits::constexpr_assert(pos >= end || !is_digit(str[pos]),
+                                              "parse_number: expected digit after decimal point");
                 int frac_num = 0;
                 int frac_den = 1;
                 while (pos < end && is_digit(str[pos])) {
@@ -166,7 +164,8 @@ namespace gba::music {
                     num /= a;
                     den /= a;
                 }
-                ::gba::bits::constexpr_assert(num > 65535 || den > 65535, "parse_number: value too large for uint16_t rational");
+                ::gba::bits::constexpr_assert(num > 65535 || den > 65535,
+                                              "parse_number: value too large for uint16_t rational");
                 return {static_cast<std::uint16_t>(num), static_cast<std::uint16_t>(den)};
             }
             ::gba::bits::constexpr_assert(integer_part > 65535, "parse_number: value too large");
@@ -186,7 +185,6 @@ namespace gba::music {
         /// @brief Parse a sequence of space-separated elements (top-level or within brackets).
         consteval std::uint16_t parse_sequence(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat,
                                                char terminator = '\0');
-
 
         consteval std::uint16_t parse_timeline_values(const char* str, std::size_t& pos, std::size_t end,
                                                       parsed_pattern& pat) {
@@ -215,7 +213,6 @@ namespace gba::music {
             pos++; // skip '>'
             return altIdx;
         }
-
 
         consteval std::uint16_t parse_atom(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat) {
             skip_spaces(str, pos, end);
@@ -413,7 +410,6 @@ namespace gba::music {
             ::gba::bits::constexpr_fail("parse_atom: unexpected character");
         }
 
-
         consteval std::uint16_t parse_postfix(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat) {
             auto atom = parse_atom(str, pos, end, pat);
 
@@ -490,7 +486,8 @@ namespace gba::music {
                 if (c == '(') {
                     pos++; // skip '('
                     int k = parse_int(str, pos, end);
-                    ::gba::bits::constexpr_assert(pos >= end || str[pos] != ',', "parse_postfix: expected ',' in euclidean (k,n)");
+                    ::gba::bits::constexpr_assert(pos >= end || str[pos] != ',',
+                                                  "parse_postfix: expected ',' in euclidean (k,n)");
                     pos++; // skip ','
                     int n = parse_int(str, pos, end);
                     int r = 0;
@@ -498,7 +495,8 @@ namespace gba::music {
                         pos++; // skip ','
                         r = parse_int(str, pos, end);
                     }
-                    ::gba::bits::constexpr_assert(pos >= end || str[pos] != ')', "parse_postfix: expected ')' in euclidean");
+                    ::gba::bits::constexpr_assert(pos >= end || str[pos] != ')',
+                                                  "parse_postfix: expected ')' in euclidean");
                     pos++; // skip ')'
 
                     ::gba::bits::constexpr_assert(k <= 0, "parse_postfix: euclidean pulses must be > 0");
@@ -524,7 +522,6 @@ namespace gba::music {
 
             return atom;
         }
-
 
         consteval std::uint16_t parse_sequence(const char* str, std::size_t& pos, std::size_t end, parsed_pattern& pat,
                                                char terminator) {
@@ -556,7 +553,6 @@ namespace gba::music {
         }
 
     } // namespace parse_detail
-
 
     /// @brief Parse a mini-notation string at compile time.
     ///

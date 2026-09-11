@@ -20,7 +20,7 @@ namespace gba::bits {
     /// @tparam Args The argument types for the callable.
     template<typename... Args>
     struct handler {
-        constexpr handler() noexcept : m_invoke{nullptr}, m_ops{nullptr}, m_storage{} {}
+        constexpr handler() noexcept : m_invoke{nullptr}, m_ops{nullptr} {}
 
         template<typename T>
             requires(!std::is_same_v<std::decay_t<T>, handler>)
@@ -39,6 +39,9 @@ namespace gba::bits {
         handler& operator=(handler&& other) noexcept;
 
         void operator()(Args... args) const noexcept {
+            // Type-erased invocation needs a mutable context pointer; the stored callable is logically mutable
+            // even when the wrapper is observed through a const reference.
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
             m_invoke(const_cast<void*>(static_cast<const void*>(storage())), std::forward<Args>(args)...);
         }
 
@@ -61,12 +64,14 @@ namespace gba::bits {
 
         template<typename Callable>
         static constexpr ops_table make_ops_table() noexcept {
-            return {// destroy
-                    [](void* p) noexcept { static_cast<Callable*>(p)->~Callable(); },
-                    // copy
-                    [](void* dst, const void* src) { new (dst) Callable(*static_cast<const Callable*>(src)); },
-                    // move
-                    [](void* dst, void* src) noexcept { new (dst) Callable(std::move(*static_cast<Callable*>(src))); }};
+            return {
+                // destroy
+                [](void* p) noexcept { static_cast<Callable*>(p)->~Callable(); },
+                // copy
+                [](void* dst, const void* src) { new (dst) Callable(*static_cast<const Callable*>(src)); },
+                // move
+                [](void* dst, void* src) noexcept { new (dst) Callable(std::move(*static_cast<Callable*>(src))); },
+            };
         }
 
         template<typename Callable>
@@ -82,7 +87,7 @@ namespace gba::bits {
 
         invoke_fn m_invoke;
         const ops_table* m_ops;
-        storage_type m_storage;
+        storage_type m_storage{};
 
         [[nodiscard]] constexpr void* storage() noexcept { return m_storage.data(); }
         [[nodiscard]] constexpr const void* storage() const noexcept { return m_storage.data(); }
@@ -95,26 +100,25 @@ namespace gba::bits {
     template<typename... Args>
     template<typename T>
         requires(!std::is_same_v<std::decay_t<T>, handler<Args...>>)
-    handler<Args...>::handler(T&& t) noexcept {
-        using Callable = std::decay_t<T>;
-        static_assert(sizeof(Callable) <= storage_size, "Callable too large for small buffer optimization");
-        static_assert(std::is_nothrow_move_constructible_v<Callable>, "Callable must be nothrow move constructible");
+    handler<Args...>::handler(T&& t) noexcept
+        : m_invoke{&invoke_impl<std::decay_t<T>>}, m_ops{get_ops<std::decay_t<T>>()} {
+        using callable_type = std::decay_t<T>;
+        static_assert(sizeof(callable_type) <= storage_size, "Callable too large for small buffer optimization");
+        static_assert(std::is_nothrow_move_constructible_v<callable_type>,
+                      "Callable must be nothrow move constructible");
 
-        new (storage()) Callable(std::forward<T>(t));
-        m_invoke = &invoke_impl<Callable>;
-        m_ops = get_ops<Callable>();
+        new (storage()) callable_type(std::forward<T>(t));
     }
 
     template<typename... Args>
-    handler<Args...>::handler(const handler& other) noexcept
-        : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+    handler<Args...>::handler(const handler& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops} {
         if (m_ops) {
             m_ops->copy(storage(), other.storage());
         }
     }
 
     template<typename... Args>
-    handler<Args...>::handler(handler&& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops}, m_storage{} {
+    handler<Args...>::handler(handler&& other) noexcept : m_invoke{other.m_invoke}, m_ops{other.m_ops} {
         if (m_ops) {
             m_ops->move(storage(), other.storage());
             other.m_ops->destroy(other.storage());
@@ -159,6 +163,9 @@ namespace gba::bits {
     struct isr {
         using value_type = handler<irq>;
 
+        /// Assignment installs the handler into the BIOS IRQ vector, so it returns a const reference to the
+        /// register proxy rather than a mutable `isr&`.
+        // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
         const isr& operator=(const value_type& value) const noexcept;
 
         explicit operator bool() const noexcept { return has_value(); }

@@ -102,24 +102,23 @@
 #pragma once
 
 #include <gba/args>
-
 #include <gba/bits/format/compiled_format.hpp>
 
 namespace gba::format {
-	template<fixed_string Fmt>
-	consteval auto make_format() {
-		return compiled_format<Fmt>{};
-	}
+    template<fixed_string Fmt>
+    consteval auto make_format() {
+        return compiled_format<Fmt>{};
+    }
 
-	template<fixed_string Name>
-	consteval auto make_arg() {
-		return arg_binder<Name>{};
-	}
+    template<fixed_string Name>
+    consteval auto make_arg() {
+        return arg_binder<Name>{};
+    }
 } // namespace gba::format
 
 namespace gba::literals {
-	template<format::fixed_string Fmt>
-	consteval auto operator""_fmt() {
-		return format::format_literal<Fmt>{};
-	}
+    template<format::fixed_string Fmt>
+    consteval auto operator""_fmt() {
+        return format::format_literal<Fmt>{};
+    }
 } // namespace gba::literals

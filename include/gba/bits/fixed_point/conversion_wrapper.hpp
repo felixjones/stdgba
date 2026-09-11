@@ -17,6 +17,8 @@ namespace gba {
     ///
     /// Must have wrapped_type that is a fixed_point
     template<typename T>
+    // Established public concept spelling; the library uses snake_case for its concepts.
+    // NOLINTNEXTLINE(readability-identifier-naming)
     concept conversion_wrapper = requires {
         typename T::wrapped_type;
         requires fixed_point<typename T::wrapped_type>;
@@ -40,20 +42,26 @@ namespace gba {
     struct conversion_wrapper_base : conversion_operators<Derived> {
         using wrapped_type = T;
 
-        constexpr conversion_wrapper_base(const T& value) noexcept : m_value(value) {}
+        // A conversion wrapper exists precisely to convert implicitly between fixed-point representations.
+        // NOLINTBEGIN(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
+        constexpr conversion_wrapper_base(const T& value) noexcept : wrappedValue(value) {}
 
-        constexpr operator T() const noexcept { return m_value; }
+        constexpr operator T() const noexcept { return wrappedValue; }
 
         template<fixed_point U>
         constexpr operator U() const noexcept {
-            return convert_fixed<U>(m_value);
+            return convert_fixed<U>(wrappedValue);
         }
+        // NOLINTEND(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
 
         template<typename U>
         friend constexpr decltype(auto) move(const U& wrapper) noexcept;
 
     protected:
-        const T& m_value;
+        // The wrapper is a short-lived non-owning view over the operand it converts, and derived CRTP
+        // converters read it directly.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members,cppcoreguidelines-non-private-member-variables-in-classes)
+        const T& wrappedValue;
     };
 
     /// @brief Helper to convert between fixed-point types via bit manipulation
@@ -65,12 +73,12 @@ namespace gba {
         using from_traits = fixed_point_traits<From>;
         using to_traits = fixed_point_traits<To>;
 
-        const auto from_bits = __builtin_bit_cast(typename from_traits::rep, from);
+        const auto fromBits = __builtin_bit_cast(typename from_traits::rep, from);
 
         constexpr int shift = static_cast<int>(from_traits::frac_bits) - static_cast<int>(to_traits::frac_bits);
-        const auto adjusted_bits = shift > 0 ? (from_bits >> shift) : (from_bits << -shift);
+        const auto adjustedBits = shift > 0 ? (fromBits >> shift) : (fromBits << -shift);
 
-        return __builtin_bit_cast(To, static_cast<typename to_traits::rep>(adjusted_bits));
+        return __builtin_bit_cast(To, static_cast<to_traits::rep>(adjustedBits));
     }
 
     /// @brief Helper to "move" the value out of a conversion wrapper
@@ -78,11 +86,11 @@ namespace gba {
     /// This extracts the wrapped fixed-point value without exposing a .get() method.
     /// Works like std::move conceptually - extracting the contained value.
     ///
-    /// Note: This function accesses the m_value member directly, so it's a friend
+    /// Note: This function accesses the wrappedValue member directly, so it's a friend
     /// of conversion_wrapper_base.
     template<typename T>
     constexpr decltype(auto) move(const T& wrapper) noexcept {
-        return wrapper.m_value;
+        return wrapper.wrappedValue;
     }
 
 } // namespace gba

@@ -26,8 +26,8 @@ namespace gba {
 
             constexpr auto avg_frac = (lhs_traits::fractional_digits + rhs_traits::fractional_digits) / 2;
 
-            using lhs_rep = typename lhs_traits::underlying_type;
-            using rhs_rep = typename rhs_traits::underlying_type;
+            using lhs_rep = lhs_traits::underlying_type;
+            using rhs_rep = rhs_traits::underlying_type;
             using result_rep = std::conditional_t<(sizeof(lhs_rep) > sizeof(rhs_rep)), lhs_rep, rhs_rep>;
 
             using result_type = fixed<result_rep, avg_frac>;

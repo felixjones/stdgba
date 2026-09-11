@@ -11,9 +11,8 @@
 namespace gba::embed::bits {
 
     consteval gba::color to_gba_color(unsigned char r, unsigned char g, unsigned char b) {
-        return gba::bits::from_rgb((static_cast<unsigned int>(r) << 16) |
-                                   (static_cast<unsigned int>(g) << 8)  |
-                                    static_cast<unsigned int>(b));
+        return gba::bits::from_rgb((static_cast<unsigned int>(r) << 16) | (static_cast<unsigned int>(g) << 8) |
+                                   static_cast<unsigned int>(b));
     }
 
     consteval bool is_ws(unsigned char c) {

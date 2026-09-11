@@ -47,13 +47,13 @@
 /// @note This header re-exports module components; behaviour contracts are documented
 ///       on the concrete types/functions in the included headers.
 #pragma once
-#include <gba/bits/text/types.hpp>
 #include <gba/bits/text/font_concept.hpp>
 #include <gba/bits/text/font_variants.hpp>
 #include <gba/bits/text/glyph_blit.hpp>
 #include <gba/bits/text/palette.hpp>
 #include <gba/bits/text/render_layer.hpp>
+#include <gba/bits/text/reveal_runs.hpp>
 #include <gba/bits/text/stream.hpp>
 #include <gba/bits/text/tile_allocator.hpp>
-#include <gba/bits/text/reveal_runs.hpp>
+#include <gba/bits/text/types.hpp>
 #include <gba/text_format>

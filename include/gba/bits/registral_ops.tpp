@@ -3,38 +3,36 @@
 #include <bit>
 #include <cstdint>
 
-#include "registral_ops.hpp"
-
 namespace gba::bits {
 
     template<typename ValueType>
         requires(sizeof(ValueType) == 8)
     [[gnu::always_inline]]
     inline ValueType value_by_copy8(std::uintptr_t address) {
-        register std::uint64_t destination asm("r0");
+        register std::uint64_t destination asm("r0") = 0;
         asm volatile("ldm %[address]!, {%[destination]-r1}" : [destination] "=l"(destination), [address] "+l"(address));
         return __builtin_bit_cast(ValueType, destination);
     }
 
     template<typename Self>
     [[gnu::always_inline]]
-    inline typename Self::value_type read_ops::value(this const Self& self) noexcept {
-        using value_type = typename Self::value_type;
+    inline Self::value_type read_ops::value(this const Self& self) noexcept {
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
-            std::uint8_t destination;
+            std::uint8_t destination = 0;
             asm volatile("ldrb %[destination], [%[address]]"
                          : [destination] "=l"(destination)
                          : [address] "l"(self.m_address));
             return __builtin_bit_cast(value_type, destination);
         } else if constexpr (sizeof(value_type) == 2) {
-            std::uint16_t destination;
+            std::uint16_t destination = 0;
             asm volatile("ldrh %[destination], [%[address]]"
                          : [destination] "=l"(destination)
                          : [address] "l"(self.m_address));
             return __builtin_bit_cast(value_type, destination);
         } else if constexpr (sizeof(value_type) == 4) {
-            std::uint32_t destination;
+            std::uint32_t destination = 0;
             asm volatile("ldr %[destination], [%[address]]"
                          : [destination] "=l"(destination)
                          : [address] "l"(self.m_address));
@@ -42,8 +40,11 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 8) {
             return value_by_copy8<value_type>(self.m_address);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
+            // Raw word staging buffer handed straight to the inline asm block; a std::array would change the
+            // operand expectations of the template.
+            // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
             std::uint32_t destination[sizeof(value_type) / 4];
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp], [%[address], #i]\n"
@@ -94,8 +95,10 @@ namespace gba::bits {
 
     template<typename Self>
     [[gnu::always_inline]]
-    inline void write_ops::write(this const Self& lhs, typename Self::value_type&& rhs) noexcept {
-        using value_type = typename Self::value_type;
+    // The rvalue overload only bit-casts the operand into the register; there is nothing to move from.
+    // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
+    inline void write_ops::write(this const Self& lhs, Self::value_type&& rhs) noexcept {
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
             const auto value = __builtin_bit_cast(std::uint8_t, rhs);
@@ -116,7 +119,7 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 12) {
             write_by_copy12(lhs.m_address, rhs);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp], [%[value], #i]\n"
@@ -133,8 +136,8 @@ namespace gba::bits {
 
     template<typename Self>
     [[gnu::always_inline]]
-    inline void write_ops::write(this const Self& lhs, const typename Self::value_type& rhs) noexcept {
-        using value_type = typename Self::value_type;
+    inline void write_ops::write(this const Self& lhs, const Self::value_type& rhs) noexcept {
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
             asm volatile("strb %[value], [%[address]]" ::[value] "l"(rhs), [address] "l"(lhs.m_address) : "memory");
@@ -150,7 +153,7 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 8) {
             write_by_copy8(lhs.m_address, rhs);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp], [%[value], #i]\n"
@@ -168,7 +171,7 @@ namespace gba::bits {
     template<typename Self>
     [[gnu::always_inline]]
     inline void write_ops::write_integer(this const Self& lhs, std::integral auto value) noexcept {
-        using value_type = typename Self::value_type;
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value) > sizeof(value_type)) {
             if constexpr (sizeof(value_type) == 1) {
@@ -215,24 +218,24 @@ namespace gba::bits {
         requires std::derived_from<Other, read_ops> &&
                  std::same_as<typename Self::value_type, typename Other::value_type>
     {
-        using value_type = typename Self::value_type;
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
-            std::uint8_t temp;
+            std::uint8_t temp = 0;
             asm volatile("ldrb %[temp], [%[other_address]]\n"
                          "strb %[temp], [%[address]]"
                          : [temp] "=&l"(temp)
                          : [address] "l"(lhs.m_address), [other_address] "l"(rhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 2) {
-            std::uint16_t temp;
+            std::uint16_t temp = 0;
             asm volatile("ldrh %[temp], [%[other_address]]\n"
                          "strh %[temp], [%[address]]"
                          : [temp] "=&l"(temp)
                          : [address] "l"(lhs.m_address), [other_address] "l"(rhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 4) {
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile("ldr %[temp], [%[other_address]]\n"
                          "str %[temp], [%[address]]"
                          : [temp] "=&l"(temp)
@@ -241,7 +244,7 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 8) {
             copy_by_copy8(lhs.m_address, rhs.m_address);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp], [%[src], #i]\n"
@@ -272,10 +275,11 @@ namespace gba::bits {
     template<typename Self>
     [[gnu::always_inline]]
     inline void read_write_ops::swap(this const Self& lhs, const Self& rhs) noexcept {
-        using value_type = typename Self::value_type;
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
-            std::uint8_t temp, temp2;
+            std::uint8_t temp = 0;
+            std::uint8_t temp2 = 0;
             asm volatile("ldrb %[temp], [%[address]]\n"
                          "ldrb %[temp2], [%[other_address]]\n"
                          "strb %[temp], [%[other_address]]\n"
@@ -284,7 +288,8 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address), [other_address] "l"(rhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 2) {
-            std::uint16_t temp, temp2;
+            std::uint16_t temp = 0;
+            std::uint16_t temp2 = 0;
             asm volatile("ldrh %[temp], [%[address]]\n"
                          "ldrh %[temp2], [%[other_address]]\n"
                          "strh %[temp], [%[other_address]]\n"
@@ -293,7 +298,8 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address), [other_address] "l"(rhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 4) {
-            std::uint32_t temp, temp2;
+            std::uint32_t temp = 0;
+            std::uint32_t temp2 = 0;
             asm volatile("ldr %[temp], [%[address]]\n"
                          "ldr %[temp2], [%[other_address]]\n"
                          "str %[temp], [%[other_address]]\n"
@@ -304,7 +310,8 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 8) {
             swap_by_copy8(lhs.m_address, rhs.m_address);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
-            std::uint32_t tempA, tempB;
+            std::uint32_t tempA = 0;
+            std::uint32_t tempB = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp_a], [%[a], #i]\n"
@@ -337,11 +344,11 @@ namespace gba::bits {
 
     template<typename Self>
     [[gnu::always_inline]]
-    inline void read_write_ops::swap(this const Self& lhs, typename Self::value_type& rhs) noexcept {
-        using value_type = typename Self::value_type;
+    inline void read_write_ops::swap(this const Self& lhs, Self::value_type& rhs) noexcept {
+        using value_type = Self::value_type;
 
         if constexpr (sizeof(value_type) == 1) {
-            std::uint8_t temp;
+            std::uint8_t temp = 0;
             asm volatile("ldrb %[temp], [%[address]]\n"
                          "strb %[value], [%[address]]\n"
                          "mov %[value], %[temp]"
@@ -349,7 +356,7 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 2) {
-            std::uint16_t temp;
+            std::uint16_t temp = 0;
             asm volatile("ldrh %[temp], [%[address]]\n"
                          "strh %[value], [%[address]]\n"
                          "mov %[value], %[temp]"
@@ -357,7 +364,7 @@ namespace gba::bits {
                          : [address] "l"(lhs.m_address)
                          : "memory");
         } else if constexpr (sizeof(value_type) == 4) {
-            std::uint32_t temp;
+            std::uint32_t temp = 0;
             asm volatile("ldr %[temp], [%[address]]\n"
                          "str %[value], [%[address]]\n"
                          "mov %[value], %[temp]"
@@ -367,7 +374,8 @@ namespace gba::bits {
         } else if constexpr (sizeof(value_type) == 8) {
             swap_by_copy8(lhs.m_address, rhs);
         } else if constexpr (std::has_single_bit(sizeof(value_type))) {
-            std::uint32_t tempA, tempB;
+            std::uint32_t tempA = 0;
+            std::uint32_t tempB = 0;
             asm volatile(".set i, 0\n"
                          ".rept %c3 / 4\n"
                          "ldr %[temp_a], [%[a], #i]\n"

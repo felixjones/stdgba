@@ -8,7 +8,6 @@
 
 namespace gba::embed::bits {
 
-
     consteval unsigned char paeth_predict(unsigned int a, unsigned int b, unsigned int c) {
         int p = static_cast<int>(a) + static_cast<int>(b) - static_cast<int>(c);
         int pa = p > static_cast<int>(a) ? p - static_cast<int>(a) : static_cast<int>(a) - p;
@@ -33,16 +32,14 @@ namespace gba::embed::bits {
             const unsigned char* prev = (y > 0) ? (raw + (y - 1) * (1 + stride) + 1) : nullptr;
 
             switch (filter) {
-                case filter_none:
-                    break;
+                case filter_none: break;
                 case filter_sub:
                     for (unsigned int x = bpp_bytes; x < stride; ++x)
                         row[x] = static_cast<unsigned char>(row[x] + row[x - bpp_bytes]);
                     break;
                 case filter_up:
                     if (prev) {
-                        for (unsigned int x = 0; x < stride; ++x)
-                            row[x] = static_cast<unsigned char>(row[x] + prev[x]);
+                        for (unsigned int x = 0; x < stride; ++x) row[x] = static_cast<unsigned char>(row[x] + prev[x]);
                     }
                     break;
                 case filter_average:
@@ -60,8 +57,7 @@ namespace gba::embed::bits {
                         row[x] = static_cast<unsigned char>(row[x] + paeth_predict(a, b, c));
                     }
                     break;
-                default:
-                    ::gba::bits::constexpr_fail("PNG: unsupported filter type");
+                default: ::gba::bits::constexpr_fail("PNG: unsupported filter type");
             }
         }
     }

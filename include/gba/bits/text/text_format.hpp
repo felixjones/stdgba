@@ -51,5 +51,5 @@ namespace gba::text {
 
     namespace literals {
         using gba::literals::operator""_fmt;
-    }
+    } // namespace literals
 } // namespace gba::text

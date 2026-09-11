@@ -31,7 +31,10 @@
 ///
 /// Default: 0x1A (SoundDriverInit - harmless no-op on hardware).
 /// Override with `-DSTDGBA_EXIT_SWI=0x##` to match your mgba-headless `-S` flag.
+/// The value has to be a macro: it is stringified straight into the `swi` assembly template and must stay
+/// overridable from the command line.
 #ifndef STDGBA_EXIT_SWI
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
 #define STDGBA_EXIT_SWI 0x1A
 #endif
 
@@ -41,6 +44,10 @@
 #include <utility>
 
 namespace gba::testing {
+
+    // The testing API is public and consumed by test ROMs; clang-tidy cannot see those users and therefore proposes
+    // internal linkage, which would break every test translation unit.
+    // NOLINTBEGIN(misc-use-internal-linkage)
 
     namespace detail {
 
@@ -116,7 +123,9 @@ namespace gba::testing {
     /// @brief Assertion severity for test checks.
     enum class severity : std::uint8_t {
         expect, ///< Record failure and continue.
-        assert_ ///< Record failure and abort immediately.
+        // Established public spelling: a bare `assert` would collide with the <cassert> macro.
+        // NOLINTNEXTLINE(readability-identifier-naming)
+        assert_, ///< Record failure and abort immediately.
     };
 
     /// @brief Runtime configuration for the testing API.
@@ -159,6 +168,9 @@ namespace gba::testing {
             template<typename Left, typename Right>
             bool eq(const Left& lhs, const Right& rhs, const char* message = "",
                     std::source_location loc = std::source_location::current()) noexcept {
+                // Arrays are always compared element-wise, even when they would also satisfy the
+                // DirectlyComparable branch below; the identical bodies are intentional.
+                // NOLINTNEXTLINE(bugprone-branch-clone)
                 if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
                     return m_owner.is_true_impl(detail::range_equal(lhs, rhs), message, m_severity, loc);
                 } else if constexpr (detail::DirectlyComparable<Left, Right>) {
@@ -179,6 +191,9 @@ namespace gba::testing {
             template<typename Left, typename Right>
             bool neq(const Left& lhs, const Right& rhs, const char* message = "",
                      std::source_location loc = std::source_location::current()) noexcept {
+                // Arrays are always compared element-wise, even when they would also satisfy the
+                // DirectlyComparable branch below; the identical bodies are intentional.
+                // NOLINTNEXTLINE(bugprone-branch-clone)
                 if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
                     return m_owner.is_true_impl(!detail::range_equal(lhs, rhs), message, m_severity, loc);
                 } else if constexpr (detail::DirectlyComparable<Left, Right>) {
@@ -259,6 +274,8 @@ namespace gba::testing {
             }
 
         private:
+            // The channel is a non-owning view bound to its owning api for its whole lifetime.
+            // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
             api& m_owner;
             severity m_severity;
         };
@@ -266,6 +283,11 @@ namespace gba::testing {
         explicit api(config cfg = {}) noexcept;
         ~api() noexcept;
 
+        api(const api&) = delete;
+        api& operator=(const api&) = delete;
+
+        /// @brief Public assertion channel: `gba::test.expect.eq(...)`.
+        // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
         channel expect;
 
         /// @brief Run a named test case.
@@ -302,6 +324,9 @@ namespace gba::testing {
         template<typename Left, typename Right>
         bool eq(const Left& lhs, const Right& rhs, const char* message = "",
                 std::source_location loc = std::source_location::current()) noexcept {
+            // Arrays are always compared element-wise, even when they would also satisfy the
+            // DirectlyComparable branch below; the identical bodies are intentional.
+            // NOLINTNEXTLINE(bugprone-branch-clone)
             if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
                 return is_true_impl(detail::range_equal(lhs, rhs), message, severity::assert_, loc);
             } else if constexpr (detail::DirectlyComparable<Left, Right>) {
@@ -323,6 +348,9 @@ namespace gba::testing {
         template<typename Left, typename Right>
         bool neq(const Left& lhs, const Right& rhs, const char* message = "",
                  std::source_location loc = std::source_location::current()) noexcept {
+            // Arrays are always compared element-wise, even when they would also satisfy the
+            // DirectlyComparable branch below; the identical bodies are intentional.
+            // NOLINTNEXTLINE(bugprone-branch-clone)
             if constexpr (detail::BoundedArray<Left> || detail::BoundedArray<Right>) {
                 return is_true_impl(!detail::range_equal(lhs, rhs), message, severity::assert_, loc);
             } else if constexpr (detail::DirectlyComparable<Left, Right>) {
@@ -442,22 +470,27 @@ namespace gba::testing {
         config m_cfg{};
         bool m_used = false;
         bool m_finished = false;
-        bool m_backend_checked = false;
-        bool m_is_mgba = false;
+        bool m_backendChecked = false;
+        bool m_isMgba = false;
 
         unsigned int m_passes = 0;
         unsigned int m_failures = 0;
 
-        const char* m_case_name = nullptr;
-        const char* m_first_file = nullptr;
-        const char* m_first_function = nullptr;
-        const char* m_first_message = nullptr;
-        std::uint_least32_t m_first_line = 0;
+        const char* m_caseName = nullptr;
+        const char* m_firstFile = nullptr;
+        const char* m_firstFunction = nullptr;
+        const char* m_firstMessage = nullptr;
+        std::uint_least32_t m_firstLine = 0;
     };
+
+    // NOLINTEND(misc-use-internal-linkage)
 
 } // namespace gba::testing
 
 namespace gba {
     /// @brief Global singleton-like testing API object.
+    // The test API is deliberately a single mutable global so that test ROMs can use `gba::test(...)` directly,
+    // and it must have external linkage to be shared across a test's translation units.
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables,misc-use-internal-linkage)
     inline testing::api test{};
 } // namespace gba

@@ -35,7 +35,7 @@ namespace gba {
     class packed_angle {
     public:
         /// @brief Underlying storage type (minimal size).
-        using storage_type = typename bits::storage_for_bits<Bits>::unsigned_type;
+        using storage_type = bits::storage_for_bits<Bits>::unsigned_type;
 
         /// @brief Number of bits of precision.
         static constexpr unsigned int bits = Bits;
@@ -118,7 +118,7 @@ namespace gba {
     /// @return The underlying storage value.
     template<unsigned int Bits>
     [[nodiscard]]
-    constexpr typename packed_angle<Bits>::storage_type bit_cast(packed_angle<Bits> value) noexcept {
+    constexpr packed_angle<Bits>::storage_type bit_cast(packed_angle<Bits> value) noexcept {
         return value.data();
     }
 
@@ -134,7 +134,7 @@ namespace gba {
 
     template<unsigned int Bits>
     struct angle_traits<packed_angle<Bits>> {
-        using storage_type = typename packed_angle<Bits>::storage_type;
+        using storage_type = packed_angle<Bits>::storage_type;
         static constexpr unsigned int bits = Bits;
     };
 

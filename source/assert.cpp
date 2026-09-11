@@ -1,81 +1,89 @@
+#include <cstdint>
 #ifndef NDEBUG
 
 #include "crash_screen.hpp"
 
 using namespace crash;
 
-struct assert_state {
-    const char* file;
-    int line;
-    const char* func;
-    const char* expr;
-    std::uint32_t sp;
-    std::uint32_t lr;
-    std::uint32_t cpsr;
-    std::uint16_t dispcnt;
-    std::uint16_t ime;
-    std::uint16_t ie;
-    std::uint16_t if_;
-};
+namespace {
 
+    struct assert_state {
+        const char* file;
+        int line;
+        const char* func;
+        const char* expr;
+        std::uint32_t sp;
+        std::uint32_t lr;
+        std::uint32_t cpsr;
+        std::uint16_t dispcnt;
+        std::uint16_t ime;
+        std::uint16_t ie;
+        std::uint16_t if_reg;
+    };
+
+} // namespace
+
+// Linker-visible symbol called from assert_entry.S.
 extern "C" [[noreturn, gnu::used]]
+// NOLINTNEXTLINE(readability-identifier-naming)
 void _stdgba_assert_render(const assert_state* state) {
-    const auto VRAM = vram();
+    auto* vramPtr = vram();
 
-    constexpr int LABEL_OFFSET = 6 * (FONT_W + 1);
-    char hex_buf[16];
+    constexpr int label_offset = 6 * (font_w + 1);
+    char hexBuf[16];
 
-    draw_rect(VRAM, 0, 0, WIDTH, HEIGHT, BG);
+    draw_rect(vramPtr, 0, 0, width, height, color_bg);
 
     int y = 4;
 
-    y = draw_string(VRAM, 4, y, "ASSERT FAILED", RED);
-    y += FONT_H + 4;
+    y = draw_string(vramPtr, 4, y, "ASSERT FAILED", color_red);
+    y += font_h + 4;
 
-    draw_string(VRAM, 4, y, "Expr:", GRAY);
-    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, state->expr, YELLOW);
-    y += FONT_H + 2;
+    draw_string(vramPtr, 4, y, "Expr:", color_gray);
+    y = draw_string(vramPtr, 4 + label_offset, y, state->expr, color_yellow);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "File:", GRAY);
-    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, state->file, WHITE);
-    y += FONT_H + 2;
+    draw_string(vramPtr, 4, y, "File:", color_gray);
+    y = draw_string(vramPtr, 4 + label_offset, y, state->file, color_white);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "Line:", GRAY);
-    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, itoa(hex_buf, state->line), WHITE);
-    y += FONT_H + 2;
+    draw_string(vramPtr, 4, y, "Line:", color_gray);
+    y = draw_string(vramPtr, 4 + label_offset, y, itoa(hexBuf, state->line), color_white);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "Func:", GRAY);
-    y = draw_string(VRAM, 4 + LABEL_OFFSET, y, state->func, WHITE);
-    y += FONT_H + 4;
+    draw_string(vramPtr, 4, y, "Func:", color_gray);
+    y = draw_string(vramPtr, 4 + label_offset, y, state->func, color_white);
+    y += font_h + 4;
 
     // Register info section
-    y = draw_string(VRAM, 4, y, "Registers:", CYAN);
-    y += FONT_H + 2;
+    y = draw_string(vramPtr, 4, y, "Registers:", color_cyan);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "SP:", GRAY);
-    draw_string(VRAM, 4 + 4 * (FONT_W + 1), y, hex32(hex_buf, state->sp), WHITE);
-    draw_string(VRAM, 120, y, "LR:", GRAY);
-    draw_string(VRAM, 120 + 4 * (FONT_W + 1), y, hex32(hex_buf, state->lr), WHITE);
-    y += FONT_H + 2;
+    draw_string(vramPtr, 4, y, "SP:", color_gray);
+    draw_string(vramPtr, 4 + (4 * (font_w + 1)), y, hex32(hexBuf, state->sp), color_white);
+    draw_string(vramPtr, 120, y, "LR:", color_gray);
+    draw_string(vramPtr, 120 + (4 * (font_w + 1)), y, hex32(hexBuf, state->lr), color_white);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "CPSR:", GRAY);
-    draw_string(VRAM, 4 + 6 * (FONT_W + 1), y, hex32(hex_buf, state->cpsr), WHITE);
-    y += FONT_H + 4;
+    draw_string(vramPtr, 4, y, "CPSR:", color_gray);
+    draw_string(vramPtr, 4 + (6 * (font_w + 1)), y, hex32(hexBuf, state->cpsr), color_white);
+    y += font_h + 4;
 
     // Hardware state
-    y = draw_string(VRAM, 4, y, "Hardware:", CYAN);
-    y += FONT_H + 2;
+    y = draw_string(vramPtr, 4, y, "Hardware:", color_cyan);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "DISPCNT:", GRAY);
-    draw_string(VRAM, 4 + 9 * (FONT_W + 1), y, hex16(hex_buf, state->dispcnt), WHITE);
-    draw_string(VRAM, 120, y, "IME:", GRAY);
-    draw_string(VRAM, 120 + 5 * (FONT_W + 1), y, state->ime ? "1" : "0", state->ime ? YELLOW : WHITE);
-    y += FONT_H + 2;
+    draw_string(vramPtr, 4, y, "DISPCNT:", color_gray);
+    draw_string(vramPtr, 4 + (9 * (font_w + 1)), y, hex16(hexBuf, state->dispcnt), color_white);
+    draw_string(vramPtr, 120, y, "IME:", color_gray);
+    draw_string(vramPtr, 120 + (5 * (font_w + 1)), y, (state->ime != 0u) ? "1" : "0",
+                (state->ime != 0u) ? color_yellow : color_white);
+    y += font_h + 2;
 
-    draw_string(VRAM, 4, y, "IE:", GRAY);
-    draw_string(VRAM, 4 + 4 * (FONT_W + 1), y, hex16(hex_buf, state->ie), WHITE);
-    draw_string(VRAM, 120, y, "IF:", GRAY);
-    draw_string(VRAM, 120 + 4 * (FONT_W + 1), y, hex16(hex_buf, state->if_), WHITE);
+    draw_string(vramPtr, 4, y, "IE:", color_gray);
+    draw_string(vramPtr, 4 + (4 * (font_w + 1)), y, hex16(hexBuf, state->ie), color_white);
+    draw_string(vramPtr, 120, y, "IF:", color_gray);
+    draw_string(vramPtr, 120 + (4 * (font_w + 1)), y, hex16(hexBuf, state->if_reg), color_white);
 
     for (;;) {}
 }

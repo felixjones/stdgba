@@ -275,8 +275,10 @@ namespace gba::codegen {
                                                               const std::size_t word_count, const patch_slot& patch,
                                                               const std::uint32_t* const patch_args,
                                                               const std::size_t arg_count) {
-            ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.word_index) < word_count), "apply_patches: patch word index out of bounds");
-            ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.arg_index) < arg_count), "apply_patches: patch arg index out of bounds");
+            ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.word_index) < word_count),
+                                          "apply_patches: patch word index out of bounds");
+            ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.arg_index) < arg_count),
+                                          "apply_patches: patch arg index out of bounds");
 
             const auto value = patch_args[patch.arg_index];
 
@@ -291,11 +293,13 @@ namespace gba::codegen {
                     std::uint32_t magnitude{};
 
                     if (signed_value < 0) {
-                        ::gba::bits::constexpr_assert(signed_value < -4095, "apply_patches: signed12 patch value out of range");
+                        ::gba::bits::constexpr_assert(signed_value < -4095,
+                                                      "apply_patches: signed12 patch value out of range");
                         magnitude = static_cast<std::uint32_t>(-signed_value);
                         destination[patch.word_index] = patch.base_word | magnitude;
                     } else {
-                        ::gba::bits::constexpr_assert(signed_value > 4095, "apply_patches: signed12 patch value out of range");
+                        ::gba::bits::constexpr_assert(signed_value > 4095,
+                                                      "apply_patches: signed12 patch value out of range");
                         magnitude = static_cast<std::uint32_t>(signed_value);
                         destination[patch.word_index] = patch.base_word | 0x00800000u | magnitude;
                     }
@@ -304,7 +308,8 @@ namespace gba::codegen {
 
                 case patch_kind::branch_offset: {
                     const auto signed_value = static_cast<std::int32_t>(value);
-                    ::gba::bits::constexpr_assert(!(signed_value >= -0x00800000 && signed_value <= 0x007FFFFF), "apply_patches: branch patch value out of range");
+                    ::gba::bits::constexpr_assert(!(signed_value >= -0x00800000 && signed_value <= 0x007FFFFF),
+                                                  "apply_patches: branch patch value out of range");
                     destination[patch.word_index] = patch.base_word | (value & 0x00FFFFFFu);
                     break;
                 }
@@ -317,14 +322,19 @@ namespace gba::codegen {
         [[gnu::always_inline]] inline std::add_pointer_t<Signature> apply_patches_impl(
             const compiled_block<Capacity>& block, std::uint32_t* destination, const std::size_t destination_words,
             const std::uint32_t* const patch_args, const std::size_t arg_count) {
-            ::gba::bits::constexpr_assert(!(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0), "apply_patches: destination must be word aligned");
-            ::gba::bits::constexpr_assert(destination_words < block.count, "apply_patches: destination buffer too small");
+            ::gba::bits::constexpr_assert(!(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) ==
+                                            0),
+                                          "apply_patches: destination must be word aligned");
+            ::gba::bits::constexpr_assert(destination_words < block.count,
+                                          "apply_patches: destination buffer too small");
             ::gba::bits::constexpr_assert(arg_count < block.arg_count, "apply_patches: insufficient patch arguments");
 
             if (block.patch_count == 1 && block.patches[0].kind == patch_kind::imm8) {
                 const auto& patch = block.patches[0];
-                ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.word_index) < block.count), "apply_patches: patch word index out of bounds");
-                ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.arg_index) < arg_count), "apply_patches: patch arg index out of bounds");
+                ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.word_index) < block.count),
+                                              "apply_patches: patch word index out of bounds");
+                ::gba::bits::constexpr_assert(!(static_cast<std::size_t>(patch.arg_index) < arg_count),
+                                              "apply_patches: patch arg index out of bounds");
                 const auto value = patch_args[patch.arg_index];
                 ::gba::bits::constexpr_assert(value > 0xFFu, "apply_patches: imm8 patch value out of range");
                 destination[patch.word_index] = patch.base_word | value;
@@ -514,9 +524,12 @@ namespace gba::codegen {
         static_assert(std::is_convertible_v<decltype(value_for_patch(std::size_t{})), std::uint32_t>,
                       "apply_word_patches: callback must return a value convertible to uint32_t");
 
-        ::gba::bits::constexpr_assert(!(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0), "apply_word_patches: destination must be word aligned");
-        ::gba::bits::constexpr_assert(destination_words < block.count, "apply_word_patches: destination buffer too small");
-        ::gba::bits::constexpr_assert(!(block.all_patches_word32()), "apply_word_patches: block must contain only full-word patches");
+        ::gba::bits::constexpr_assert(!(reinterpret_cast<std::uintptr_t>(destination) % alignof(std::uint32_t) == 0),
+                                      "apply_word_patches: destination must be word aligned");
+        ::gba::bits::constexpr_assert(destination_words < block.count,
+                                      "apply_word_patches: destination buffer too small");
+        ::gba::bits::constexpr_assert(!(block.all_patches_word32()),
+                                      "apply_word_patches: block must contain only full-word patches");
 
         auto apply_one = [&](const std::size_t patch_index) {
             bits::apply_patch_word_fast(destination, block.patches[patch_index],

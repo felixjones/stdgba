@@ -36,8 +36,8 @@ namespace gba {
             if constexpr (std::is_signed_v<T>) {
                 if (value < 0) {
                     using unsigned_t = std::make_unsigned_t<T>;
-                    const auto rem_mask = static_cast<unsigned_t>((unsigned_t{1} << shift) - 1);
-                    const auto remainder = static_cast<unsigned_t>(value) & rem_mask;
+                    const auto remMask = static_cast<unsigned_t>((unsigned_t{1} << shift) - 1);
+                    const auto remainder = static_cast<unsigned_t>(value) & remMask;
                     if (remainder != 0) {
                         ++quotient;
                     }
@@ -109,7 +109,7 @@ namespace gba {
             return false;
         }
 
-        using other_type = typename fixed_point_traits<Other>::underlying_type;
+        using other_type = fixed_point_traits<Other>::underlying_type;
         if constexpr (std::is_unsigned_v<other_type>) {
             return std::numeric_limits<other_type>::digits <= std::numeric_limits<Rep>::digits;
         }
@@ -133,6 +133,8 @@ namespace gba {
         requires(FracBits > 0 && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1 &&
                  sizeof(IntermediateRep) >= sizeof(Rep) && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
     constexpr fixed<Rep, FracBits, IntermediateRep>::fixed(fixed_point auto rhs) noexcept
+        // The parentheses are mandatory: a requires-clause only accepts primary expressions.
+        // NOLINTNEXTLINE(readability-redundant-parentheses)
         requires(trivially_converts_from<decltype(rhs)>())
         : m_data{static_cast<Rep>(convert_fixed(rhs))} {}
 
@@ -172,10 +174,10 @@ namespace gba {
     constexpr fixed<Rep, FracBits, IntermediateRep>& fixed<Rep, FracBits, IntermediateRep>::operator+=(
         fixed rhs) noexcept {
         if constexpr (sizeof(Rep) < sizeof(int)) {
-            using WordType = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
-            const auto lhs_word = static_cast<WordType>(m_data);
-            const auto rhs_word = static_cast<WordType>(rhs.m_data);
-            m_data = static_cast<Rep>(lhs_word + rhs_word);
+            using word_type = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
+            const auto lhsWord = static_cast<word_type>(m_data);
+            const auto rhsWord = static_cast<word_type>(rhs.m_data);
+            m_data = static_cast<Rep>(lhsWord + rhsWord);
         } else {
             m_data += rhs.m_data;
         }
@@ -188,10 +190,10 @@ namespace gba {
     constexpr fixed<Rep, FracBits, IntermediateRep>& fixed<Rep, FracBits, IntermediateRep>::operator-=(
         fixed rhs) noexcept {
         if constexpr (sizeof(Rep) < sizeof(int)) {
-            using WordType = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
-            const auto lhs_word = static_cast<WordType>(m_data);
-            const auto rhs_word = static_cast<WordType>(rhs.m_data);
-            m_data = static_cast<Rep>(lhs_word - rhs_word);
+            using word_type = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
+            const auto lhsWord = static_cast<word_type>(m_data);
+            const auto rhsWord = static_cast<word_type>(rhs.m_data);
+            m_data = static_cast<Rep>(lhsWord - rhsWord);
         } else {
             m_data -= rhs.m_data;
         }
@@ -222,8 +224,8 @@ namespace gba {
 
         // Fast path: if Rep fits in 16 bits, use 32-bit intermediate (ARM7TDMI native)
         if constexpr (sizeof(Rep) <= 2) {
-            using FastInter = std::conditional_t<std::is_signed_v<Rep>, std::int32_t, std::uint32_t>;
-            auto prod = static_cast<FastInter>(m_data) * static_cast<FastInter>(rhs.m_data);
+            using fast_inter = std::conditional_t<std::is_signed_v<Rep>, std::int32_t, std::uint32_t>;
+            auto prod = static_cast<fast_inter>(m_data) * static_cast<fast_inter>(rhs.m_data);
             m_data = static_cast<Rep>(bits::shift_right(prod, static_cast<int>(FracBits)));
         } else {
             auto prod = static_cast<IntermediateRep>(m_data) * static_cast<IntermediateRep>(rhs.m_data);
@@ -256,9 +258,9 @@ namespace gba {
 
         // Fast path: if Rep fits in 16 bits, use 32-bit intermediate (ARM7TDMI native)
         if constexpr (sizeof(Rep) <= 2) {
-            using FastInter = std::conditional_t<std::is_signed_v<Rep>, std::int32_t, std::uint32_t>;
-            auto num = static_cast<FastInter>(m_data);
-            auto den = static_cast<FastInter>(rhs.m_data);
+            using fast_inter = std::conditional_t<std::is_signed_v<Rep>, std::int32_t, std::uint32_t>;
+            auto num = static_cast<fast_inter>(m_data);
+            auto den = static_cast<fast_inter>(rhs.m_data);
             num = bits::shift_left(num, static_cast<int>(FracBits));
             m_data = static_cast<Rep>(num / den);
         } else {
@@ -276,10 +278,10 @@ namespace gba {
     constexpr fixed<Rep, FracBits, IntermediateRep>& fixed<Rep, FracBits, IntermediateRep>::operator+=(
         std::integral auto rhs) noexcept {
         if constexpr (sizeof(Rep) < sizeof(int)) {
-            using WordType = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
-            const auto lhs_word = static_cast<WordType>(m_data);
-            const auto rhs_scaled = static_cast<WordType>(rhs * frac_mul);
-            m_data = static_cast<Rep>(lhs_word + rhs_scaled);
+            using word_type = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
+            const auto lhsWord = static_cast<word_type>(m_data);
+            const auto rhsScaled = static_cast<word_type>(rhs * frac_mul);
+            m_data = static_cast<Rep>(lhsWord + rhsScaled);
         } else {
             m_data += rhs * frac_mul;
         }
@@ -292,10 +294,10 @@ namespace gba {
     constexpr fixed<Rep, FracBits, IntermediateRep>& fixed<Rep, FracBits, IntermediateRep>::operator-=(
         std::integral auto rhs) noexcept {
         if constexpr (sizeof(Rep) < sizeof(int)) {
-            using WordType = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
-            const auto lhs_word = static_cast<WordType>(m_data);
-            const auto rhs_scaled = static_cast<WordType>(rhs * frac_mul);
-            m_data = static_cast<Rep>(lhs_word - rhs_scaled);
+            using word_type = std::conditional_t<std::is_signed_v<Rep>, int, unsigned int>;
+            const auto lhsWord = static_cast<word_type>(m_data);
+            const auto rhsScaled = static_cast<word_type>(rhs * frac_mul);
+            m_data = static_cast<Rep>(lhsWord - rhsScaled);
         } else {
             m_data -= rhs * frac_mul;
         }
@@ -357,8 +359,8 @@ namespace gba {
                 const auto magnitude = bits::unsigned_magnitude(rhs);
                 const auto shift = bits::power_of_two_shift(magnitude);
                 if (shift < std::numeric_limits<std::make_unsigned_t<Rep>>::digits) {
-                    const auto positive_divisor_quotient = bits::div_by_power_of_two_toward_zero(m_data, shift);
-                    m_data = static_cast<Rep>(-positive_divisor_quotient);
+                    const auto positiveDivisorQuotient = bits::div_by_power_of_two_toward_zero(m_data, shift);
+                    m_data = static_cast<Rep>(-positiveDivisorQuotient);
                     return *this;
                 }
             }
@@ -389,13 +391,13 @@ namespace gba {
 
     template<fixed_point T>
     constexpr std::strong_ordering operator<=>(T lhs, T rhs) noexcept {
-        using rep = typename fixed_point_traits<T>::underlying_type;
+        using rep = fixed_point_traits<T>::underlying_type;
         return __builtin_bit_cast(rep, lhs) <=> __builtin_bit_cast(rep, rhs);
     }
 
     template<fixed_point T>
     constexpr bool operator==(T lhs, T rhs) noexcept {
-        using rep = typename fixed_point_traits<T>::underlying_type;
+        using rep = fixed_point_traits<T>::underlying_type;
         return __builtin_bit_cast(rep, lhs) == __builtin_bit_cast(rep, rhs);
     }
 

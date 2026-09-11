@@ -33,8 +33,8 @@ namespace gba::embed::bits {
                 auto cmap_pos = hdr.tga_cmap_offset + ci * cmap_entry_bytes;
                 pixels[di] = tga_decode_color(data, cmap_pos, hdr.tga_cmap_bpp);
                 transparent[di] = (hdr.tga_cmap_bpp == 32 || hdr.tga_cmap_bpp == 16)
-                                       ? tga_decode_alpha(data, cmap_pos, hdr.tga_cmap_bpp)
-                                       : false;
+                                      ? tga_decode_alpha(data, cmap_pos, hdr.tga_cmap_bpp)
+                                      : false;
             } else {
                 pixels[di] = tga_decode_color(data, src, hdr.tga_bpp);
                 transparent[di] = has_alpha ? tga_decode_alpha(data, src, hdr.tga_bpp) : false;

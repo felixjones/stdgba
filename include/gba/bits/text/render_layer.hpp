@@ -13,11 +13,11 @@
 
 #pragma once
 
-#include <gba/video>
 #include <gba/bits/text/glyph_blit.hpp>
 #include <gba/bits/text/stream.hpp>
 #include <gba/bits/text/tile_allocator.hpp>
 #include <gba/bits/text/types.hpp>
+#include <gba/video>
 
 #include <array>
 #include <cstddef>
@@ -56,13 +56,13 @@ namespace gba::text {
             const auto clear_mask = ~(0x0FFFu << shift);
             chunk = (chunk & clear_mask) | (masked << shift);
             bytes[byte_index] = static_cast<std::uint8_t>(chunk & 0xFFu);
-            if (byte_index + 1u < storage_size) bytes[byte_index + 1u] = static_cast<std::uint8_t>((chunk >> 8u) & 0xFFu);
-            if (byte_index + 2u < storage_size) bytes[byte_index + 2u] = static_cast<std::uint8_t>((chunk >> 16u) & 0xFFu);
+            if (byte_index + 1u < storage_size)
+                bytes[byte_index + 1u] = static_cast<std::uint8_t>((chunk >> 8u) & 0xFFu);
+            if (byte_index + 2u < storage_size)
+                bytes[byte_index + 2u] = static_cast<std::uint8_t>((chunk >> 16u) & 0xFFu);
         }
 
-        void clear() noexcept {
-            std::memset(bytes.data(), 0xFF, bytes.size());
-        }
+        void clear() noexcept { std::memset(bytes.data(), 0xFF, bytes.size()); }
     };
 
     template<typename Layer, typename Font, typename Stream>
@@ -113,7 +113,10 @@ namespace gba::text {
                 if (m_done) return false;
                 m_last_visible = false;
 
-                if constexpr (requires (Stream s) { s.in_literal_run(); s.next_literal_char(); }) {
+                if constexpr (requires(Stream s) {
+                                  s.in_literal_run();
+                                  s.next_literal_char();
+                              }) {
                     if (m_stream.in_literal_run()) {
                         auto ch = m_stream.next_literal_char();
                         if (!ch) {
@@ -141,7 +144,10 @@ namespace gba::text {
         }
 
         bool next_visible() {
-            if constexpr (requires (Stream s) { s.in_literal_run(); s.next_literal_char(); }) {
+            if constexpr (requires(Stream s) {
+                              s.in_literal_run();
+                              s.next_literal_char();
+                          }) {
                 while (!m_done && m_stream.in_literal_run()) {
                     m_last_visible = false;
                     auto ch = m_stream.next_literal_char();
@@ -205,8 +211,8 @@ namespace gba::text {
         }
 
         [[nodiscard]]
-        int literal_span_width_px(const glyph_run& run, std::uint16_t local_offset,
-                                  std::uint16_t span_len, bool saw_glyph) const noexcept {
+        int literal_span_width_px(const glyph_run& run, std::uint16_t local_offset, std::uint16_t span_len,
+                                  bool saw_glyph) const noexcept {
             if (span_len == 0) return 0;
             int width = 0;
             for (std::uint16_t i = 0; i < span_len; ++i) {
@@ -283,8 +289,8 @@ namespace gba::text {
             }
 
             if (ch == ' ') {
-                m_cursor_x += static_cast<int>(ascii_advance(static_cast<unsigned char>(' ')) +
-                                              m_metrics.letter_spacing_px);
+                m_cursor_x +=
+                    static_cast<int>(ascii_advance(static_cast<unsigned char>(' ')) + m_metrics.letter_spacing_px);
                 m_prev_break = true;
                 ++m_emitted;
                 return true;
@@ -296,8 +302,8 @@ namespace gba::text {
                 return true;
             }
 
-            const auto advance = m_layer->draw_char(*m_font, static_cast<unsigned char>(ch),
-                                                    m_cursor_x, m_baseline_y, m_foreground_nibble);
+            const auto advance = m_layer->draw_char(*m_font, static_cast<unsigned char>(ch), m_cursor_x, m_baseline_y,
+                                                    m_foreground_nibble);
             m_cursor_x += static_cast<int>(advance + m_metrics.letter_spacing_px);
             m_prev_break = break_char;
             ++m_emitted;
@@ -326,10 +332,10 @@ namespace gba::text {
     template<unsigned short Width, unsigned short Height>
     struct bg4bpp_text_layer {
     private:
-        static constexpr unsigned short tile_grid_width  = (Width  + 7) / 8;
+        static constexpr unsigned short tile_grid_width = (Width + 7) / 8;
         static constexpr unsigned short tile_grid_height = (Height + 7) / 8;
-        static constexpr unsigned short max_tiles        = tile_grid_width * tile_grid_height;
-        static constexpr unsigned short map_dim          = 32;
+        static constexpr unsigned short max_tiles = tile_grid_width * tile_grid_height;
+        static constexpr unsigned short map_dim = 32;
         using cell_state_map_type = packed_cell_state_map<max_tiles>;
         static constexpr std::uint16_t unallocated_cell_state = cell_state_map_type::empty_state;
         inline static cell_state_map_type shared_cell_state{};
@@ -340,7 +346,7 @@ namespace gba::text {
         linear_tile_allocator m_initial_allocator{};
         cell_state_map_type* m_cell_state = nullptr;
         std::uint16_t m_current_vram_tile = no_tile;
-        std::uint8_t  m_current_plane     = no_plane;
+        std::uint8_t m_current_plane = no_plane;
         tile_plane_cache m_cache{};
         int m_pen_x = 0;
         int m_pen_y = 0;
@@ -389,8 +395,7 @@ namespace gba::text {
             return true;
         }
 
-        void draw_bitmap_segment(int x, int y, std::uint8_t bits, int bit_count,
-                                 unsigned char role) noexcept {
+        void draw_bitmap_segment(int x, int y, std::uint8_t bits, int bit_count, unsigned char role) noexcept {
             if (bit_count <= 0 || bits == 0 || y < 0 || y >= Height) return;
 
             if (x < 0) {
@@ -455,14 +460,14 @@ namespace gba::text {
             const auto bank = m_config.bank_for_plane(plane_idx);
             const auto map_idx = static_cast<unsigned>(ty) * map_dim + tx;
             gba::mem_se[m_screenblock][map_idx] = {
-                .tile_index    = m_current_vram_tile,
+                .tile_index = m_current_vram_tile,
                 .palette_index = static_cast<unsigned short>((bank != 255u) ? bank : 0u),
             };
         }
 
         template<typename Glyph>
-        void draw_glyph_bitmap(const unsigned char* bitmap, const Glyph& g,
-                               int glyph_x, int glyph_y, unsigned char role) noexcept {
+        void draw_glyph_bitmap(const unsigned char* bitmap, const Glyph& g, int glyph_x, int glyph_y,
+                               unsigned char role) noexcept {
             for (int row = 0; row < g.height; ++row) {
                 const auto row_ptr = bitmap + static_cast<unsigned>(row) * g.bitmap_byte_width;
                 for (int byte_idx = 0; byte_idx < g.bitmap_byte_width; ++byte_idx) {
@@ -480,8 +485,7 @@ namespace gba::text {
         }
 
         template<typename Font, typename Glyph>
-        void draw_decoration_if_present(const Font& font, const Glyph& g,
-                                        int glyph_x, int glyph_y,
+        void draw_decoration_if_present(const Font& font, const Glyph& g, int glyph_x, int glyph_y,
                                         unsigned char role) noexcept {
             if constexpr (requires { font.decoration_view_for(g); }) {
                 const auto view = font.decoration_view_for(g);
@@ -490,8 +494,7 @@ namespace gba::text {
                 const int start_y = view.y_offset;
                 const int end_x = start_x + static_cast<int>(view.width);
                 for (int y = 0; y < static_cast<int>(view.height); ++y) {
-                    const auto row_ptr = view.data +
-                        static_cast<std::size_t>(start_y + y) * view.byte_width;
+                    const auto row_ptr = view.data + static_cast<std::size_t>(start_y + y) * view.byte_width;
                     const int row_y = glyph_y + start_y + y;
                     const int start_byte = start_x / 8;
                     const int end_byte = (end_x - 1) / 8;
@@ -511,8 +514,7 @@ namespace gba::text {
                         }
                         if (bits == 0) continue;
 
-                        draw_bitmap_segment(glyph_x + byte_start_x + clip_left, row_y,
-                                            bits, bit_count, role);
+                        draw_bitmap_segment(glyph_x + byte_start_x + clip_left, row_y, bits, bit_count, role);
                     }
                 }
             }
@@ -526,11 +528,10 @@ namespace gba::text {
         /// @param cfg          Bitplane encoding/palette config.
         /// @param allocator    Tile allocator for glyph tiles.
         /// @param cell_state   External packed cell-state storage.
-        bg4bpp_text_layer(unsigned short screenblock, const bitplane_config& cfg,
-                          linear_tile_allocator allocator,
+        bg4bpp_text_layer(unsigned short screenblock, const bitplane_config& cfg, linear_tile_allocator allocator,
                           cell_state_map_type& cell_state)
-            : m_screenblock(screenblock), m_config(cfg),
-              m_allocator(allocator), m_initial_allocator(allocator), m_cell_state(&cell_state) {
+            : m_screenblock(screenblock), m_config(cfg), m_allocator(allocator), m_initial_allocator(allocator),
+              m_cell_state(&cell_state) {
             clear();
         }
 
@@ -540,8 +541,7 @@ namespace gba::text {
             : bg4bpp_text_layer(screenblock, cfg, allocator, shared_cell_state) {}
 
         /// @brief Construct without screenblock (uses default 31, legacy compat).
-        explicit bg4bpp_text_layer(const bitplane_config& cfg)
-            : bg4bpp_text_layer(31, cfg) {}
+        explicit bg4bpp_text_layer(const bitplane_config& cfg) : bg4bpp_text_layer(31, cfg) {}
 
         void set_palette(unsigned char nibble) noexcept {
             if (nibble > 15) return;
@@ -573,17 +573,15 @@ namespace gba::text {
         ///   glyph_x = pen_x + g.x_offset
         ///   glyph_y = baseline_y - g.height - g.y_offset
         template<typename Font>
-        unsigned short draw_char(const Font& font, unsigned int encoding,
-                                  int pen_x, int baseline_y,
-                                  unsigned char fg_nibble =
-                                      static_cast<unsigned char>(bitplane_role::foreground)) noexcept {
+        unsigned short draw_char(
+            const Font& font, unsigned int encoding, int pen_x, int baseline_y,
+            unsigned char fg_nibble = static_cast<unsigned char>(bitplane_role::foreground)) noexcept {
             const auto& g = font.glyph_or_default(encoding);
             const int glyph_x = pen_x + g.x_offset;
             const int glyph_y = baseline_y - static_cast<int>(g.height) - g.y_offset;
 
             const auto shadow_role = static_cast<unsigned char>(bitplane_role::shadow);
-            const auto fg_role = uses_full_color() ? fg_nibble
-                                                   : static_cast<unsigned char>(bitplane_role::foreground);
+            const auto fg_role = uses_full_color() ? fg_nibble : static_cast<unsigned char>(bitplane_role::foreground);
 
             draw_decoration_if_present(font, g, glyph_x, glyph_y, shadow_role);
             draw_glyph_bitmap(font.bitmap_data(g), g, glyph_x, glyph_y, fg_role);
@@ -618,7 +616,11 @@ namespace gba::text {
                     ++emitted;
                     continue;
                 }
-                if (ch == '\r') { prev_break = true; ++emitted; continue; }
+                if (ch == '\r') {
+                    prev_break = true;
+                    ++emitted;
+                    continue;
+                }
 
                 if (full_color && ch == color_escape_prefix) {
                     if (*str) {
@@ -638,8 +640,7 @@ namespace gba::text {
                 }
 
                 if (ch == ' ') {
-                    cursor_x += static_cast<int>(font.glyph_or_default(' ').dwidth +
-                                                metrics.letter_spacing_px);
+                    cursor_x += static_cast<int>(font.glyph_or_default(' ').dwidth + metrics.letter_spacing_px);
                     prev_break = true;
                     ++emitted;
                     continue;
@@ -651,8 +652,7 @@ namespace gba::text {
                     continue;
                 }
 
-                const auto advance = draw_char(font, static_cast<unsigned char>(ch),
-                                               cursor_x, baseline_y, fg_nibble);
+                const auto advance = draw_char(font, static_cast<unsigned char>(ch), cursor_x, baseline_y, fg_nibble);
                 cursor_x += static_cast<int>(advance + metrics.letter_spacing_px);
                 prev_break = false;
                 ++emitted;
@@ -674,7 +674,7 @@ namespace gba::text {
         auto make_cursor(const Font& font, Stream stream, int start_x, int start_y,
                          const stream_metrics& metrics = {}) {
             using layer_type = bg4bpp_text_layer<Width, Height>;
-            return draw_cursor<layer_type, Font, Stream>{*this, font, static_cast<Stream&&>(stream),
+            return draw_cursor<layer_type, Font, Stream>{*this,   font,    static_cast<Stream&&>(stream),
                                                          start_x, start_y, metrics};
         }
 
@@ -690,8 +690,8 @@ namespace gba::text {
         }
         [[nodiscard]] unsigned char palette() const noexcept { return m_foreground_nibble; }
 
-        [[nodiscard]] constexpr std::uint16_t tile_index_from_row_col(
-            unsigned short row, unsigned short col) const noexcept {
+        [[nodiscard]] constexpr std::uint16_t tile_index_from_row_col(unsigned short row,
+                                                                      unsigned short col) const noexcept {
             return static_cast<std::uint16_t>(row * tile_grid_width + col);
         }
         [[nodiscard]] unsigned short current_tile_count() const noexcept {
@@ -700,7 +700,7 @@ namespace gba::text {
         [[nodiscard]] constexpr unsigned short max_tile_count() const noexcept { return max_tiles; }
 
         [[nodiscard]] unsigned char plane_count() const noexcept { return m_config.plane_count(); }
-        [[nodiscard]] unsigned char role_count()  const noexcept { return m_config.role_count(); }
+        [[nodiscard]] unsigned char role_count() const noexcept { return m_config.role_count(); }
 
     private:
         void clear_background_tile() noexcept {
@@ -716,7 +716,10 @@ namespace gba::text {
         int measure_word_px(const Font& font, const char* p, const stream_metrics& metrics) noexcept {
             int w = 0;
             while (*p && *p != ' ' && *p != '\t' && *p != '\n' && *p != '\r') {
-                if (*p == color_escape_prefix && *(p + 1)) { p += 2; continue; }
+                if (*p == color_escape_prefix && *(p + 1)) {
+                    p += 2;
+                    continue;
+                }
                 w += static_cast<int>(font.glyph_or_default(static_cast<unsigned char>(*p)).dwidth +
                                       metrics.letter_spacing_px);
                 ++p;

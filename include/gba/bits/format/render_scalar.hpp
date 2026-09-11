@@ -47,8 +47,8 @@ namespace gba::format::bits {
             return render_string_value(out, cap, tmp, spec);
         }
 
-        const auto effectiveType = spec.fmt_type == format_spec::format_kind::default_fmt ? format_spec::format_kind::decimal
-                                                                                           : spec.fmt_type;
+        const auto effectiveType =
+            spec.fmt_type == format_spec::format_kind::default_fmt ? format_spec::format_kind::decimal : spec.fmt_type;
         const auto base = integer_base_for(effectiveType);
         const auto uppercase = uppercase_digits(effectiveType);
 

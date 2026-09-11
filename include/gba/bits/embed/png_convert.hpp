@@ -3,16 +3,14 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/png_chunks.hpp>
 #include <gba/color>
 
 namespace gba::embed::bits {
 
-
     consteval void png_convert_rgb(const unsigned char* scanlines, unsigned int width, unsigned int height,
-                                   gba::color* pixels, bool* transparent,
-                                   bool has_trns, unsigned char trns_r, unsigned char trns_g, unsigned char trns_b) {
+                                   gba::color* pixels, bool* transparent, bool has_trns, unsigned char trns_r,
+                                   unsigned char trns_g, unsigned char trns_b) {
         auto stride = width * 3;
         for (unsigned int y = 0; y < height; ++y) {
             auto* row = scanlines + y * (1 + stride) + 1;
@@ -23,8 +21,7 @@ namespace gba::embed::bits {
                 auto b = row[off + 2];
                 auto di = y * width + x;
                 pixels[di] = gba::bits::from_rgb((static_cast<unsigned int>(r) << 16) |
-                                                 (static_cast<unsigned int>(g) << 8)  |
-                                                  static_cast<unsigned int>(b));
+                                                 (static_cast<unsigned int>(g) << 8) | static_cast<unsigned int>(b));
                 transparent[di] = has_trns && r == trns_r && g == trns_g && b == trns_b;
             }
         }
@@ -42,8 +39,7 @@ namespace gba::embed::bits {
                 auto b = row[off + 2];
                 auto di = y * width + x;
                 pixels[di] = gba::bits::from_rgb((static_cast<unsigned int>(r) << 16) |
-                                                 (static_cast<unsigned int>(g) << 8)  |
-                                                  static_cast<unsigned int>(b));
+                                                 (static_cast<unsigned int>(g) << 8) | static_cast<unsigned int>(b));
                 transparent[di] = (row[off + 3] < 128);
             }
         }
@@ -59,7 +55,7 @@ namespace gba::embed::bits {
             auto off = info.plte_offset + i * 3;
             plte[i] = gba::bits::from_rgb((static_cast<unsigned int>(data[off]) << 16) |
                                           (static_cast<unsigned int>(data[off + 1]) << 8) |
-                                           static_cast<unsigned int>(data[off + 2]));
+                                          static_cast<unsigned int>(data[off + 2]));
         }
         bool plte_trans[256]{};
         if (info.trns_len > 0) {

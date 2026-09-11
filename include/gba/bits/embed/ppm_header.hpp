@@ -3,7 +3,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/common.hpp>
 
 namespace gba::embed::bits {

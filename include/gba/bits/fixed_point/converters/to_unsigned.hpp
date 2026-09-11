@@ -27,8 +27,8 @@ namespace gba {
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
-            using lhs_rep = typename lhs_traits::underlying_type;
-            using rhs_rep = typename rhs_traits::underlying_type;
+            using lhs_rep = lhs_traits::underlying_type;
+            using rhs_rep = rhs_traits::underlying_type;
 
             using lhs_unsigned = std::make_unsigned_t<lhs_rep>;
 

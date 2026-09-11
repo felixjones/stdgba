@@ -26,20 +26,24 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 extern "C" {
 
+// Linker-visible assembly entry points in memcmp.s; the reserved spelling is part of the library's fixed ABI.
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
 extern int __stdgba_memcmp(const void*, const void*, std::size_t);
 extern int __stdgba_bcmp(const void*, const void*, std::size_t);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
 
 int memcmp(const void* s1, const void* s2, std::size_t n) {
     // 1. Zero-size compare: compile-time elimination.
-    if (__builtin_constant_p(n) && n == 0) return 0;
+    if ((__builtin_constant_p(n) != 0) && n == 0) return 0;
 
     // 2. Single byte: inline compare.
     //    Saves all entry overhead (alignment check, byte loop setup).
     //    The cast + subtract produces the correct memcmp sign convention.
-    if (__builtin_constant_p(n) && n == 1) {
+    if ((__builtin_constant_p(n) != 0) && n == 1) {
         const auto a = *static_cast<const unsigned char*>(s1);
         const auto b = *static_cast<const unsigned char*>(s2);
         return static_cast<int>(a) - static_cast<int>(b);
@@ -55,20 +59,20 @@ int memcmp(const void* s1, const void* s2, std::size_t n) {
     //    is true only when GCC can prove alignment from the call site.
     //    When it cannot, the entire guard is false and this block is
     //    dead code.
-    if (__builtin_constant_p(n) && n % 4 == 0 && n > 0 && n < 20 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s1) & 3) == 0 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0) {
-        auto p1 = static_cast<const std::uint32_t*>(s1);
-        auto p2 = static_cast<const std::uint32_t*>(s2);
+    if ((__builtin_constant_p(n) != 0) && n % 4 == 0 && n > 0 && n < 20 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(s1) & 3u) == 0 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(s2) & 3u) == 0) {
+        const auto* p1 = static_cast<const std::uint32_t*>(s1);
+        const auto* p2 = static_cast<const std::uint32_t*>(s2);
         for (std::size_t i = 0; i < n / 4; ++i) {
             const auto w1 = p1[i];
             const auto w2 = p2[i];
             if (w1 != w2) {
                 // Byte-scan the differing word (little-endian).
-                auto a = reinterpret_cast<const unsigned char*>(&p1[i]);
-                auto b = reinterpret_cast<const unsigned char*>(&p2[i]);
+                const auto* a = reinterpret_cast<const unsigned char*>(&p1[i]);
+                const auto* b = reinterpret_cast<const unsigned char*>(&p2[i]);
                 for (int j = 0; j < 4; ++j) {
                     if (a[j] != b[j]) return static_cast<int>(a[j]) - static_cast<int>(b[j]);
                 }
@@ -81,9 +85,9 @@ int memcmp(const void* s1, const void* s2, std::size_t n) {
     //    Benchmarked crossover: inline ldrb pairs win at N=1 (30%) and
     //    N=2 (13%); at N=3 the __stdgba_memcmp call is faster. N=1 is
     //    already handled above, so this only catches N=2.
-    if (__builtin_constant_p(n) && n == 2) {
-        auto a = static_cast<const unsigned char*>(s1);
-        auto b = static_cast<const unsigned char*>(s2);
+    if ((__builtin_constant_p(n) != 0) && n == 2) {
+        const auto* a = static_cast<const unsigned char*>(s1);
+        const auto* b = static_cast<const unsigned char*>(s2);
         for (std::size_t i = 0; i < n; ++i) {
             if (a[i] != b[i]) return static_cast<int>(a[i]) - static_cast<int>(b[i]);
         }
@@ -96,34 +100,34 @@ int memcmp(const void* s1, const void* s2, std::size_t n) {
 
 int bcmp(const void* s1, const void* s2, std::size_t n) {
     // 1. Zero-size: always equal.
-    if (__builtin_constant_p(n) && n == 0) return 0;
+    if ((__builtin_constant_p(n) != 0) && n == 0) return 0;
 
     // 2. Single byte: inline compare.
-    if (__builtin_constant_p(n) && n == 1) {
-        return *static_cast<const unsigned char*>(s1) != *static_cast<const unsigned char*>(s2);
+    if ((__builtin_constant_p(n) != 0) && n == 1) {
+        return static_cast<int>(*static_cast<const unsigned char*>(s1) != *static_cast<const unsigned char*>(s2));
     }
 
     // 3. Word-aligned, word-multiple (4-16 bytes): inline word XOR.
     //    bcmp only needs equal/not-equal, so a single OR-reduce of all
     //    XOR results suffices -- no byte scan on mismatch.
     //    Same cap as memcmp: inline wins up to N=16, call wins at N=20.
-    if (__builtin_constant_p(n) && n % 4 == 0 && n > 0 && n < 20 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s1) & 3) == 0 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(s2) & 3) == 0) {
-        auto p1 = static_cast<const std::uint32_t*>(s1);
-        auto p2 = static_cast<const std::uint32_t*>(s2);
+    if ((__builtin_constant_p(n) != 0) && n % 4 == 0 && n > 0 && n < 20 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(s1) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(s1) & 3u) == 0 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(s2) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(s2) & 3u) == 0) {
+        const auto* p1 = static_cast<const std::uint32_t*>(s1);
+        const auto* p2 = static_cast<const std::uint32_t*>(s2);
         std::uint32_t diff = 0;
         for (std::size_t i = 0; i < n / 4; ++i) diff |= p1[i] ^ p2[i];
-        return diff != 0;
+        return static_cast<int>(diff != 0);
     }
 
     // 4. Small constant compare (n == 2, any alignment): inline bytes.
     //    Same crossover as memcmp: inline wins at N=1-2, call wins at N=3+.
-    if (__builtin_constant_p(n) && n == 2) {
-        auto a = static_cast<const unsigned char*>(s1);
-        auto b = static_cast<const unsigned char*>(s2);
+    if ((__builtin_constant_p(n) != 0) && n == 2) {
+        const auto* a = static_cast<const unsigned char*>(s1);
+        const auto* b = static_cast<const unsigned char*>(s2);
         for (std::size_t i = 0; i < n; ++i) {
             if (a[i] != b[i]) return 1;
         }

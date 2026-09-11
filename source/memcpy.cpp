@@ -24,15 +24,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 extern "C" {
 
+// ABI-mandated AEABI helper names implemented in memcpy.s; the reserved spelling is required by the ARM EABI.
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
 extern void __aeabi_memcpy(void*, const void*, std::size_t);
 extern void __aeabi_memcpy4(void*, const void*, std::size_t);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
 
 void* memcpy(void* __restrict dest, const void* __restrict src, std::size_t n) {
     // 1. Zero-size copy: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0) return dest;
+    if ((__builtin_constant_p(n) != 0) && n == 0) return dest;
 
     // 2. Word-aligned, word-multiple (4-60 bytes): inline ldr/str pairs.
     //    Eliminates ~25+ cycles of call overhead + alignment detection.
@@ -48,12 +52,12 @@ void* memcpy(void* __restrict dest, const void* __restrict src, std::size_t n) {
     //    resolved by the optimizer after inlining, not by the compiler's
     //    constexpr evaluator. `if constexpr` would always see false and
     //    discard these specialisations entirely.
-    if (__builtin_constant_p(n) && n % 4 == 0 && n > 0 && n < 64 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
-        std::uint32_t tmp;
+    if ((__builtin_constant_p(n) != 0) && n % 4 == 0 && n > 0 && n < 64 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(dest) & 3u) == 0 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(src) & 3u) == 0) {
+        std::uint32_t tmp = 0;
         asm volatile(".set i, 0\n"
                      ".rept %c[words]\n"
                      "ldr %[tmp], [%[s], #i]\n"
@@ -69,9 +73,9 @@ void* memcpy(void* __restrict dest, const void* __restrict src, std::size_t n) {
     // 3. Small constant copy (1-6 bytes, any alignment): inline byte copies.
     //    Benchmarked crossover: inline ldrb/strb wins up to 6 bytes from
     //    ROM/Thumb (-O3). At 7 bytes the __aeabi_memcpy call is faster.
-    if (__builtin_constant_p(n) && n > 0 && n <= 6) {
-        auto d = static_cast<unsigned char*>(dest);
-        auto s = static_cast<const unsigned char*>(src);
+    if ((__builtin_constant_p(n) != 0) && n > 0 && n <= 6) {
+        auto* d = static_cast<unsigned char*>(dest);
+        const auto* s = static_cast<const unsigned char*>(src);
         d[0] = s[0];
         if (n >= 2) d[1] = s[1];
         if (n >= 3) d[2] = s[2];
@@ -85,10 +89,10 @@ void* memcpy(void* __restrict dest, const void* __restrict src, std::size_t n) {
     //    Saves 8-16% by avoiding the eor/tst/rsbs/movs alignment logic.
     //    Both pointers must be provably word-aligned (struct copies,
     //    alignas buffers, stack variables).
-    if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
+    if ((__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(dest) & 3u) == 0 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(src) & 3u) == 0) {
         __aeabi_memcpy4(dest, src, n);
         return dest;
     }

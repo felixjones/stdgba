@@ -7,7 +7,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/music/pattern.hpp>
 
 #include <algorithm>
@@ -17,7 +16,6 @@
 #include <utility>
 
 namespace gba::music {
-
 
     /// @brief What kind of event to emit.
     enum class event_type : std::uint8_t {
@@ -123,7 +121,8 @@ namespace gba::music {
             // Deduplicate: return existing index if same instrument already stored
             for (std::uint8_t i = 0; i < wav_instrument_count; ++i)
                 if (wav_instruments[i] == inst) return i;
-            ::gba::bits::constexpr_assert(wav_instrument_count >= max_wav_instruments, "compiled_music: too many distinct wav instruments");
+            ::gba::bits::constexpr_assert(wav_instrument_count >= max_wav_instruments,
+                                          "compiled_music: too many distinct wav instruments");
             wav_instruments[wav_instrument_count] = inst;
             return wav_instrument_count++;
         }
@@ -223,7 +222,8 @@ namespace gba::music {
                         if (noteOffTime <= events[lastNoteOn[ch]].time_num)
                             noteOffTime = ev.time_num; // fallback: same-frame
 
-                        ::gba::bits::constexpr_assert(injectedCount >= max_events, "compiled_music: too many events after articulation injection");
+                        ::gba::bits::constexpr_assert(injectedCount >= max_events,
+                                                      "compiled_music: too many events after articulation injection");
                         event noteOff{};
                         noteOff.time_num = noteOffTime;
                         noteOff.type = event_type::note_off;
@@ -239,7 +239,8 @@ namespace gba::music {
 
             // Append injected note_offs to the event array
             for (std::uint16_t i = 0; i < injectedCount; ++i) {
-                ::gba::bits::constexpr_assert(event_count >= max_events, "compiled_music: too many events after articulation injection");
+                ::gba::bits::constexpr_assert(event_count >= max_events,
+                                              "compiled_music: too many events after articulation injection");
                 events[event_count++] = injected[i];
             }
         }
@@ -290,8 +291,10 @@ namespace gba::music {
         /// @brief Repeat compiled span until all cycle modulators can be resolved in one loop.
         consteval void expand_for_cycle_modulation() {
             if (event_count == 0) return;
-            ::gba::bits::constexpr_assert(cycle_time_num <= 0 || total_time_num <= 0, "compiled_music: invalid cycle/total time");
-            ::gba::bits::constexpr_assert((total_time_num % cycle_time_num) != 0, "compiled_music: total_time_num must be a multiple of cycle_time_num");
+            ::gba::bits::constexpr_assert(cycle_time_num <= 0 || total_time_num <= 0,
+                                          "compiled_music: invalid cycle/total time");
+            ::gba::bits::constexpr_assert((total_time_num % cycle_time_num) != 0,
+                                          "compiled_music: total_time_num must be a multiple of cycle_time_num");
 
             auto gcd64 = [](std::int64_t a, std::int64_t b) consteval {
                 auto aa = a < 0 ? -a : a;
@@ -324,7 +327,8 @@ namespace gba::music {
                 for (std::uint16_t i = 0; i < originalCount; ++i) {
                     auto e = events[i];
                     e.time_num += originalTotal * rep;
-                    ::gba::bits::constexpr_assert(event_count >= max_events, "compiled_music: too many expanded events");
+                    ::gba::bits::constexpr_assert(event_count >= max_events,
+                                                  "compiled_music: too many expanded events");
                     events[event_count++] = e;
                 }
             }
@@ -347,7 +351,6 @@ namespace gba::music {
             build_timepoints();
         }
     };
-
 
     namespace compile_detail {
 
@@ -452,7 +455,8 @@ namespace gba::music {
         consteval int cycles_until_loop(const parsed_pattern& ast) {
             int baseSteps = node_step_count(ast, ast.root);
             int steps = steps_until_loop(ast);
-            ::gba::bits::constexpr_assert(baseSteps <= 0 || (steps % baseSteps) != 0, "cycles_until_loop: invalid base/loop step relationship");
+            ::gba::bits::constexpr_assert(baseSteps <= 0 || (steps % baseSteps) != 0,
+                                          "cycles_until_loop: invalid base/loop step relationship");
             return steps / baseSteps;
         }
 
@@ -548,7 +552,6 @@ namespace gba::music {
             return result;
         }
 
-
         /// @brief Compile-time context threaded through the recursive AST walker.
         ///
         /// Carries the AST, output buffer, current channel, timing info,
@@ -600,9 +603,10 @@ namespace gba::music {
                     } else if (is_chromatic(node.note_value)) {
                         // Pitched note
                         if (ctx.chan == channel::noise)
-                            ::gba::bits::constexpr_fail("compile: chromatic notes cannot target the noise channel - use drum presets (bd, "
-                                  "sd, hh, ...) with s(), or use note().channel(channel::sq1/sq2/wav) for pitched "
-                                  "content");
+                            ::gba::bits::constexpr_fail(
+                                "compile: chromatic notes cannot target the noise channel - use drum presets (bd, "
+                                "sd, hh, ...) with s(), or use note().channel(channel::sq1/sq2/wav) for pitched "
+                                "content");
                         event e{};
                         e.time_num = to_time_num(start, ctx.music->time_den);
                         e.type = event_type::note_on;
@@ -658,7 +662,8 @@ namespace gba::music {
                     // Each child is a layer on a different channel.
                     // Use layer_overrides if provided, otherwise auto-assign: sq1, sq2, wav, noise.
                     constexpr channel order[] = {channel::sq1, channel::sq2, channel::wav, channel::noise};
-                    ::gba::bits::constexpr_assert(node.child_count > 4, "stacked: too many parallel layers (max 4 PSG channels)");
+                    ::gba::bits::constexpr_assert(node.child_count > 4,
+                                                  "stacked: too many parallel layers (max 4 PSG channels)");
                     for (std::uint8_t i = 0; i < node.child_count; ++i) {
                         auto childCtx = ctx;
                         if (ctx.layer_overrides && i < ctx.layer_override_count) {
@@ -679,7 +684,8 @@ namespace gba::music {
                     if (node.modifier_is_timeline) {
                         ::gba::bits::constexpr_assert(node.child_count < 2, "fast timeline: missing timeline node");
                         const auto& timelineNode = ctx.ast->nodes[node.children[1]];
-                        ::gba::bits::constexpr_assert(timelineNode.type != ast_type::alternating, "fast timeline: expected alternating timeline node");
+                        ::gba::bits::constexpr_assert(timelineNode.type != ast_type::alternating,
+                                                      "fast timeline: expected alternating timeline node");
                         ::gba::bits::constexpr_assert(timelineNode.child_count == 0, "fast timeline: empty timeline");
 
                         for (std::uint8_t ti = 0; ti < timelineNode.child_count; ++ti) {
@@ -760,7 +766,8 @@ namespace gba::music {
                     if (node.modifier_is_timeline) {
                         ::gba::bits::constexpr_assert(node.child_count < 2, "slow timeline: missing timeline node");
                         const auto& timelineNode = ctx.ast->nodes[node.children[1]];
-                        ::gba::bits::constexpr_assert(timelineNode.type != ast_type::alternating, "slow timeline: expected alternating timeline node");
+                        ::gba::bits::constexpr_assert(timelineNode.type != ast_type::alternating,
+                                                      "slow timeline: expected alternating timeline node");
                         ::gba::bits::constexpr_assert(timelineNode.child_count == 0, "slow timeline: empty timeline");
 
                         for (std::uint8_t ti = 0; ti < timelineNode.child_count; ++ti) {
@@ -882,7 +889,6 @@ namespace gba::music {
         }
 
     } // namespace compile_detail
-
 
     /// @brief Implementation: Compile a single pattern with explicit tempo.
     template<tempo Tempo>
@@ -1062,7 +1068,6 @@ namespace gba::music {
         music.finalize();
         return music;
     }
-
 
     /// @brief Compile a single pattern using default tempo (0.5 cps = 120 BPM).
     ///

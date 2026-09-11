@@ -230,7 +230,7 @@ namespace gba {
     } // namespace bits
 
     inline constexpr auto char_map(const void* ptr) noexcept {
-        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_bg)) / 0x4000U);
+        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_bg)) / 0x4000u);
     }
 
     /// @brief Calculate screenblock index from a VRAM pointer.
@@ -248,7 +248,7 @@ namespace gba {
     /// // Manual calculation: ((u32)ptr - MEM_VRAM) / 0x800
     /// @endcode
     inline constexpr auto screen_map(const void* ptr) noexcept {
-        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_bg)) / 0x800U);
+        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_bg)) / 0x800u);
     }
 
     /// @brief Calculate OAM tile index from an OBJ VRAM pointer.
@@ -276,7 +276,7 @@ namespace gba {
     /// // Manual calculation: ((u32)ptr - MEM_VRAM_OBJ) / 32
     /// @endcode
     inline constexpr auto tile_index(const void* ptr) noexcept {
-        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_obj)) / 32U);
+        return static_cast<unsigned short>(bits::byte_offset(ptr, memory_map(gba::mem_vram_obj)) / 32u);
     }
 
     /// @brief 4bpp tile type (32 bytes, 8x8 pixels at 4 bits each).

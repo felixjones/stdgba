@@ -26,15 +26,19 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 extern "C" {
 
+// ABI-mandated AEABI helper names implemented in memset.s; the reserved spelling is required by the ARM EABI.
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
 extern void __aeabi_memset(void*, std::size_t, int);
 extern void __aeabi_memset4(void*, std::size_t, int);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
 
 void* memset(void* dest, int c, std::size_t n) {
     // 1. Zero-size fill: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0) return dest;
+    if ((__builtin_constant_p(n) != 0) && n == 0) return dest;
 
     // 2. Word-aligned, word-multiple (4-60 bytes): inline str sequence.
     //    Eliminates ~25+ cycles of call overhead + byte broadcast + alignment.
@@ -48,11 +52,11 @@ void* memset(void* dest, int c, std::size_t n) {
     //    is true only when GCC can prove alignment from the call site
     //    (struct clears, alignas buffers, stack variables). When it
     //    cannot, the entire guard is false and this block is dead code.
-    if (__builtin_constant_p(n) && n % 4 == 0 && n > 0 && n < 64 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 && __builtin_constant_p(c)) {
+    if ((__builtin_constant_p(n) != 0) && n % 4 == 0 && n > 0 && n < 64 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(dest) & 3u) == 0 && (__builtin_constant_p(c) != 0)) {
         const auto byte = static_cast<std::uint32_t>(static_cast<unsigned char>(c));
-        const auto word = byte | (byte << 8) | (byte << 16) | (byte << 24);
+        const auto word = byte | (byte << 8u) | (byte << 16u) | (byte << 24u);
         asm volatile(".set i, 0\n"
                      ".rept %c[words]\n"
                      "str %[val], [%[d], #i]\n"
@@ -68,8 +72,8 @@ void* memset(void* dest, int c, std::size_t n) {
     //    ROM/Thumb (-O3). At 14 bytes the __aeabi_memset call is faster.
     //    memset's byte path is cheaper than memcpy's (strb vs ldrb+strb),
     //    so the threshold is higher (12 vs 6).
-    if (__builtin_constant_p(n) && n > 0 && n <= 12) {
-        auto d = static_cast<unsigned char*>(dest);
+    if ((__builtin_constant_p(n) != 0) && n > 0 && n <= 12) {
+        auto* d = static_cast<unsigned char*>(dest);
         const auto byte = static_cast<unsigned char>(c);
         d[0] = byte;
         if (n >= 2) d[1] = byte;
@@ -89,8 +93,8 @@ void* memset(void* dest, int c, std::size_t n) {
     // 4. Alignment-proven fast path: skip alignment check + broadcast in
     //    the generic entry. Saves 8-13% by calling __aeabi_memset4 directly.
     //    Note the parameter order swap: AEABI is (dest, n, c).
-    if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0) {
+    if ((__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(dest) & 3u) == 0) {
         __aeabi_memset4(dest, n, c);
         return dest;
     }

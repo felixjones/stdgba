@@ -31,7 +31,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/flash/operations.hpp>
 
 #include <array>
@@ -82,7 +81,8 @@ namespace gba::flash::atmel {
 
     /// @brief Write a 128-byte page (compile-time constant).
     consteval cmd write_page(int page, write_fn fn) {
-        ::gba::bits::constexpr_assert(page < 0 || page >= pages_per_bank, "write_page: page index out of range (0-511)");
+        ::gba::bits::constexpr_assert(page < 0 || page >= pages_per_bank,
+                                      "write_page: page index out of range (0-511)");
         ::gba::bits::constexpr_assert(fn == nullptr, "write_page: write function must not be null");
         return {cmd::write_page_k, static_cast<std::int16_t>(page), -1, fn, nullptr};
     }

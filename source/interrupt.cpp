@@ -1,17 +1,30 @@
 #include <gba/interrupt>
 #include <gba/peripherals>
 
-static gba::handler<gba::irq> user_handler;
+namespace {
 
+    // Single global slot holding the user IRQ handler; the naked assembly trampoline below reads its address
+    // directly, so it must be a stable, mutable object with static storage duration.
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+    gba::handler<gba::irq> user_handler;
+    constexpr auto irq_call_op = &decltype(user_handler)::operator();
+
+} // namespace
+
+// Linker-visible IWRAM trampolines installed into the BIOS IRQ vector; their external symbols are part of the
+// library's fixed link-time layout.
+// NOLINTBEGIN(misc-use-internal-linkage)
 [[gnu::target("arm"), gnu::section(".iwram._stdgba_irq_user_handler"), gnu::naked]]
 void irq_user_handler();
 
 [[gnu::target("arm"), gnu::section(".iwram._stdgba_irq_empty_handler"), gnu::naked]]
 void irq_empty_handler();
+// NOLINTEND(misc-use-internal-linkage)
 
 namespace gba {
 
-    const isr& isr::operator=(const value_type& value) const noexcept { // NOLINT(*-unconventional-assign-operator)
+    // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
+    const isr& isr::operator=(const value_type& value) const noexcept {
         if (value == nullisr) {
             registral<void (*)()>{0x3007FFC} = irq_empty_handler;
         } else {
@@ -22,19 +35,22 @@ namespace gba {
     }
 
     // ReSharper disable once CppMemberFunctionMayBeStatic
-    bool isr::has_value() const noexcept {                            // NOLINT(*-convert-member-functions-to-static)
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    bool isr::has_value() const noexcept {
         return registral<void (*)()>{0x3007FFC} != irq_empty_handler; // Has any value (including user modified)
     }
 
-    const isr::value_type& isr::value() const { // NOLINT(*-convert-member-functions-to-static)
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    const isr::value_type& isr::value() const {
         if (registral<void (*)()>{0x3007FFC} != irq_user_handler) [[unlikely]] {
             return nullisr;
         }
         return user_handler;
     }
 
-    void isr::swap(value_type& value) const noexcept { // NOLINT(*-convert-member-functions-to-static)
-        const auto prev = handler{this->value()};      // Copy previous
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void isr::swap(value_type& value) const noexcept {
+        const auto prev = handler{this->value()}; // Copy previous
 
         if (value == nullisr) {
             registral<void (*)()>{0x3007FFC} = irq_empty_handler;
@@ -46,7 +62,8 @@ namespace gba {
         value = prev; // Set to previous
     }
 
-    void isr::reset() const noexcept { // NOLINT(*-convert-member-functions-to-static)
+    // NOLINTNEXTLINE(readability-convert-member-functions-to-static)
+    void isr::reset() const noexcept {
         registral<void (*)()>{0x3007FFC} = irq_empty_handler;
     }
 
@@ -63,9 +80,6 @@ namespace gba {
 } // namespace gba
 
 void irq_user_handler() {
-    static constexpr auto call_op = &decltype(user_handler)::operator();
-    register auto* self asm("r0") = &user_handler;
-
     asm volatile(".set REG_BIOSIF, 0x3FFFFF8\n"
                  ".set REG_BASE, 0x4000000\n"
                  ".set REG_IE_IF, 0x4000200\n"
@@ -93,6 +107,7 @@ void irq_user_handler() {
                  "msr cpsr_c, #0x1f\n"
                  "push {r1, r3-r10, lr}\n"
                  // Call user_handler()
+                 "mov r0, %[user_handler]\n"
                  "ldr %[call_op], [%[call_op]]\n"
                  "mov lr, pc\n"
                  "bx %[call_op]\n"
@@ -111,8 +126,8 @@ void irq_user_handler() {
                  // Enable REG_IME
                  "mov r2, #1\n"
                  "str r2, [r3, #(REG_IME - REG_IE_IF)]\n"
-                 "bx lr" ::[user_handler] "l"(self),
-                 [call_op] "l"(&call_op)
+                 "bx lr" ::[user_handler] "l"(&user_handler),
+                 [call_op] "l"(&irq_call_op)
                  : "r1", "r2", "r3");
 }
 

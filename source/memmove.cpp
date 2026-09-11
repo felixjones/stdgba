@@ -30,24 +30,28 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 extern "C" {
 
+// ABI-mandated AEABI helper names implemented in memmove.s; the reserved spelling is required by the ARM EABI.
+// NOLINTBEGIN(bugprone-reserved-identifier,readability-identifier-naming)
 extern void __aeabi_memmove(void*, const void*, std::size_t);
 extern void __aeabi_memmove4(void*, const void*, std::size_t);
+// NOLINTEND(bugprone-reserved-identifier,readability-identifier-naming)
 
 void* memmove(void* dest, const void* src, std::size_t n) {
     // 1. Zero-size move: compile-time elimination, no code emitted.
-    if (__builtin_constant_p(n) && n == 0) return dest;
+    if ((__builtin_constant_p(n) != 0) && n == 0) return dest;
 
     // 2. Small constant move (1-6 bytes, any alignment): overlap-safe.
     //    Loads ALL source bytes into temporaries first, then stores them
     //    all. The compiler emits N ldrb's followed by N strb's -- safe
     //    regardless of overlap direction. Threshold of 6 bytes matches
     //    memcpy.cpp's ROM/Thumb crossover.
-    if (__builtin_constant_p(n) && n > 0 && n <= 6) {
-        auto d = static_cast<unsigned char*>(dest);
-        auto s = static_cast<const unsigned char*>(src);
+    if ((__builtin_constant_p(n) != 0) && n > 0 && n <= 6) {
+        auto* d = static_cast<unsigned char*>(dest);
+        const auto* s = static_cast<const unsigned char*>(src);
         const auto t0 = s[0];
         const auto t1 = (n >= 2) ? s[1] : static_cast<unsigned char>(0);
         const auto t2 = (n >= 3) ? s[2] : static_cast<unsigned char>(0);
@@ -67,10 +71,10 @@ void* memmove(void* dest, const void* src, std::size_t n) {
     //    Saves 8-16% by avoiding the eor/tst alignment logic.
     //    __aeabi_memmove4 handles overlap correctly (backward copy when
     //    needed).
-    if (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(dest) & 3) == 0 &&
-        __builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3)) &&
-        (reinterpret_cast<std::uintptr_t>(src) & 3) == 0) {
+    if ((__builtin_constant_p((reinterpret_cast<std::uintptr_t>(dest) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(dest) & 3u) == 0 &&
+        (__builtin_constant_p((reinterpret_cast<std::uintptr_t>(src) & 3u)) != 0) &&
+        (reinterpret_cast<std::uintptr_t>(src) & 3u) == 0) {
         __aeabi_memmove4(dest, src, n);
         return dest;
     }

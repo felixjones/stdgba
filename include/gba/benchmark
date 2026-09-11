@@ -346,10 +346,9 @@ namespace gba::benchmark {
         static constexpr auto fmt_row = "  {desc:<24} {stdgba:>7}  {reference:>7}  {save:>3}%"_fmt;
         const int save = (reference > stdgba) ? static_cast<int>((reference - stdgba) * 100 / reference)
                                               : -static_cast<int>((stdgba - reference) * 100 / stdgba);
-        log(gba::log::level::info, fmt_row, "desc"_arg = desc, "stdgba"_arg = stdgba,
-            "reference"_arg = reference, "save"_arg = save);
+        log(gba::log::level::info, fmt_row, "desc"_arg = desc, "stdgba"_arg = stdgba, "reference"_arg = reference,
+            "save"_arg = save);
     }
-
 
     inline void print_header(const char* title) {
         header(title);

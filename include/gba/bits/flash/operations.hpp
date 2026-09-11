@@ -28,14 +28,14 @@ namespace gba::flash {
         out_of_range,       ///< Address exceeds Flash size
         verify_failed,      ///< Written data verification failed
         unsupported_device, ///< Flash chip not recognized
-        timeout             ///< Operation timed out
+        timeout,            ///< Operation timed out
     };
 
     /// @brief Flash chip size.
     enum class size : std::uint8_t {
         detect = 0, ///< Auto-detect chip size
         flash_64k,  ///< 64KB (512Kbit)
-        flash_128k  ///< 128KB (1Mbit)
+        flash_128k, ///< 128KB (1Mbit)
     };
 
     /// @brief Known Flash chip manufacturers.
@@ -45,7 +45,7 @@ namespace gba::flash {
         panasonic = 0x32,
         sanyo = 0x62,
         sst = 0xBF,
-        macronix = 0xC2
+        macronix = 0xC2,
     };
 
     /// @brief Flash chip information.
@@ -82,6 +82,8 @@ namespace gba::flash {
         };
 
         /// @brief The single global Flash state instance.
+        // Intentional global mutable driver state for the memory-mapped Flash chip.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
         extern flash_state g_state;
 
         // Layer 0 primitives -- direct hardware access
@@ -148,6 +150,8 @@ namespace gba::flash {
         /// @param offset Byte offset within the current bank (0 to bank_size-1).
         /// @return Volatile pointer to the Flash memory location.
         inline const volatile std::uint8_t* flash_ptr(std::uint32_t offset) noexcept {
+            // Flash is a fixed memory-mapped window at 0x0E000000; the integer-to-pointer form is required.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             return reinterpret_cast<const volatile std::uint8_t*>(0x0E000000 + offset);
         }
 
@@ -155,6 +159,7 @@ namespace gba::flash {
         /// @param offset Byte offset.
         /// @return Writable volatile pointer to the Flash memory location.
         inline volatile std::uint8_t* flash_cmd_ptr(std::uint32_t offset) noexcept {
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             return reinterpret_cast<volatile std::uint8_t*>(0x0E000000 + offset);
         }
 
@@ -166,9 +171,9 @@ namespace gba::flash {
     /// result in bits::g_state. Call once during game initialization
     /// before any other Flash operations.
     ///
-    /// @param size_hint Override auto-detection with a specific chip size.
-    ///                  Use size::detect for auto-detection.
+    /// @param sizeHint Override auto-detection with a specific chip size.
+    ///                 Use size::detect for auto-detection.
     /// @return The detected chip info, or size::detect if detection failed.
-    chip_info detect(size size_hint = size::detect) noexcept;
+    chip_info detect(size sizeHint = size::detect) noexcept;
 
 } // namespace gba::flash

@@ -68,7 +68,10 @@ namespace gba::text {
 
         [[nodiscard]]
         constexpr bool source_in_literal_run() const noexcept {
-            if constexpr (requires { typename Source::reveal_runs_type; source.in_literal_run(); }) {
+            if constexpr (requires {
+                              typename Source::reveal_runs_type;
+                              source.in_literal_run();
+                          }) {
                 return source.in_literal_run();
             }
             return false;
@@ -169,9 +172,7 @@ namespace gba::text {
             return *ptr++;
         }
 
-        constexpr void reset() noexcept {
-            ptr = begin;
-        }
+        constexpr void reset() noexcept { ptr = begin; }
     };
 
     using cstr_stream = tokenizer<cstr_source>;
@@ -184,8 +185,7 @@ namespace gba::text {
     public:
         using reveal_runs_type = typename generator_reveal_runs<Generator>::type;
 
-        constexpr explicit generator_source(Generator g)
-            : generator(std::move(g)) {}
+        constexpr explicit generator_source(Generator g) : generator(std::move(g)) {}
 
         [[nodiscard]]
         constexpr std::optional<char> next() noexcept {
@@ -202,8 +202,7 @@ namespace gba::text {
         constexpr bool in_literal_run() const noexcept {
             if constexpr (generator_reveal_runs<Generator>::available) {
                 if (generator.segment_idx >= Generator::segment_count) return false;
-                return Generator::ast.segments[generator.segment_idx].type ==
-                    gba::format::segment_type::literal;
+                return Generator::ast.segments[generator.segment_idx].type == gba::format::segment_type::literal;
             }
             return false;
         }
@@ -246,25 +245,21 @@ namespace gba::text {
     template<fixed_string Fmt>
     struct format_source {
     private:
-        using format_gen = decltype(
-            gba::text::text_format<Fmt>{}.generator());
+        using format_gen = decltype(gba::text::text_format<Fmt>{}.generator());
         format_gen gen;
 
     public:
         using reveal_runs_type = compiled_reveal_runs<Fmt>;
 
         template<typename... Args>
-        constexpr format_source(Args... args)
-            : gen(gba::text::text_format<Fmt>{}.generator(std::move(args)...)) {}
+        constexpr format_source(Args... args) : gen(gba::text::text_format<Fmt>{}.generator(std::move(args)...)) {}
 
         [[nodiscard]]
         constexpr std::optional<char> next() noexcept {
             return gen();
         }
 
-        constexpr void reset() noexcept {
-            gen.reset();
-        }
+        constexpr void reset() noexcept { gen.reset(); }
 
         [[nodiscard]]
         constexpr bool in_literal_run() const noexcept {
@@ -281,9 +276,7 @@ namespace gba::text {
             };
         }
 
-        constexpr void skip_literal_chars(std::size_t count) noexcept {
-            gen.skip_literal_chars(count);
-        }
+        constexpr void skip_literal_chars(std::size_t count) noexcept { gen.skip_literal_chars(count); }
     };
 
     template<fixed_string Fmt, typename... Args>

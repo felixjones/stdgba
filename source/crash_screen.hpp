@@ -11,62 +11,64 @@
 
 namespace crash {
 
-    inline constexpr int WIDTH = 240;
-    inline constexpr int HEIGHT = 160;
-    inline constexpr int FONT_W = 3;
-    inline constexpr int FONT_H = 6; // 5 rows + 1 for descenders
+    inline constexpr int width = 240;
+    inline constexpr int height = 160;
+    inline constexpr int font_w = 3;
+    inline constexpr int font_h = 6; // 5 rows + 1 for descenders
 
-    inline constexpr std::uint16_t BG = 0x4000; // Dark blue
-    inline constexpr std::uint16_t WHITE = 0x7FFF;
-    inline constexpr std::uint16_t RED = 0x001F;
-    inline constexpr std::uint16_t YELLOW = 0x03FF;
-    inline constexpr std::uint16_t GRAY = 0x294A;
-    inline constexpr std::uint16_t CYAN = 0x7FE0;
+    inline constexpr std::uint16_t color_bg = 0x4000; // Dark blue
+    inline constexpr std::uint16_t color_white = 0x7FFF;
+    inline constexpr std::uint16_t color_red = 0x001F;
+    inline constexpr std::uint16_t color_yellow = 0x03FF;
+    inline constexpr std::uint16_t color_gray = 0x294A;
+    inline constexpr std::uint16_t color_cyan = 0x7FE0;
 
     inline auto vram() {
         return reinterpret_cast<volatile std::uint16_t*>(0x6000000);
     }
 
     inline void draw_rect(volatile std::uint16_t* vram, int x, int y, int w, int h, std::uint16_t color) {
-        for (int row = y; row < y + h && row < HEIGHT; ++row) {
+        for (int row = y; row < y + h && row < height; ++row) {
             if (row < 0) continue;
-            volatile std::uint16_t* row_ptr = vram + row * WIDTH;
-            for (int col = x; col < x + w && col < WIDTH; ++col) {
-                if (col >= 0) row_ptr[col] = color;
+            volatile std::uint16_t* rowPtr = vram + (row * width);
+            for (int col = x; col < x + w && col < width; ++col) {
+                if (col >= 0) rowPtr[col] = color;
             }
         }
     }
 
     inline void draw_char(volatile std::uint16_t* vram, int x, int y, char c, std::uint16_t color) {
         if (c < 32 || c > 127) c = '?';
+        // The clamp above keeps the index inside the 96-entry table.
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-avoid-unchecked-container-access)
         const std::uint16_t glyph = gba::bits::font_3x5_data[c - 32];
 
-        for (int row = 0; row < FONT_H; ++row) {
+        for (int row = 0; row < font_h; ++row) {
             const int py = y + row;
-            if (py < 0 || py >= HEIGHT) continue;
+            if (py < 0 || py >= height) continue;
 
-            const int pixels = gba::bits::get_font_line(glyph, row);
-            volatile std::uint16_t* row_ptr = vram + py * WIDTH;
+            const unsigned pixels = gba::bits::get_font_line(glyph, row);
+            volatile std::uint16_t* rowPtr = vram + (py * width);
 
-            if ((pixels & 0x08) && x >= 0 && x < WIDTH) row_ptr[x] = color;
-            if ((pixels & 0x04) && x + 1 >= 0 && x + 1 < WIDTH) row_ptr[x + 1] = color;
-            if ((pixels & 0x02) && x + 2 >= 0 && x + 2 < WIDTH) row_ptr[x + 2] = color;
+            if (((pixels & 0x08u) != 0u) && x >= 0 && x < width) rowPtr[x] = color;
+            if (((pixels & 0x04u) != 0u) && x + 1 >= 0 && x + 1 < width) rowPtr[x + 1] = color;
+            if (((pixels & 0x02u) != 0u) && x + 2 >= 0 && x + 2 < width) rowPtr[x + 2] = color;
         }
     }
 
     inline int draw_string(volatile std::uint16_t* vram, int x, int y, const char* str, std::uint16_t color) {
-        const int start_x = x;
-        while (*str) {
+        const int startX = x;
+        while ((*str) != 0) {
             if (*str == '\n') {
-                x = start_x;
-                y += FONT_H + 1;
+                x = startX;
+                y += font_h + 1;
             } else {
-                if (x + FONT_W > WIDTH) {
-                    x = start_x;
-                    y += FONT_H + 1;
+                if (x + font_w > width) {
+                    x = startX;
+                    y += font_h + 1;
                 }
                 draw_char(vram, x, y, *str, color);
-                x += FONT_W + 1;
+                x += font_w + 1;
             }
             ++str;
         }
@@ -86,32 +88,36 @@ namespace crash {
             magnitude = static_cast<unsigned int>(value);
         }
 
-        do {
-            *--p = static_cast<char>('0' + (magnitude % 10u));
-            magnitude /= 10u;
-        } while (magnitude > 0u);
+        if (magnitude == 0u) {
+            *--p = '0';
+        } else {
+            while (magnitude > 0u) {
+                *--p = static_cast<char>('0' + (magnitude % 10u));
+                magnitude /= 10u;
+            }
+        }
 
         if (negative) *--p = '-';
         return p;
     }
 
+    inline constexpr const char* hex_digits = "0123456789ABCDEF";
+
     inline const char* hex32(char* buf, std::uint32_t value) {
-        constexpr char digits[] = "0123456789ABCDEF";
         buf[0] = '0';
         buf[1] = 'x';
-        for (int i = 7; i >= 0; --i) {
-            buf[2 + (7 - i)] = digits[(value >> (i * 4)) & 0xF];
+        for (unsigned i = 0; i < 8u; ++i) {
+            buf[2u + i] = hex_digits[(value >> ((7u - i) * 4u)) & 0xFu];
         }
         buf[10] = '\0';
         return buf;
     }
 
     inline const char* hex16(char* buf, std::uint16_t value) {
-        constexpr char digits[] = "0123456789ABCDEF";
         buf[0] = '0';
         buf[1] = 'x';
-        for (int i = 3; i >= 0; --i) {
-            buf[2 + (3 - i)] = digits[(value >> (i * 4)) & 0xF];
+        for (unsigned i = 0; i < 4u; ++i) {
+            buf[2u + i] = hex_digits[(static_cast<std::uint32_t>(value) >> ((3u - i) * 4u)) & 0xFu];
         }
         buf[6] = '\0';
         return buf;
@@ -121,10 +127,10 @@ namespace crash {
     /// @return The y coordinate after drawing.
     inline int draw_label_hex32(volatile std::uint16_t* vram, int x, int y, const char* label, std::uint32_t value,
                                 char* buf) {
-        int label_width = 0;
-        for (const char* p = label; *p; ++p) ++label_width;
-        draw_string(vram, x, y, label, GRAY);
-        draw_string(vram, x + label_width * (FONT_W + 1), y, hex32(buf, value), WHITE);
+        int labelWidth = 0;
+        for (const char* p = label; (*p) != 0; ++p) ++labelWidth;
+        draw_string(vram, x, y, label, color_gray);
+        draw_string(vram, x + (labelWidth * (font_w + 1)), y, hex32(buf, value), color_white);
         return y;
     }
 

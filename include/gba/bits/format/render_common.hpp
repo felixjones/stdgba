@@ -15,7 +15,7 @@ namespace gba::format::bits {
 
     extern "C" std::size_t _stdgba_utoa10_reversed(std::uint32_t value, char* out);
     extern "C" std::size_t _stdgba_grouped3_copy_reversed(const char* reversed, std::size_t count, char* out,
-                                                           char separator);
+                                                          char separator);
     extern "C" void _stdgba_fixed_frac_digits_u16(std::uint32_t remainder, unsigned int fracBits, char* out,
                                                   std::size_t count);
     extern "C" void _stdgba_frac_digits_u32(std::uint32_t remainder, char* out, std::size_t count);
@@ -161,7 +161,8 @@ namespace gba::format::bits {
 
     template<typename UInt>
     constexpr std::size_t write_grouped_digits(UInt value, unsigned int base, bool uppercase,
-                                               format_spec::grouping_kind grouping, format_spec::format_kind type, char* out) {
+                                               format_spec::grouping_kind grouping, format_spec::format_kind type,
+                                               char* out) {
         if (std::is_constant_evaluated()) {
             return write_grouped_digits_impl<UInt, false>(value, base, uppercase, grouping, type, out);
         } else {

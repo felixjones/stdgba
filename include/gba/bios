@@ -28,6 +28,7 @@
 #include <gba/peripherals>
 
 namespace gba {
+    using div_result = int __attribute__((vector_size(sizeof(int) * 2)));
 
     /// @brief Perform a soft reset, returning to the start of the ROM.
     ///
@@ -70,6 +71,8 @@ namespace gba {
     /// RegisterRamReset(RESET_VRAM | RESET_OAM);
     /// @endcode
     inline void RegisterRamReset(register_ram_mask flags) noexcept {
+        // Bound to a "+r" asm output, so it must stay mutable.
+        // NOLINTNEXTLINE(misc-const-correctness)
         register auto r0 asm("r0") = flags;
         asm volatile("swi 0x1 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3", "memory");
     }
@@ -123,7 +126,11 @@ namespace gba {
     /// IntrWait(1, IRQ_VBLANK | IRQ_HBLANK);
     /// @endcode
     inline void IntrWait(bool clearCurrent, irq flags) noexcept {
+        // Bound to a "+r" asm output, so it must stay mutable.
+        // NOLINTNEXTLINE(misc-const-correctness)
         register auto r0 asm("r0") = clearCurrent;
+        // Bound to a "+r" asm output, so it must stay mutable.
+        // NOLINTNEXTLINE(misc-const-correctness)
         register auto r1 asm("r1") = __builtin_bit_cast(short, flags);
         asm volatile("swi 0x4 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
     }
@@ -169,14 +176,18 @@ namespace gba {
     /// int rem = DivMod(17, 5);
     /// @endcode
     [[nodiscard, gnu::const]]
-    constexpr auto Div(int number, int denom) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
+    constexpr div_result Div(int number, int denom) noexcept {
         if consteval {
-            return (int [[gnu::vector_size(sizeof(int) * 2)]]){number / denom, number % denom};
+            return div_result{number / denom, number % denom};
         } else {
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r0 asm("r0") = number;
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r1 asm("r1") = denom;
             asm volatile("swi 0x6 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
-            return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
+            return div_result{r0, r1};
         }
     }
 
@@ -195,14 +206,18 @@ namespace gba {
     /// int quot = DivArm(5, 17); // Note: args swapped vs Div
     /// @endcode
     [[nodiscard, gnu::const]]
-    constexpr auto DivArm(int denom, int number) noexcept -> int [[gnu::vector_size(sizeof(int) * 2)]] {
+    constexpr div_result DivArm(int denom, int number) noexcept {
         if consteval {
-            return (int [[gnu::vector_size(sizeof(int) * 2)]]){number / denom, number % denom};
+            return div_result{number / denom, number % denom};
         } else {
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r0 asm("r0") = denom;
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r1 asm("r1") = number;
             asm volatile("swi 0x7 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3");
-            return (int [[gnu::vector_size(sizeof(int) * 2)]]){r0, r1};
+            return div_result{r0, r1};
         }
     }
 
@@ -229,11 +244,15 @@ namespace gba {
                 return arg;
             }
 
-            unsigned int low = 0, high = arg, result = 0;
+            unsigned int low = 0;
+            unsigned int high = arg;
+            unsigned int result = 0;
             while (low <= high) {
-                if (auto mid = low + (high - low) / 2; mid * mid == arg) {
+                auto mid = low + (high - low) / 2;
+                if (mid * mid == arg) {
                     return mid;
-                } else if (mid * mid < arg) {
+                }
+                if (mid * mid < arg) {
                     low = mid + 1;
                     result = mid;
                 } else {
@@ -242,6 +261,8 @@ namespace gba {
             }
             return result;
         } else {
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r0 asm("r0") = arg;
             asm volatile("swi 0x8 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
             return r0;
@@ -266,8 +287,7 @@ namespace gba {
         const auto higherPrecision =
             __builtin_bit_cast(typename fixed_point_traits<decltype(arg)>::underlying_type, arg)
             << fixed_point_traits<decltype(arg)>::fractional_digits;
-        const auto result =
-            static_cast<typename fixed_point_traits<decltype(arg)>::underlying_type>(Sqrt(higherPrecision));
+        const auto result = static_cast<fixed_point_traits<decltype(arg)>::underlying_type>(Sqrt(higherPrecision));
         return __builtin_bit_cast(decltype(arg), result);
     }
 
@@ -293,6 +313,8 @@ namespace gba {
         if consteval {
             return packed_angle16{static_cast<std::uint16_t>(bits::arc_tan(__builtin_bit_cast(int, arg)))};
         } else {
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r0 asm("r0") = __builtin_bit_cast(int, arg);
             asm volatile("swi 0x9 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
             return packed_angle16{static_cast<std::uint16_t>(r0)};
@@ -324,8 +346,10 @@ namespace gba {
         if consteval {
             return packed_angle16{static_cast<std::uint16_t>(bits::arc_tan2(x, y))};
         } else {
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r0 asm("r0") = x;
-            register auto r1 asm("r1") = y;
+            register auto const r1 asm("r1") = y;
             asm volatile("swi 0xA << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r3");
             return packed_angle16{static_cast<std::uint16_t>(r0)};
         }
@@ -373,9 +397,9 @@ namespace gba {
     /// @endcode
     [[gnu::nonnull(1, 2)]]
     inline void CpuSet(const void* __restrict__ src, void* __restrict__ dest, cpu_set lenmode) noexcept {
-        register auto* r0 asm("r0") = src;
-        register auto* r1 asm("r1") = dest;
-        register auto r2 asm("r2") = lenmode;
+        register const auto* r0 asm("r0") = src;
+        register auto const* r1 asm("r1") = dest;
+        register auto const r2 asm("r2") = lenmode;
         asm volatile("swi 0xB << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
@@ -408,9 +432,9 @@ namespace gba {
     /// @endcode
     [[gnu::nonnull(1, 2)]]
     inline void CpuFastSet(const void* __restrict__ src, void* __restrict__ dest, cpu_fast_set lenmode) noexcept {
-        register auto* r0 asm("r0") = src;
-        register auto* r1 asm("r1") = dest;
-        register auto r2 asm("r2") = lenmode;
+        register const auto* r0 asm("r0") = src;
+        register auto const* r1 asm("r1") = dest;
+        register auto const r2 asm("r2") = lenmode;
         asm volatile("swi 0xC << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
@@ -435,7 +459,7 @@ namespace gba {
         /// @endcode
         [[nodiscard, gnu::const]]
         inline int GetBiosChecksum() noexcept {
-            register int i asm("r0");
+            register int i asm("r0") = 0;
             asm volatile("swi 0xD << ((1f - . == 4) * -16); 1:" : "=r"(i)::"r1", "r3");
             return i;
         }
@@ -446,13 +470,13 @@ namespace gba {
     ///
     /// Defines the transformation parameters for affine background calculation.
     struct background_parameters {
-        fixed<int, 8> tex_x;  ///< Texture space center X (8.8 fixed-point).
-        fixed<int, 8> tex_y;  ///< Texture space center Y (8.8 fixed-point).
-        short scr_x;          ///< Screen space center X.
-        short scr_y;          ///< Screen space center Y.
-        fixed<short> sx;      ///< Scale X (8.8 fixed-point).
-        fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
-        packed_angle16 alpha; ///< Rotation angle.
+        fixed<int, 8> tex_x{}; ///< Texture space center X (8.8 fixed-point).
+        fixed<int, 8> tex_y{}; ///< Texture space center Y (8.8 fixed-point).
+        short scr_x{};         ///< Screen space center X.
+        short scr_y{};         ///< Screen space center Y.
+        fixed<short> sx{};     ///< Scale X (8.8 fixed-point).
+        fixed<short> sy{};     ///< Scale Y (8.8 fixed-point).
+        packed_angle16 alpha;  ///< Rotation angle.
     };
 
     /// @brief Calculate affine background transformation matrices.
@@ -483,8 +507,8 @@ namespace gba {
     /// BgAffineSet(&src, &dest, 1);
     /// @endcode
     [[gnu::nonnull(1, 2)]]
-    inline constexpr void BgAffineSet(const background_parameters* __restrict__ src,
-                                      background_matrix* __restrict__ dest, std::size_t num) noexcept {
+    constexpr void BgAffineSet(const background_parameters* __restrict__ src, background_matrix* __restrict__ dest,
+                               std::size_t num) noexcept {
         if consteval {
             for (std::size_t i = 0; i < num; ++i) {
                 const auto& bp = src[i];
@@ -508,16 +532,16 @@ namespace gba {
                 dest[i].p[2] = fixed<short>(c_);
                 dest[i].p[3] = fixed<short>(d);
 
-                const long double rx = ox - (a * cx + b * cy);
-                const long double ry = oy - (c_ * cx + d * cy);
+                const long double rx = ox - ((a * cx) + (b * cy));
+                const long double ry = oy - ((c_ * cx) + (d * cy));
 
                 dest[i].x = fixed<int, 8>(rx);
                 dest[i].y = fixed<int, 8>(ry);
             }
         } else {
-            register auto* r0 asm("r0") = src;
-            register auto* r1 asm("r1") = dest;
-            register auto r2 asm("r2") = num;
+            register const auto* r0 asm("r0") = src;
+            register auto const* r1 asm("r1") = dest;
+            register auto const r2 asm("r2") = num;
             asm volatile("swi 0xE << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
         }
     }
@@ -527,8 +551,8 @@ namespace gba {
     /// Defines the transformation parameters for affine sprite calculation.
     /// The BIOS requires this structure to be word-aligned when passed to SWI 0x0F.
     struct alignas(int) object_parameters {
-        fixed<short> sx;      ///< Scale X (8.8 fixed-point).
-        fixed<short> sy;      ///< Scale Y (8.8 fixed-point).
+        fixed<short> sx{};    ///< Scale X (8.8 fixed-point).
+        fixed<short> sy{};    ///< Scale Y (8.8 fixed-point).
         packed_angle16 alpha; ///< Rotation angle.
     };
 
@@ -562,8 +586,8 @@ namespace gba {
     /// ObjAffineSet(&src, &dest, 1, 2);
     /// @endcode
     [[gnu::nonnull(1, 2)]]
-    inline constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest,
-                                       std::size_t num, std::size_t stride = 2) noexcept {
+    constexpr void ObjAffineSet(const object_parameters* __restrict__ src, fixed<short>* __restrict__ dest,
+                                std::size_t num, std::size_t stride = 2) noexcept {
         if consteval {
             stride /= sizeof(short);
             for (std::size_t i = 0; i < num; ++i) {
@@ -587,9 +611,11 @@ namespace gba {
                 dest += stride * 4;
             }
         } else {
-            register auto* r0 asm("r0") = src;
-            register auto* r1 asm("r1") = dest;
-            register auto r2 asm("r2") = num;
+            register const auto* r0 asm("r0") = src;
+            register auto const* r1 asm("r1") = dest;
+            register auto const r2 asm("r2") = num;
+            // Bound to a "+r" asm output, so it must stay mutable.
+            // NOLINTNEXTLINE(misc-const-correctness)
             register auto r3 asm("r3") = stride;
             asm volatile("swi 0xF << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1), "+r"(r3) : "r"(r2) : "memory");
         }
@@ -643,9 +669,9 @@ namespace gba {
     [[gnu::nonnull(1, 2)]]
     inline void BitUnPack(const void* __restrict__ src, void* __restrict__ dest,
                           const unpack_parameters& unpack) noexcept {
-        register auto* r0 asm("r0") = src;
-        register auto* r1 asm("r1") = dest;
-        register auto* r2 asm("r2") = &unpack;
+        register const auto* r0 asm("r0") = src;
+        register auto const* r1 asm("r1") = dest;
+        register const auto* r2 asm("r2") = &unpack;
         asm volatile("swi 0x10 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1) : "r"(r2) : "r3", "memory");
     }
 
@@ -683,8 +709,8 @@ namespace gba {
     /// LZ77UnCompWram(compressed_data, buffer);
     /// @endcode
     inline void LZ77UnCompWram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x11 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -700,8 +726,8 @@ namespace gba {
     /// LZ77UnCompVram(compressed_data, vram_dest);
     /// @endcode
     inline void LZ77UnCompVram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x12 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -715,8 +741,8 @@ namespace gba {
     /// HuffUnComp(compressed_data, buffer);
     /// @endcode
     inline void HuffUnComp(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x13 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -730,8 +756,8 @@ namespace gba {
     /// RLUnCompWram(compressed_data, buffer);
     /// @endcode
     inline void RLUnCompWram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x14 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -747,8 +773,8 @@ namespace gba {
     /// RLUnCompVram(compressed_data, vram_dest);
     /// @endcode
     inline void RLUnCompVram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x15 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -764,8 +790,8 @@ namespace gba {
     /// Diff8bitUnFilterWram(filtered_data, buffer);
     /// @endcode
     inline void Diff8bitUnFilterWram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x16 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -783,8 +809,8 @@ namespace gba {
     /// Diff8bitUnFilterVram(filtered_data, vram_dest);
     /// @endcode
     inline void Diff8bitUnFilterVram(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x17 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -800,8 +826,8 @@ namespace gba {
     /// Diff16bitUnFilter(filtered_data, buffer);
     /// @endcode
     inline void Diff16bitUnFilter(const uncompress_header& src, void* dest) noexcept {
-        register auto* r0 asm("r0") = &src;
-        register auto* r1 asm("r1") = dest;
+        register const auto* r0 asm("r0") = &src;
+        register auto const* r1 asm("r1") = dest;
         asm volatile("swi 0x18 << ((1f - . == 4) * -16); 1:" : "+r"(r0), "+r"(r1)::"r3", "memory");
     }
 
@@ -833,6 +859,8 @@ namespace gba {
     /// swi_call(0x19);
     /// @endcode
     inline void SoundBias(sound_bias_config bias) noexcept {
+        // Bound to a "+r" asm output, so it must stay mutable.
+        // NOLINTNEXTLINE(misc-const-correctness)
         register auto r0 asm("r0") = __builtin_bit_cast(unsigned int, bias);
         asm volatile("swi 0x19 << ((1f - . == 4) * -16); 1:" : "+r"(r0)::"r1", "r3");
     }
@@ -845,7 +873,7 @@ namespace gba {
     enum class multiboot_mode : unsigned int {
         normal_256k = 0, ///< 256KHz, 32-bit, Normal mode (fast, single slave).
         multi_115k = 1,  ///< 115KHz, 16-bit, MultiPlay mode (up to 3 slaves).
-        normal_2m = 2    ///< 2MHz, 32-bit, Normal mode (fastest, may be unstable).
+        normal_2m = 2,   ///< 2MHz, 32-bit, Normal mode (fastest, may be unstable).
     };
 
     /// @brief Compute an animated palette_data byte for MultiBoot.
@@ -861,7 +889,7 @@ namespace gba {
     consteval unsigned char multiboot_palette(int color, int speed, bool ascending) {
         ::gba::bits::constexpr_assert(color < 0 || color > 6, "multiboot_palette: color out of range (0-6)");
         ::gba::bits::constexpr_assert(speed < 0 || speed > 3, "multiboot_palette: speed out of range (0-3)");
-        return static_cast<unsigned char>(0x81 + color * 0x10 + ascending * 0x8 + speed * 0x2);
+        return static_cast<unsigned char>(0x81 + (color * 0x10) + (static_cast<int>(ascending) * 0x8) + (speed * 0x2));
     }
 
     /// @brief Compute a fixed palette_data byte for MultiBoot.
@@ -874,7 +902,7 @@ namespace gba {
     /// @see multiboot_param
     consteval unsigned char multiboot_palette_fixed(int color) {
         ::gba::bits::constexpr_assert(color < 0 || color > 6, "multiboot_palette_fixed: color out of range (0-6)");
-        return static_cast<unsigned char>(0xF1 + color * 0x2);
+        return static_cast<unsigned char>(0xF1 + (color * 0x2));
     }
 
     /// @brief Parameter structure for MultiBoot (SWI 0x25).
@@ -962,8 +990,10 @@ namespace gba {
     /// @see multiboot_param, multiboot_mode
     [[gnu::nonnull(1)]]
     inline int MultiBoot(multiboot_param* param, multiboot_mode mode) noexcept {
+        // Bound to a "+r" asm output, so it must stay mutable.
+        // NOLINTNEXTLINE(misc-const-correctness)
         register auto r0 asm("r0") = reinterpret_cast<unsigned int>(param);
-        register auto r1 asm("r1") = static_cast<unsigned int>(mode);
+        register auto const r1 asm("r1") = static_cast<unsigned int>(mode);
         asm volatile("swi 0x25 << ((1f - . == 4) * -16); 1:" : "+r"(r0) : "r"(r1) : "r2", "r3", "memory");
         return static_cast<int>(r0);
     }

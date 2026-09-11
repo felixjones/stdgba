@@ -13,10 +13,10 @@ namespace gba::text {
     [[nodiscard]]
     constexpr unsigned short required_entries(bitplane_profile profile) noexcept {
         switch (profile) {
-            case bitplane_profile::two_plane_binary:      return 4;
+            case bitplane_profile::two_plane_binary: return 4;
             case bitplane_profile::two_plane_three_color: return 9;
-            case bitplane_profile::three_plane_binary:    return 8;
-            case bitplane_profile::one_plane_full_color:  return 16;
+            case bitplane_profile::three_plane_binary: return 8;
+            case bitplane_profile::one_plane_full_color: return 16;
         }
         return 0;
     }
@@ -59,18 +59,10 @@ namespace gba::text {
 
             gba::color color{};
             switch (role) {
-                case static_cast<unsigned char>(bitplane_role::background):
-                    color = theme.background;
-                    break;
-                case static_cast<unsigned char>(bitplane_role::foreground):
-                    color = theme.foreground;
-                    break;
-                case static_cast<unsigned char>(bitplane_role::shadow):
-                    color = theme.shadow;
-                    break;
-                default:
-                    color = theme.background;
-                    break;
+                case static_cast<unsigned char>(bitplane_role::background): color = theme.background; break;
+                case static_cast<unsigned char>(bitplane_role::foreground): color = theme.foreground; break;
+                case static_cast<unsigned char>(bitplane_role::shadow): color = theme.shadow; break;
+                default: color = theme.background; break;
             }
 
             const auto idx = global_index(config, plane, local_idx);

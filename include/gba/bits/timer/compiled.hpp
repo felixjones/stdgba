@@ -8,7 +8,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/peripherals>
 
 #include <array>

@@ -31,21 +31,18 @@ namespace gba::text {
 
     struct stream_metrics {
         unsigned short letter_spacing_px = 0;
-        unsigned short line_spacing_px   = 0;
-        unsigned short tab_width_px      = 32;
-        unsigned short wrap_width_px     = 0xFFFFu;
+        unsigned short line_spacing_px = 0;
+        unsigned short tab_width_px = 32;
+        unsigned short wrap_width_px = 0xFFFFu;
     };
 
     [[nodiscard]]
     constexpr unsigned char profile_plane_count(bitplane_profile profile) noexcept {
         switch (profile) {
             case bitplane_profile::two_plane_binary:
-            case bitplane_profile::two_plane_three_color:
-                return 2;
-            case bitplane_profile::three_plane_binary:
-                return 3;
-            case bitplane_profile::one_plane_full_color:
-                return 1;
+            case bitplane_profile::two_plane_three_color: return 2;
+            case bitplane_profile::three_plane_binary: return 3;
+            case bitplane_profile::one_plane_full_color: return 1;
         }
         return 0;
     }
@@ -54,12 +51,9 @@ namespace gba::text {
     constexpr unsigned char profile_role_count(bitplane_profile profile) noexcept {
         switch (profile) {
             case bitplane_profile::two_plane_binary:
-            case bitplane_profile::three_plane_binary:
-                return 2;
-            case bitplane_profile::two_plane_three_color:
-                return 3;
-            case bitplane_profile::one_plane_full_color:
-                return 16;
+            case bitplane_profile::three_plane_binary: return 2;
+            case bitplane_profile::two_plane_three_color: return 3;
+            case bitplane_profile::one_plane_full_color: return 16;
         }
         return 0;
     }
@@ -120,17 +114,16 @@ namespace gba::text {
         /// @param new_role    New role to write (e.g. foreground = 1, background = 0).
         /// @return New nibble value.
         [[nodiscard]]
-        constexpr unsigned char update_role(unsigned char old_nibble,
-                                             unsigned char plane_idx,
-                                             unsigned char new_role) const noexcept {
+        constexpr unsigned char update_role(unsigned char old_nibble, unsigned char plane_idx,
+                                            unsigned char new_role) const noexcept {
             if (old_nibble < start_index) return old_nibble;
             const auto rc = role_count();
             const auto stride = plane_stride(profile, plane_idx);
             const auto adjusted = static_cast<unsigned char>(old_nibble - start_index);
             const auto old_role = static_cast<unsigned char>((adjusted / stride) % rc);
-            const auto delta    = static_cast<int>(new_role) - static_cast<int>(old_role);
-            const auto updated  = static_cast<unsigned char>(
-                static_cast<int>(adjusted) + delta * static_cast<int>(stride));
+            const auto delta = static_cast<int>(new_role) - static_cast<int>(old_role);
+            const auto updated =
+                static_cast<unsigned char>(static_cast<int>(adjusted) + delta * static_cast<int>(stride));
             return static_cast<unsigned char>(start_index + updated);
         }
     };

@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <gba/video>
 #include <gba/bits/text/tile_allocator.hpp>
 #include <gba/bits/text/types.hpp>
+#include <gba/video>
 
 #include <array>
 #include <cstdint>
@@ -36,10 +36,9 @@ namespace gba::text {
             for (unsigned old = 0; old < 16; ++old) {
                 for (unsigned plane = 0; plane < 2; ++plane) {
                     for (unsigned role = 0; role < 2; ++role) {
-                        lut[old][plane][role] = cfg.update_role(
-                            static_cast<std::uint8_t>(old),
-                            static_cast<std::uint8_t>(plane),
-                            static_cast<std::uint8_t>(role));
+                        lut[old][plane][role] = cfg.update_role(static_cast<std::uint8_t>(old),
+                                                                static_cast<std::uint8_t>(plane),
+                                                                static_cast<std::uint8_t>(role));
                     }
                 }
             }
@@ -55,10 +54,9 @@ namespace gba::text {
             for (unsigned old = 0; old < 16; ++old) {
                 for (unsigned plane = 0; plane < 2; ++plane) {
                     for (unsigned role = 0; role < 3; ++role) {
-                        lut[old][plane][role] = cfg.update_role(
-                            static_cast<std::uint8_t>(old),
-                            static_cast<std::uint8_t>(plane),
-                            static_cast<std::uint8_t>(role));
+                        lut[old][plane][role] = cfg.update_role(static_cast<std::uint8_t>(old),
+                                                                static_cast<std::uint8_t>(plane),
+                                                                static_cast<std::uint8_t>(role));
                     }
                 }
             }
@@ -74,10 +72,9 @@ namespace gba::text {
             for (unsigned old = 0; old < 16; ++old) {
                 for (unsigned plane = 0; plane < 3; ++plane) {
                     for (unsigned role = 0; role < 2; ++role) {
-                        lut[old][plane][role] = cfg.update_role(
-                            static_cast<std::uint8_t>(old),
-                            static_cast<std::uint8_t>(plane),
-                            static_cast<std::uint8_t>(role));
+                        lut[old][plane][role] = cfg.update_role(static_cast<std::uint8_t>(old),
+                                                                static_cast<std::uint8_t>(plane),
+                                                                static_cast<std::uint8_t>(role));
                     }
                 }
             }
@@ -121,10 +118,10 @@ namespace gba::text {
         }
 
         template<std::size_t PlaneCount, std::size_t RoleCount>
-        static bool apply_row_with_transition_lut(tile4bpp& words, int ly, std::uint8_t bitmap_byte,
-                                                  int tile_lx, std::uint8_t plane_idx,
-                                                  std::uint8_t effective_role,
-                                                  const std::array<std::array<std::array<std::uint8_t, RoleCount>, PlaneCount>, 16>& lut) noexcept {
+        static bool apply_row_with_transition_lut(
+            tile4bpp& words, int ly, std::uint8_t bitmap_byte, int tile_lx, std::uint8_t plane_idx,
+            std::uint8_t effective_role,
+            const std::array<std::array<std::array<std::uint8_t, RoleCount>, PlaneCount>, 16>& lut) noexcept {
             if (plane_idx >= PlaneCount || effective_role >= RoleCount) return false;
             auto& row = words[static_cast<unsigned>(ly)];
             for (int b = 0; b < 8 && (tile_lx + b) < 8; ++b) {
@@ -170,8 +167,7 @@ namespace gba::text {
         ///
         /// Reads the existing nibble from the IWRAM words (which already encodes other
         /// planes' contributions), applies update_role() for this plane, and writes back.
-        void set_pixel(int lx, int ly, std::uint8_t plane_idx, std::uint8_t role,
-                       const bitplane_config& cfg) noexcept {
+        void set_pixel(int lx, int ly, std::uint8_t plane_idx, std::uint8_t role, const bitplane_config& cfg) noexcept {
             if (lx < 0 || ly < 0 || lx >= 8 || ly >= 8) return;
             const auto max_role = static_cast<std::uint8_t>(cfg.role_count() - 1u);
             const auto effective_role = (role > max_role) ? max_role : role;
@@ -186,14 +182,13 @@ namespace gba::text {
             const auto old_nibble = static_cast<unsigned char>((row >> shift) & 0xFu);
             std::uint8_t new_nibble = cfg.update_role(old_nibble, plane_idx, effective_role);
             if (cfg.start_index == 1u) {
-                if (cfg.profile == bitplane_profile::two_plane_binary &&
-                    plane_idx < 2u && effective_role < 2u) {
+                if (cfg.profile == bitplane_profile::two_plane_binary && plane_idx < 2u && effective_role < 2u) {
                     new_nibble = two_plane_binary_transition_lut[old_nibble][plane_idx][effective_role];
-                } else if (cfg.profile == bitplane_profile::two_plane_three_color &&
-                           plane_idx < 2u && effective_role < 3u) {
+                } else if (cfg.profile == bitplane_profile::two_plane_three_color && plane_idx < 2u &&
+                           effective_role < 3u) {
                     new_nibble = two_plane_three_color_transition_lut[old_nibble][plane_idx][effective_role];
-                } else if (cfg.profile == bitplane_profile::three_plane_binary &&
-                           plane_idx < 3u && effective_role < 2u) {
+                } else if (cfg.profile == bitplane_profile::three_plane_binary && plane_idx < 3u &&
+                           effective_role < 2u) {
                     new_nibble = three_plane_binary_transition_lut[old_nibble][plane_idx][effective_role];
                 }
             }
@@ -202,8 +197,7 @@ namespace gba::text {
         }
 
         /// @brief Apply one 1bpp row byte across 8 pixels starting at tile_lx.
-        void apply_row(int ly, std::uint8_t bitmap_byte, int tile_lx,
-                       std::uint8_t plane_idx, std::uint8_t fg_role,
+        void apply_row(int ly, std::uint8_t bitmap_byte, int tile_lx, std::uint8_t plane_idx, std::uint8_t fg_role,
                        const bitplane_config& cfg) noexcept {
             if (ly < 0 || ly >= 8) return;
             if (bitmap_byte == 0) return;
@@ -221,24 +215,24 @@ namespace gba::text {
                 dirty = true;
                 return;
             }
-            if (cfg.start_index == 1u && plane_idx < 2u &&
-                cfg.profile == bitplane_profile::two_plane_binary && effective_role < 2u) {
-                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
-                                              effective_role, two_plane_binary_transition_lut);
+            if (cfg.start_index == 1u && plane_idx < 2u && cfg.profile == bitplane_profile::two_plane_binary &&
+                effective_role < 2u) {
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx, effective_role,
+                                              two_plane_binary_transition_lut);
                 dirty = true;
                 return;
             }
-            if (cfg.start_index == 1u && plane_idx < 2u &&
-                cfg.profile == bitplane_profile::two_plane_three_color && effective_role < 3u) {
-                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
-                                              effective_role, two_plane_three_color_transition_lut);
+            if (cfg.start_index == 1u && plane_idx < 2u && cfg.profile == bitplane_profile::two_plane_three_color &&
+                effective_role < 3u) {
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx, effective_role,
+                                              two_plane_three_color_transition_lut);
                 dirty = true;
                 return;
             }
-            if (cfg.start_index == 1u && plane_idx < 3u &&
-                cfg.profile == bitplane_profile::three_plane_binary && effective_role < 2u) {
-                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx,
-                                              effective_role, three_plane_binary_transition_lut);
+            if (cfg.start_index == 1u && plane_idx < 3u && cfg.profile == bitplane_profile::three_plane_binary &&
+                effective_role < 2u) {
+                apply_row_with_transition_lut(words, ly, bitmap_byte, tile_lx, plane_idx, effective_role,
+                                              three_plane_binary_transition_lut);
                 dirty = true;
                 return;
             }
@@ -249,7 +243,5 @@ namespace gba::text {
             }
         }
     };
-
-
 
 } // namespace gba::text

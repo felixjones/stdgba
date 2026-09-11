@@ -47,8 +47,8 @@ namespace gba::format::bits {
 
     template<typename UInt>
     constexpr std::size_t render_decimal_integer_part(UInt value, const format_spec& spec, char* out) {
-        return write_grouped_digits(value, 10, false, normalized_decimal_grouping(spec), format_spec::format_kind::decimal,
-                                    out);
+        return write_grouped_digits(value, 10, false, normalized_decimal_grouping(spec),
+                                    format_spec::format_kind::decimal, out);
     }
 
     constexpr std::size_t append_signed_decimal_parts(char* out, std::size_t cap, const numeric_layout& layout,
@@ -140,7 +140,8 @@ namespace gba::format::bits {
         if (isGeneral) {
             if (exponent >= -4 && exponent < static_cast<int>(precision)) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper
+                                              : format_spec::format_kind::fixed_lower;
                 const int fracDigits = static_cast<int>(precision) - 1 - exponent;
                 if (fracDigits > 0) {
                     adjusted.has_precision = true;
@@ -180,7 +181,8 @@ namespace gba::format::bits {
     }
 
     template<bool Runtime>
-    constexpr std::size_t render_fixed_parts_impl(char* out, std::size_t cap, bool negative, unsigned long long integerPart,
+    constexpr std::size_t render_fixed_parts_impl(char* out, std::size_t cap, bool negative,
+                                                  unsigned long long integerPart,
                                                   unsigned long long fractionalNumerator, unsigned int fracBits,
                                                   const format_spec& spec, bool appendPercent) {
         char integerDigits[96]{};
@@ -192,8 +194,8 @@ namespace gba::format::bits {
         auto remainder = fractionalNumerator;
         if constexpr (Runtime) {
             if (fractionalLen > 0 && fracBits > 0 && fracBits <= 16) {
-                _stdgba_fixed_frac_digits_u16(static_cast<std::uint32_t>(fractionalNumerator), fracBits, fractionalDigits,
-                                              fractionalLen);
+                _stdgba_fixed_frac_digits_u16(static_cast<std::uint32_t>(fractionalNumerator), fracBits,
+                                              fractionalDigits, fractionalLen);
             } else {
                 for (std::size_t i = 0; i < fractionalLen; ++i) {
                     remainder *= 10ULL;
@@ -224,17 +226,19 @@ namespace gba::format::bits {
                                              unsigned long long fractionalNumerator, unsigned int fracBits,
                                              const format_spec& spec, bool appendPercent) {
         if (std::is_constant_evaluated()) {
-            return render_fixed_parts_impl<false>(out, cap, negative, integerPart, fractionalNumerator, fracBits, spec, appendPercent);
+            return render_fixed_parts_impl<false>(out, cap, negative, integerPart, fractionalNumerator, fracBits, spec,
+                                                  appendPercent);
         } else {
-            return render_fixed_parts_impl<true>(out, cap, negative, integerPart, fractionalNumerator, fracBits, spec, appendPercent);
+            return render_fixed_parts_impl<true>(out, cap, negative, integerPart, fractionalNumerator, fracBits, spec,
+                                                 appendPercent);
         }
     }
 
     template<bool Runtime>
     constexpr std::size_t render_fraction_parts_u32_impl(char* out, std::size_t cap, bool negative,
-                                                        unsigned long long integerPart, std::uint32_t fractionalNumerator,
-                                                        const format_spec& spec, std::size_t defaultPrecision,
-                                                        bool appendPercent) {
+                                                         unsigned long long integerPart,
+                                                         std::uint32_t fractionalNumerator, const format_spec& spec,
+                                                         std::size_t defaultPrecision, bool appendPercent) {
         char integerDigits[96]{};
         const auto integerLen = render_decimal_integer_part(integerPart, spec, integerDigits);
 
@@ -269,18 +273,20 @@ namespace gba::format::bits {
                                                     const format_spec& spec, std::size_t defaultPrecision,
                                                     bool appendPercent) {
         if (std::is_constant_evaluated()) {
-            return render_fraction_parts_u32_impl<false>(out, cap, negative, integerPart, fractionalNumerator, spec, defaultPrecision, appendPercent);
+            return render_fraction_parts_u32_impl<false>(out, cap, negative, integerPart, fractionalNumerator, spec,
+                                                         defaultPrecision, appendPercent);
         } else {
-            return render_fraction_parts_u32_impl<true>(out, cap, negative, integerPart, fractionalNumerator, spec, defaultPrecision, appendPercent);
+            return render_fraction_parts_u32_impl<true>(out, cap, negative, integerPart, fractionalNumerator, spec,
+                                                        defaultPrecision, appendPercent);
         }
     }
 
     template<bool Runtime>
     constexpr std::size_t render_fraction_parts_generic_impl(char* out, std::size_t cap, bool negative,
-                                                            unsigned long long integerPart,
-                                                            unsigned long long fractionalNumerator,
-                                                            unsigned long long denominator, const format_spec& spec,
-                                                            std::size_t defaultPrecision, bool appendPercent) {
+                                                             unsigned long long integerPart,
+                                                             unsigned long long fractionalNumerator,
+                                                             unsigned long long denominator, const format_spec& spec,
+                                                             std::size_t defaultPrecision, bool appendPercent) {
         char integerDigits[96]{};
         const auto integerLen = render_decimal_integer_part(integerPart, spec, integerDigits);
 
@@ -329,16 +335,18 @@ namespace gba::format::bits {
                                                         unsigned long long denominator, const format_spec& spec,
                                                         std::size_t defaultPrecision, bool appendPercent) {
         if (std::is_constant_evaluated()) {
-            return render_fraction_parts_generic_impl<false>(out, cap, negative, integerPart, fractionalNumerator, denominator, spec, defaultPrecision, appendPercent);
+            return render_fraction_parts_generic_impl<false>(out, cap, negative, integerPart, fractionalNumerator,
+                                                             denominator, spec, defaultPrecision, appendPercent);
         } else {
-            return render_fraction_parts_generic_impl<true>(out, cap, negative, integerPart, fractionalNumerator, denominator, spec, defaultPrecision, appendPercent);
+            return render_fraction_parts_generic_impl<true>(out, cap, negative, integerPart, fractionalNumerator,
+                                                            denominator, spec, defaultPrecision, appendPercent);
         }
     }
 
     template<bool Runtime>
     constexpr std::size_t render_scientific_rational_impl(char* out, std::size_t cap, bool negative,
-                                                         unsigned long long numerator, unsigned long long denominator,
-                                                         const format_spec& spec) {
+                                                          unsigned long long numerator, unsigned long long denominator,
+                                                          const format_spec& spec) {
         const bool uppercase = is_scientific_uppercase(spec.fmt_type);
         const bool isGeneral = is_general_type(spec.fmt_type);
         const std::size_t defaultPrec = 6;
@@ -349,9 +357,11 @@ namespace gba::format::bits {
         if (numerator == 0) {
             if (isGeneral) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper
+                                              : format_spec::format_kind::fixed_lower;
                 adjusted.has_precision = false;
-                return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, 0u, 0u, denominator, adjusted, 0u, false);
+                return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, 0u, 0u, denominator, adjusted,
+                                                                   0u, false);
             }
         }
 
@@ -370,7 +380,8 @@ namespace gba::format::bits {
         if (isGeneral) {
             if (exponent >= -4 && exponent < static_cast<int>(precision)) {
                 format_spec adjusted = spec;
-                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper : format_spec::format_kind::fixed_lower;
+                adjusted.fmt_type = uppercase ? format_spec::format_kind::fixed_upper
+                                              : format_spec::format_kind::fixed_lower;
                 const int fracDigits = static_cast<int>(precision) - 1 - exponent;
                 if (fracDigits > 0) {
                     adjusted.has_precision = true;
@@ -382,13 +393,13 @@ namespace gba::format::bits {
                     if (denominator <= 0xFFFFFFFFu && numerator <= 0xFFFFFFFFu) {
                         const auto d32 = static_cast<std::uint32_t>(denominator);
                         const auto n32 = static_cast<std::uint32_t>(numerator);
-                        return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, n32 / d32, n32 % d32, denominator,
-                                                                           adjusted, defaultPrec, false);
+                        return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, n32 / d32, n32 % d32,
+                                                                           denominator, adjusted, defaultPrec, false);
                     }
                 }
                 return render_fraction_parts_generic_impl<Runtime>(out, cap, negative, numerator / denominator,
-                                                                   numerator % denominator, denominator, adjusted, defaultPrec,
-                                                                   false);
+                                                                   numerator % denominator, denominator, adjusted,
+                                                                   defaultPrec, false);
             }
             precision = precision > 0 ? precision - 1 : 0;
         }

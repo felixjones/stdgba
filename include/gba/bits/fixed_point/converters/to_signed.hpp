@@ -28,14 +28,14 @@ namespace gba {
         };
 
         template<typename Rep>
-        using make_signed_safe_t = typename make_signed_safe<Rep>::type;
+        using make_signed_safe_t = make_signed_safe<Rep>::type;
 
         template<fixed_point L, fixed_point R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
-            using lhs_rep = typename lhs_traits::underlying_type;
-            using rhs_rep = typename rhs_traits::underlying_type;
+            using lhs_rep = lhs_traits::underlying_type;
+            using rhs_rep = rhs_traits::underlying_type;
 
             using lhs_signed = make_signed_safe_t<lhs_rep>;
 

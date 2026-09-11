@@ -21,6 +21,8 @@ namespace gba {
     inline constexpr bool is_fixed_point_v = is_fixed_point<T>::value;
 
     template<typename T>
+    // Established public concept spelling; the library uses snake_case for its concepts.
+    // NOLINTNEXTLINE(readability-identifier-naming)
     concept fixed_point = is_fixed_point<T>::value;
 
     template<typename>
@@ -37,11 +39,15 @@ namespace gba {
     /// @tparam IntermediateRep Type used for intermediate calculations (must be larger or equal to Rep)
     template<std::integral Rep = int,
              unsigned int FracBits = std::numeric_limits<std::make_unsigned_t<Rep>>::digits / 2,
-             std::integral IntermediateRep = typename bits::int_util<Rep>::promote_type>
+             std::integral IntermediateRep = bits::int_util<Rep>::promote_type>
         requires(FracBits > 0 && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1 &&
                  sizeof(IntermediateRep) >= sizeof(Rep) && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
     class fixed {
-        static constexpr auto frac_mul = IntermediateRep{1} << FracBits;
+        // The shift is performed on the unsigned promoted type and cast back, so the scaling factor keeps the
+        // exact promoted intermediate type the rest of the class relies on without shifting a signed value.
+        using promoted_intermediate = decltype(+IntermediateRep{});
+        static constexpr promoted_intermediate frac_mul =
+            static_cast<promoted_intermediate>(std::make_unsigned_t<promoted_intermediate>{1} << FracBits);
 
         static constexpr auto convert_fixed(fixed_point auto rhs) noexcept;
 
@@ -56,6 +62,8 @@ namespace gba {
         consteval explicit(false) fixed(literals::fixed_literal lit) noexcept;
 
         constexpr explicit(false) fixed(fixed_point auto rhs) noexcept
+            // The parentheses are mandatory: a requires-clause only accepts primary expressions.
+            // NOLINTNEXTLINE(readability-redundant-parentheses)
             requires(trivially_converts_from<decltype(rhs)>());
 
         template<std::integral T>
@@ -106,13 +114,13 @@ namespace gba {
     };
 
     constexpr auto bit_cast(fixed_point auto value) noexcept {
-        using rep = typename fixed_point_traits<decltype(value)>::rep;
+        using rep = fixed_point_traits<decltype(value)>::rep;
         return __builtin_bit_cast(rep, value);
     }
 
     template<std::integral Rep>
     constexpr Rep bit_cast(fixed_point auto value) noexcept {
-        using inner = typename fixed_point_traits<decltype(value)>::rep;
+        using inner = fixed_point_traits<decltype(value)>::rep;
         const auto raw = __builtin_bit_cast(inner, value);
         return static_cast<Rep>(raw);
     }
@@ -170,9 +178,11 @@ namespace gba {
 
 } // namespace gba
 
+// Specialising std::is_arithmetic is how gba::fixed participates in standard arithmetic traits.
 namespace std {
     template<typename T>
         requires gba::is_fixed_point_v<T>
+    // NOLINTNEXTLINE(bugprone-std-namespace-modification)
     struct is_arithmetic<T> : std::true_type {};
 } // namespace std
 

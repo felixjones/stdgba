@@ -1,7 +1,7 @@
 #pragma once
 
-#include <gba/bits/constexpr_assert.hpp>
 #include <gba/bits/angle/packed_angle.hpp>
+#include <gba/bits/constexpr_assert.hpp>
 
 #include <numbers>
 

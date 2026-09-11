@@ -28,6 +28,13 @@
 
 namespace gba {
 
+    // Everything below is public hardware-register API consumed by downstream ROMs; clang-tidy cannot see those users
+    // and therefore proposes internal linkage, which would break the library.
+    // NOLINTBEGIN(misc-use-internal-linkage)
+    // The register wrappers and bitfield structs mirror exact GBA hardware layouts, so the array extents are part of
+    // the memory map and cannot be replaced by std::array.
+    // NOLINTBEGIN(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+
     /// @brief Template for memory-mapped hardware registers.
     /// @tparam ValueType The type of the register (e.g., struct, integral, array).
     template<typename>
@@ -62,43 +69,49 @@ namespace gba {
 
         using value_type = std::remove_cvref_t<ValueType>;
 
-        registral(const registral&) = default;
         explicit constexpr registral(const std::uintptr_t address) noexcept : m_address{address} {}
 
+        /// Implicit read conversion is the whole point of the register wrapper.
         [[gnu::always_inline]]
+        // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
         explicit(false) operator value_type() const noexcept
             requires std::derived_from<registral, bits::read_ops>
         {
             return this->value();
         }
 
+        /// Assignment writes through to the register, so it returns a const reference to the wrapper itself.
+        // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
         [[gnu::always_inline]]
         const registral& operator=(value_type&& value) const noexcept
             requires std::derived_from<registral, bits::write_ops>
-        { // NOLINT(*-unconventional-assign-operator)
-            bits::write_ops::write(static_cast<value_type&&>(value));
+        {
+            bits::write_ops::write(std::move(value));
             return *this;
         }
 
+        // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
         [[gnu::always_inline]]
         const registral& operator=(const value_type& value) const noexcept
             requires std::derived_from<registral, bits::write_ops>
-        { // NOLINT(*-unconventional-assign-operator)
+        {
             bits::write_ops::write(value);
             return *this;
         }
 
         /// Assign an integer value directly (for non-integral, non-fixed_point register types).
+        // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
         [[gnu::always_inline]]
         const registral& operator=(std::integral auto&& value) const noexcept
             requires(std::derived_from<registral, bits::write_ops> && !std::integral<value_type> &&
                      !fixed_point<value_type>)
-        { // NOLINT(*-unconventional-assign-operator)
+        {
             bits::write_ops::write_integer(static_cast<decltype(value)&&>(value));
             return *this;
         }
 
         /// Convert to a read-only register view.
+        // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
         explicit(false) constexpr operator registral<const value_type>() const noexcept
             requires std::derived_from<registral, bits::read_write_ops>
         {
@@ -106,6 +119,7 @@ namespace gba {
         }
 
         /// Convert to a write-only register view.
+        // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
         explicit(false) constexpr operator gba::registral<volatile value_type>() const noexcept
             requires std::derived_from<registral, bits::read_write_ops>
         {
@@ -166,8 +180,6 @@ namespace gba {
         using value_type = std::remove_extent_t<ValueType>;
         using size_type = std::size_t;
 
-        registral(const registral&) = default;
-
         /// @param address The memory-mapped register base address.
         /// @param stride Byte offset between consecutive elements (default: sizeof(value_type)).
         explicit constexpr registral(const std::uintptr_t address,
@@ -176,10 +188,12 @@ namespace gba {
 
         [[gnu::always_inline]]
         constexpr registral<value_type> operator[](const std::size_t index) const noexcept {
-            return registral<value_type>{m_address + index * m_stride};
+            return registral<value_type>{m_address + (index * m_stride)};
         }
 
-        [[gnu::always_inline]] // NOLINT(*-unconventional-assign-operator)
+        /// Assignment writes through to the register array, so it returns a const reference to the wrapper itself.
+        // NOLINTNEXTLINE(cppcoreguidelines-c-copy-assignment-signature,misc-unconventional-assign-operator)
+        [[gnu::always_inline]]
         const registral& operator=(const std::initializer_list<std::remove_cv_t<value_type>>& ilist) const noexcept {
             std::copy(ilist.begin(), ilist.end(), begin());
             return *this;
@@ -226,10 +240,10 @@ namespace gba {
                 return *this;
             }
             constexpr iterator_impl operator+(const difference_type offset) const noexcept {
-                return {m_address + m_stride * offset, m_stride};
+                return {m_address + (m_stride * offset), m_stride};
             }
             constexpr iterator_impl operator-(const difference_type offset) const noexcept {
-                return {m_address - m_stride * offset, m_stride};
+                return {m_address - (m_stride * offset), m_stride};
             }
             constexpr difference_type operator-(const iterator_impl& other) const noexcept {
                 return (m_address - other.m_address) / m_stride;
@@ -259,7 +273,7 @@ namespace gba {
         }
         [[nodiscard]]
         constexpr iterator end() const noexcept {
-            return {m_address + m_stride * size(), m_stride};
+            return {m_address + (m_stride * size()), m_stride};
         }
         [[nodiscard]]
         constexpr const_iterator cbegin() const noexcept {
@@ -267,7 +281,7 @@ namespace gba {
         }
         [[nodiscard]]
         constexpr const_iterator cend() const noexcept {
-            return {m_address + m_stride * size(), m_stride};
+            return {m_address + (m_stride * size()), m_stride};
         }
 
     private:
@@ -441,9 +455,12 @@ namespace gba {
     ///
     /// Provides VBlank/HBlank status and IRQ enables.
     struct display_status {
-        const bool currently_vblank   : 1; ///< Currently in VBlank
-        const bool currently_hblank   : 1; ///< Currently in HBlank
-        const bool currently_vcount   : 1; ///< VCount match flag
+        // Hardware-owned status bits: const marks them read-only in the exact DISPSTAT layout.
+        // NOLINTBEGIN(cppcoreguidelines-avoid-const-or-ref-data-members)
+        const bool currently_vblank : 1; ///< Currently in VBlank
+        const bool currently_hblank : 1; ///< Currently in HBlank
+        const bool currently_vcount : 1; ///< VCount match flag
+        // NOLINTEND(cppcoreguidelines-avoid-const-or-ref-data-members)
         bool enable_irq_vblank        : 1; ///< Enable VBlank IRQ
         bool enable_irq_hblank        : 1; ///< Enable HBlank IRQ
         bool enable_irq_vcount        : 1; ///< Enable VCount IRQ
@@ -695,11 +712,14 @@ namespace gba {
     inline constexpr auto reg_mosaicobj = registral<mosaic_control>{0x400004d};
 
     /// @brief Blend operation mode.
+    // Unscoped, 16-bit-based enum: it is used directly as a hardware bitfield member type, so both the
+    // scoping and the underlying type are fixed by the register layout and by the public API.
+    // NOLINTNEXTLINE(cppcoreguidelines-use-enum-class,performance-enum-size)
     enum blend_op : unsigned short {
         blend_op_none = 0,     ///< No blending
         blend_op_alpha = 1,    ///< Alpha blend
         blend_op_brighten = 2, ///< Brighten
-        blend_op_darken = 3    ///< Darken
+        blend_op_darken = 3,   ///< Darken
     };
 
     /// @brief Blend control bitfield (BLDCNT, 0x4000050).
@@ -1159,11 +1179,14 @@ namespace gba {
     inline constexpr auto reg_tmcnt_l_reload = registral<volatile unsigned short[4]>{0x4000100, 4};
 
     /// @brief Timer prescaler frequency.
+    // Unscoped, 16-bit-based enum: it is used directly as a hardware bitfield member type, so both the
+    // scoping and the underlying type are fixed by the register layout and by the public API.
+    // NOLINTNEXTLINE(cppcoreguidelines-use-enum-class,performance-enum-size)
     enum cycles : unsigned short {
-        cycles_1 = 0,   ///< 1 cycle (16.78 MHz)
-        cycles_64 = 1,  ///< 64 cycles
-        cycles_256 = 2, ///< 256 cycles
-        cycles_1024 = 3 ///< 1024 cycles
+        cycles_1 = 0,    ///< 1 cycle (16.78 MHz)
+        cycles_64 = 1,   ///< 64 cycles
+        cycles_256 = 2,  ///< 256 cycles
+        cycles_1024 = 3, ///< 1024 cycles
     };
 
     /// @brief Timer control bitfield (TMCNT_H).
@@ -1217,11 +1240,14 @@ namespace gba {
     /// #define SIO_MODE_MULTI  0x2000  // Multi-player
     /// #define SIO_MODE_UART   0x3000  // UART
     /// @endcode
+    // Unscoped, 16-bit-based enum: it is used directly as a hardware bitfield member type, so both the
+    // scoping and the underlying type are fixed by the register layout and by the public API.
+    // NOLINTNEXTLINE(cppcoreguidelines-use-enum-class,performance-enum-size)
     enum sio_mode : unsigned short {
         sio_mode_normal_8bit = 0,  ///< Normal 8-bit mode
         sio_mode_normal_32bit = 1, ///< Normal 32-bit mode
         sio_mode_multi = 2,        ///< Multi-player mode
-        sio_mode_uart = 3          ///< UART mode
+        sio_mode_uart = 3,         ///< UART mode
     };
 
     /// @brief Serial baud rate (for UART and multi-player modes).
@@ -1233,11 +1259,14 @@ namespace gba {
     /// #define SIO_BAUD_57600   2
     /// #define SIO_BAUD_115200  3
     /// @endcode
+    // Unscoped, 16-bit-based enum: it is used directly as a hardware bitfield member type, so both the
+    // scoping and the underlying type are fixed by the register layout and by the public API.
+    // NOLINTNEXTLINE(cppcoreguidelines-use-enum-class,performance-enum-size)
     enum sio_baud : unsigned short {
-        sio_baud_9600 = 0,  ///< 9600 bps
-        sio_baud_38400 = 1, ///< 38400 bps
-        sio_baud_57600 = 2, ///< 57600 bps
-        sio_baud_115200 = 3 ///< 115200 bps
+        sio_baud_9600 = 0,   ///< 9600 bps
+        sio_baud_38400 = 1,  ///< 38400 bps
+        sio_baud_57600 = 2,  ///< 57600 bps
+        sio_baud_115200 = 3, ///< 115200 bps
     };
 
     /// @brief Serial I/O control bitfield for Multi-Player mode (SIOCNT, 0x4000128).
@@ -1616,7 +1645,9 @@ namespace gba {
         unsigned short phi        : 2 {};  ///< PHI terminal output
         short                     : 1;
         bool prefetch             : 1 {true}; ///< Prefetch buffer enable
-        const bool is_cgb         : 1 {};     ///< CGB mode flag (read-only)
+        // Hardware-owned status bit in the exact WAITCNT layout.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
+        const bool is_cgb : 1 {}; ///< CGB mode flag (read-only)
     };
 
     /// @brief Waitstate control register (WAITCNT, 0x4000204).
@@ -1726,9 +1757,15 @@ namespace gba {
 
     } // namespace undocumented
 
+    // NOLINTEND(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
+    // NOLINTEND(misc-use-internal-linkage)
+
 } // namespace gba
 
-namespace std::ranges { // NOLINT(*-dcl58-cpp)
+// Opting gba::registral into std::ranges::enable_view requires specialising the variable template in namespace std,
+// which is the sanctioned customisation point.
+// NOLINTNEXTLINE(bugprone-std-namespace-modification)
+namespace std::ranges {
     template<typename T>
     inline constexpr bool enable_view<::gba::registral<T>> = true;
 } // namespace std::ranges

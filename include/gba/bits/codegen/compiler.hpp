@@ -2,10 +2,9 @@
 /// @brief Builder and compiled-block types for gba::codegen.
 #pragma once
 
+#include <gba/args>
 #include <gba/bits/codegen/encoder.hpp>
 #include <gba/bits/codegen/patch_args.hpp>
-
-#include <gba/args>
 
 #include <array>
 #include <cstddef>
@@ -350,8 +349,7 @@ namespace gba::codegen {
         }
 
         template<::gba::fixed_string Name>
-        consteval arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn,
-                                             const ::gba::arg_binder<Name>) {
+        consteval arm_macro_builder& add_imm(const arm_reg rd, const arm_reg rn, const ::gba::arg_binder<Name>) {
             const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::arg_binder<Name>::hash));
             push_with_patch(bits::add_imm(rd, rn, 0), patch_kind::imm8, idx);
             return *this;
@@ -391,8 +389,7 @@ namespace gba::codegen {
         }
 
         template<::gba::fixed_string Name>
-        consteval arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn,
-                                             const ::gba::arg_binder<Name>) {
+        consteval arm_macro_builder& sub_imm(const arm_reg rd, const arm_reg rn, const ::gba::arg_binder<Name>) {
             const auto idx = named_arg_index(static_cast<std::uint32_t>(::gba::arg_binder<Name>::hash));
             push_with_patch(bits::sub_imm(rd, rn, 0), patch_kind::imm8, idx);
             return *this;
@@ -1677,7 +1674,8 @@ namespace gba::codegen {
                     if constexpr (is_named_arg<arg_t>()) {
                         constexpr auto h = static_cast<std::uint32_t>(arg_t::hash);
                         const auto idx = find_named_index(h);
-                        ::gba::bits::constexpr_assert(!(idx != static_cast<std::size_t>(-1)), "patcher: unknown named arg provided");
+                        ::gba::bits::constexpr_assert(!(idx != static_cast<std::size_t>(-1)),
+                                                      "patcher: unknown named arg provided");
                         vals[idx] = normalize_arg(std::forward<decltype(a)>(a));
                         filled[idx] = true;
                     } else {
@@ -1712,7 +1710,8 @@ namespace gba::codegen {
                         }
                         case patch_kind::branch_offset: {
                             const auto sv = static_cast<std::int32_t>(value);
-                            ::gba::bits::constexpr_assert(!(sv >= -0x00800000 && sv <= 0x007FFFFF), "patcher: branch offset out of range");
+                            ::gba::bits::constexpr_assert(!(sv >= -0x00800000 && sv <= 0x007FFFFF),
+                                                          "patcher: branch offset out of range");
                             dest[p.word_index] = p.base_word | (value & 0x00FFFFFFu);
                             break;
                         }
@@ -1792,7 +1791,8 @@ namespace gba::codegen {
                 }
             } else if constexpr (kind == patch_kind::branch_offset) {
                 const auto sv = static_cast<std::int32_t>(value);
-                ::gba::bits::constexpr_assert(!(sv >= -0x00800000 && sv <= 0x007FFFFF), "block_patcher: branch offset out of range");
+                ::gba::bits::constexpr_assert(!(sv >= -0x00800000 && sv <= 0x007FFFFF),
+                                              "block_patcher: branch offset out of range");
                 dest[wi] = bw | (value & 0x00FFFFFFu);
             } else {
                 dest[wi] = value;

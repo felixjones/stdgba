@@ -97,12 +97,14 @@ namespace gba::format::bits {
             adjusted.fmt_type = format_spec::format_kind::decimal;
             return render_integer_value(out, cap, angle_raw_storage(value), adjusted);
         }
-        if (spec.fmt_type == format_spec::format_kind::hex_lower || spec.fmt_type == format_spec::format_kind::hex_upper) {
+        if (spec.fmt_type == format_spec::format_kind::hex_lower ||
+            spec.fmt_type == format_spec::format_kind::hex_upper) {
             return render_angle_hex_value(out, cap, value, spec);
         }
 
         const auto raw32 = bit_cast(static_cast<angle>(value));
-        if (spec.fmt_type == format_spec::format_kind::default_fmt || spec.fmt_type == format_spec::format_kind::decimal) {
+        if (spec.fmt_type == format_spec::format_kind::default_fmt ||
+            spec.fmt_type == format_spec::format_kind::decimal) {
             const auto scaled = static_cast<unsigned long long>(raw32) * 360ULL;
             const auto integerPart = scaled >> 32;
             const auto fractionalNumerator = static_cast<std::uint32_t>(scaled);

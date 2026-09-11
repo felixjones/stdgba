@@ -8,6 +8,10 @@
 
 #include <gba/bits/flash/operations.hpp>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
+
 // External assembly routine symbols (from flash.s)
 
 extern "C" {
@@ -36,6 +40,9 @@ extern const char flash_write_atmel_routine_end[];
 namespace gba::flash {
 
     namespace bits {
+        // The flash driver tracks live chip/bank state that the hardware routines mutate; a single global is the
+        // intended design for this memory-mapped peripheral.
+        // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
         flash_state g_state{};
     } // namespace bits
 
@@ -229,44 +236,46 @@ namespace gba::flash {
             size sz;
         };
 
-        inline constexpr chip_entry known_chips[] = {
-            {    dev_mx29l512,  manufacturer::macronix,  size::flash_64k},
-            { dev_mn63f805mnp, manufacturer::panasonic,  size::flash_64k},
-            {   dev_le39fw512,       manufacturer::sst,  size::flash_64k},
-            {   dev_at29lv512,     manufacturer::atmel,  size::flash_64k},
-            {    dev_mx29l010,  manufacturer::macronix, size::flash_128k},
-            {dev_le26fv10n1ts,     manufacturer::sanyo, size::flash_128k},
+        inline constexpr std::array<chip_entry, 6> known_chips = {
+            {
+             {.device = dev_mx29l512, .mfr = manufacturer::macronix, .sz = size::flash_64k},
+             {.device = dev_mn63f805mnp, .mfr = manufacturer::panasonic, .sz = size::flash_64k},
+             {.device = dev_le39fw512, .mfr = manufacturer::sst, .sz = size::flash_64k},
+             {.device = dev_at29lv512, .mfr = manufacturer::atmel, .sz = size::flash_64k},
+             {.device = dev_mx29l010, .mfr = manufacturer::macronix, .sz = size::flash_128k},
+             {.device = dev_le26fv10n1ts, .mfr = manufacturer::sanyo, .sz = size::flash_128k},
+             },
         };
 
     } // anonymous namespace
 
-    chip_info detect(size size_hint) noexcept {
+    chip_info detect(size sizeHint) noexcept {
         // Set 8-cycle waitstate for Flash detection
-        *reinterpret_cast<volatile std::uint16_t*>(0x04000204) |= 3;
+        *reinterpret_cast<volatile std::uint16_t*>(0x04000204) |= 3u;
 
         const std::uint32_t id = bits::read_id();
-        const auto mfr_id = static_cast<std::uint8_t>(id & 0xFF);
-        const auto device_id = static_cast<std::uint8_t>((id >> 8) & 0xFF);
+        const auto mfrId = static_cast<std::uint8_t>(id & 0xFFu);
+        const auto deviceId = static_cast<std::uint8_t>((id >> 8u) & 0xFFu);
 
         // Sanyo 128K needs double exit from ID mode
-        if (mfr_id == static_cast<std::uint8_t>(manufacturer::sanyo)) {
+        if (mfrId == static_cast<std::uint8_t>(manufacturer::sanyo)) {
             *bits::flash_cmd_ptr(0x5555) = 0xF0;
         }
 
         auto& state = bits::g_state;
-        state.info.device = device_id;
-        state.info.mfr = static_cast<manufacturer>(mfr_id);
+        state.info.device = deviceId;
+        state.info.mfr = static_cast<manufacturer>(mfrId);
         state.info.chip_size = size::detect;
 
         for (const auto& chip : known_chips) {
-            if (device_id == chip.device && state.info.mfr == chip.mfr) {
+            if (deviceId == chip.device && state.info.mfr == chip.mfr) {
                 state.info.chip_size = chip.sz;
                 break;
             }
         }
 
-        if (size_hint != size::detect) {
-            state.info.chip_size = size_hint;
+        if (sizeHint != size::detect) {
+            state.info.chip_size = sizeHint;
         }
 
         state.current_bank = 0;

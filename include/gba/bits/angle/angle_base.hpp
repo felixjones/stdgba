@@ -2,6 +2,7 @@
 
 #include <gba/bits/int_util.hpp>
 
+#include <compare>
 #include <concepts>
 #include <cstdint>
 #include <type_traits>
@@ -106,7 +107,7 @@ namespace gba {
         /// @brief Multiply by scalar.
         constexpr angle& operator*=(value_type rhs) noexcept {
 #if defined(__clang__) || defined(__GNUC__)
-            if (__builtin_constant_p(rhs) && bits::is_positive_power_of_two(rhs)) {
+            if ((__builtin_constant_p(rhs) != 0) && bits::is_positive_power_of_two(rhs)) {
                 m_data <<= bits::power_of_two_shift(rhs);
                 return *this;
             }
@@ -118,7 +119,7 @@ namespace gba {
         /// @brief Divide by scalar.
         constexpr angle& operator/=(value_type rhs) noexcept {
 #if defined(__clang__) || defined(__GNUC__)
-            if (__builtin_constant_p(rhs) && bits::is_positive_power_of_two(rhs)) {
+            if ((__builtin_constant_p(rhs) != 0) && bits::is_positive_power_of_two(rhs)) {
                 m_data >>= bits::power_of_two_shift(rhs);
                 return *this;
             }

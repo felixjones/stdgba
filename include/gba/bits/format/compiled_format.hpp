@@ -101,12 +101,13 @@ namespace gba::format {
         template<std::size_t N, typename... Args>
         static consteval std::size_t format_named_arg_static(std::array<char, N>& out, std::size_t pos,
                                                              unsigned int hash, const format_spec& spec, Args... args) {
-            return format_matching_arg_static<N>(out, pos, spec,
-                                                 [hash](const auto& arg) {
-                                                     using arg_t = std::decay_t<decltype(arg)>;
-                                                     return arg_t::hash == hash;
-                                                 },
-                                                 args...);
+            return format_matching_arg_static<N>(
+                out, pos, spec,
+                [hash](const auto& arg) {
+                    using arg_t = std::decay_t<decltype(arg)>;
+                    return arg_t::hash == hash;
+                },
+                args...);
         }
 
         template<std::size_t N, typename... Args>
@@ -114,9 +115,8 @@ namespace gba::format {
                                                                   std::uint8_t index, const format_spec& spec,
                                                                   Args... args) {
             std::uint8_t current = 0;
-            return format_matching_arg_static<N>(out, pos, spec,
-                                                 [index, &current](const auto&) mutable { return current++ == index; },
-                                                 args...);
+            return format_matching_arg_static<N>(
+                out, pos, spec, [index, &current](const auto&) mutable { return current++ == index; }, args...);
         }
 
         template<std::size_t N>

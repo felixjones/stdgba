@@ -7,7 +7,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/bdf_types.hpp>
 
 #include <algorithm>
@@ -25,15 +24,16 @@ namespace gba::text::bits {
         std::size_t bitmap_offset{};
     };
 
-    consteval expanded_glyph_info expand_bounds_for_shadow(
-        const auto& old_g, int shadow_dx, int shadow_dy, std::size_t& total_offset) {
+    consteval expanded_glyph_info expand_bounds_for_shadow(const auto& old_g, int shadow_dx, int shadow_dy,
+                                                           std::size_t& total_offset) {
         const int min_x = std::min(0, shadow_dx);
         const int max_x = std::max(static_cast<int>(old_g.width), static_cast<int>(old_g.width) + shadow_dx);
         const int min_y = std::min(0, shadow_dy);
         const int max_y = std::max(static_cast<int>(old_g.height), static_cast<int>(old_g.height) + shadow_dy);
         const int new_w = max_x - min_x;
         const int new_h = max_y - min_y;
-        ::gba::bits::constexpr_assert(new_w <= 0 || new_h <= 0, "text font variant: invalid shadow-expanded glyph size");
+        ::gba::bits::constexpr_assert(new_w <= 0 || new_h <= 0,
+                                      "text font variant: invalid shadow-expanded glyph size");
 
         const auto byte_width = static_cast<std::size_t>((new_w + 7) / 8);
         const auto bitmap_offset = total_offset;
@@ -49,11 +49,12 @@ namespace gba::text::bits {
         };
     }
 
-    consteval expanded_glyph_info expand_bounds_for_outline(
-        const auto& old_g, int thickness, std::size_t& total_offset) {
+    consteval expanded_glyph_info expand_bounds_for_outline(const auto& old_g, int thickness,
+                                                            std::size_t& total_offset) {
         const int new_w = static_cast<int>(old_g.width) + 2 * thickness;
         const int new_h = static_cast<int>(old_g.height) + 2 * thickness;
-        ::gba::bits::constexpr_assert(new_w <= 0 || new_h <= 0, "text font variant: invalid outline-expanded glyph size");
+        ::gba::bits::constexpr_assert(new_w <= 0 || new_h <= 0,
+                                      "text font variant: invalid outline-expanded glyph size");
 
         const auto byte_width = static_cast<std::size_t>((new_w + 7) / 8);
         const auto bitmap_offset = total_offset;
@@ -69,8 +70,8 @@ namespace gba::text::bits {
         };
     }
 
-    consteval bool read_glyph_bit(const unsigned char* bitmap, unsigned short byte_width,
-                                  unsigned short width, unsigned short height, int x, int y) {
+    consteval bool read_glyph_bit(const unsigned char* bitmap, unsigned short byte_width, unsigned short width,
+                                  unsigned short height, int x, int y) {
         if (x < 0 || y < 0) return false;
         if (x >= static_cast<int>(width) || y >= static_cast<int>(height)) return false;
         const auto byte_idx = static_cast<std::size_t>(y) * byte_width + static_cast<unsigned int>(x / 8);
@@ -215,9 +216,7 @@ namespace gba::text {
         alignas(unsigned int) std::array<unsigned char, bitmap_capacity> bitmap{};
         alignas(unsigned int) std::array<unsigned char, bitmap_capacity> decoration_bitmap{};
 
-        constexpr unsigned short line_height() const noexcept {
-            return static_cast<unsigned short>(ascent + descent);
-        }
+        constexpr unsigned short line_height() const noexcept { return static_cast<unsigned short>(ascent + descent); }
 
         constexpr const glyph* find(unsigned int encoding) const noexcept {
             for (const auto& g : glyphs) {
@@ -259,16 +258,17 @@ namespace gba::text {
             };
         }
 
-        constexpr gba::unpack_parameters bitunpack_header(
-            unsigned int encoding, unsigned char dst_bpp = 4, unsigned int dst_ofs = 1,
-            bool offset_zero = false) const noexcept {
+        constexpr gba::unpack_parameters bitunpack_header(unsigned int encoding, unsigned char dst_bpp = 4,
+                                                          unsigned int dst_ofs = 1,
+                                                          bool offset_zero = false) const noexcept {
             return glyph_or_default(encoding).bitunpack_header(dst_bpp, dst_ofs, offset_zero);
         }
     };
 
     template<int ShadowDX, int ShadowDY, typename FontType>
     consteval auto with_shadow(const FontType& base_font) {
-        if constexpr (ShadowDX == 0 && ShadowDY == 0) ::gba::bits::constexpr_fail("text font variant: shadow offset cannot be 0,0");
+        if constexpr (ShadowDX == 0 && ShadowDY == 0)
+            ::gba::bits::constexpr_fail("text font variant: shadow offset cannot be 0,0");
 
         using bits::expand_bounds_for_shadow;
         using bits::read_glyph_bit;
@@ -293,7 +293,8 @@ namespace gba::text {
             auto& new_g = result.glyphs[i];
 
             const auto expanded = expand_bounds_for_shadow(old_g, ShadowDX, ShadowDY, bitmap_offset);
-            ::gba::bits::constexpr_assert(bitmap_offset > result_type::bitmap_capacity, "text font variant: shadow bitmap capacity exceeded");
+            ::gba::bits::constexpr_assert(bitmap_offset > result_type::bitmap_capacity,
+                                          "text font variant: shadow bitmap capacity exceeded");
 
             new_g.encoding = old_g.encoding;
             new_g.dwidth = old_g.dwidth;
@@ -323,13 +324,15 @@ namespace gba::text {
 
             for (int oy = 0; oy < static_cast<int>(old_g.height); ++oy) {
                 for (int ox = 0; ox < static_cast<int>(old_g.width); ++ox) {
-                    if (!read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox, oy)) continue;
+                    if (!read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox, oy))
+                        continue;
 
-                    write_glyph_bit(fg_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height,
-                                    ox + fg_x_in_new, oy + fg_y_in_new);
+                    write_glyph_bit(fg_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height, ox + fg_x_in_new,
+                                    oy + fg_y_in_new);
 
-                    if (read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height,
-                                       ox + ShadowDX, oy + ShadowDY)) continue;
+                    if (read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox + ShadowDX,
+                                       oy + ShadowDY))
+                        continue;
 
                     write_glyph_bit(deco_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height,
                                     ox + shadow_x_in_new, oy + shadow_y_in_new);
@@ -339,7 +342,8 @@ namespace gba::text {
             bits::prune_decoration_overlap(deco_bitmap, fg_bitmap,
                                            static_cast<std::size_t>(new_g.bitmap_byte_width) * new_g.height);
 
-            const auto bounds = bits::find_decoration_bounds(deco_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height);
+            const auto bounds = bits::find_decoration_bounds(deco_bitmap, new_g.bitmap_byte_width, new_g.width,
+                                                             new_g.height);
             new_g.decoration_width = bounds.width;
             new_g.decoration_height = bounds.height;
             new_g.decoration_x_offset = bounds.x_offset;
@@ -351,7 +355,8 @@ namespace gba::text {
 
     template<int OutlineThickness, typename FontType>
     consteval auto with_outline(const FontType& base_font) {
-        if constexpr (OutlineThickness <= 0) ::gba::bits::constexpr_fail("text font variant: outline thickness must be positive");
+        if constexpr (OutlineThickness <= 0)
+            ::gba::bits::constexpr_fail("text font variant: outline thickness must be positive");
 
         using bits::expand_bounds_for_outline;
         using bits::read_glyph_bit;
@@ -374,7 +379,8 @@ namespace gba::text {
             const auto& old_g = base_font.glyphs[i];
             auto& new_g = result.glyphs[i];
             const auto expanded = expand_bounds_for_outline(old_g, OutlineThickness, bitmap_offset);
-            ::gba::bits::constexpr_assert(bitmap_offset > result_type::bitmap_capacity, "text font variant: outline bitmap capacity exceeded");
+            ::gba::bits::constexpr_assert(bitmap_offset > result_type::bitmap_capacity,
+                                          "text font variant: outline bitmap capacity exceeded");
 
             new_g.encoding = old_g.encoding;
             new_g.dwidth = old_g.dwidth;
@@ -397,13 +403,15 @@ namespace gba::text {
 
             for (int oy = 0; oy < static_cast<int>(old_g.height); ++oy) {
                 for (int ox = 0; ox < static_cast<int>(old_g.width); ++ox) {
-                    if (!read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox, oy)) continue;
+                    if (!read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox, oy))
+                        continue;
 
                     for (int dy = -OutlineThickness; dy <= OutlineThickness; ++dy) {
                         for (int dx = -OutlineThickness; dx <= OutlineThickness; ++dx) {
                             if (dx == 0 && dy == 0) continue;
-                            if (read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height,
-                                               ox + dx, oy + dy)) continue;
+                            if (read_glyph_bit(old_bitmap, old_g.bitmap_byte_width, old_g.width, old_g.height, ox + dx,
+                                               oy + dy))
+                                continue;
                             write_glyph_bit(deco_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height,
                                             ox + OutlineThickness + dx, oy + OutlineThickness + dy);
                         }
@@ -417,7 +425,8 @@ namespace gba::text {
             bits::prune_decoration_overlap(deco_bitmap, fg_bitmap,
                                            static_cast<std::size_t>(new_g.bitmap_byte_width) * new_g.height);
 
-            const auto bounds = bits::find_decoration_bounds(deco_bitmap, new_g.bitmap_byte_width, new_g.width, new_g.height);
+            const auto bounds = bits::find_decoration_bounds(deco_bitmap, new_g.bitmap_byte_width, new_g.width,
+                                                             new_g.height);
             new_g.decoration_width = bounds.width;
             new_g.decoration_height = bounds.height;
             new_g.decoration_x_offset = bounds.x_offset;

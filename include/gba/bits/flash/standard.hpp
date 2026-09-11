@@ -37,7 +37,6 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/flash/operations.hpp>
 
 #include <array>
@@ -106,7 +105,8 @@ namespace gba::flash::standard {
 
     /// @brief Erase a 4KB sector (compile-time constant).
     consteval cmd erase_sector(int sector) {
-        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank, "erase_sector: sector index out of range (0-15)");
+        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank,
+                                      "erase_sector: sector index out of range (0-15)");
         return {cmd::erase_sector_k, static_cast<std::int8_t>(sector), -1, nullptr, nullptr};
     }
 
@@ -122,7 +122,8 @@ namespace gba::flash::standard {
 
     /// @brief Write a 4KB sector (compile-time constant).
     consteval cmd write_sector(int sector, write_fn fn) {
-        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank, "write_sector: sector index out of range (0-15)");
+        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank,
+                                      "write_sector: sector index out of range (0-15)");
         ::gba::bits::constexpr_assert(fn == nullptr, "write_sector: write function must not be null");
         return {cmd::write_sector_k, static_cast<std::int8_t>(sector), -1, fn, nullptr};
     }
@@ -135,7 +136,8 @@ namespace gba::flash::standard {
 
     /// @brief Read a 4KB sector (compile-time constant).
     consteval cmd read_sector(int sector, read_fn fn) {
-        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank, "read_sector: sector index out of range (0-15)");
+        ::gba::bits::constexpr_assert(sector < 0 || sector >= sectors_per_bank,
+                                      "read_sector: sector index out of range (0-15)");
         ::gba::bits::constexpr_assert(fn == nullptr, "read_sector: read function must not be null");
         return {cmd::read_sector_k, static_cast<std::int8_t>(sector), -1, nullptr, fn};
     }
@@ -341,7 +343,8 @@ namespace gba::flash::standard {
 
         result.num_args = bits::count_args(result.commands, result.count);
 
-        ::gba::bits::constexpr_assert(!bits::validate(result.commands, result.count), "write_sector must be preceded by erase_sector or erase_chip");
+        ::gba::bits::constexpr_assert(!bits::validate(result.commands, result.count),
+                                      "write_sector must be preceded by erase_sector or erase_chip");
 
         return result;
     }

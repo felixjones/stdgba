@@ -7,11 +7,9 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
-
 #include <gba/bits/embed/png_chunks.hpp>
 
 namespace gba::embed::bits {
-
 
     struct deflate_huff {
         unsigned int counts[16]{};
@@ -77,14 +75,14 @@ namespace gba::embed::bits {
     }
 
     consteval unsigned int deflate_dist_base(unsigned int sym) {
-        constexpr unsigned int b[] = {1,    2,    3,    4,    5,    7,     9,     13,    17,   25,
-                                      33,   49,   65,   97,   129,  193,   257,   385,   513,  769,
-                                      1025, 1537, 2049, 3073, 4097, 6145,  8193,  12289, 16385, 24577};
+        constexpr unsigned int b[] = {1,    2,    3,    4,    5,    7,    9,    13,    17,    25,
+                                      33,   49,   65,   97,   129,  193,  257,  385,   513,   769,
+                                      1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577};
         return b[sym];
     }
 
     consteval unsigned int deflate_dist_extra(unsigned int sym) {
-        constexpr unsigned int e[] = {0, 0, 0, 0, 1, 1, 2,  2,  3,  3,  4,  4,  5,  5,  6,
+        constexpr unsigned int e[] = {0, 0, 0, 0, 1, 1, 2, 2,  3,  3,  4,  4,  5,  5,  6,
                                       6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12, 12, 13, 13};
         return e[sym];
     }

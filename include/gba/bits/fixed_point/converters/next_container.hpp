@@ -30,14 +30,14 @@ namespace gba {
         };
 
         template<typename Rep>
-        using next_size_t = typename next_size<Rep>::type;
+        using next_size_t = next_size<Rep>::type;
 
         template<fixed_point L, fixed_point R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
-            using lhs_rep = typename lhs_traits::underlying_type;
-            using rhs_rep = typename rhs_traits::underlying_type;
+            using lhs_rep = lhs_traits::underlying_type;
+            using rhs_rep = rhs_traits::underlying_type;
 
             using larger_rep = std::conditional_t<(sizeof(lhs_rep) > sizeof(rhs_rep)), lhs_rep, rhs_rep>;
 
