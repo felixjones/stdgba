@@ -4,6 +4,7 @@
 #include <gba/ecs>
 #include <gba/testing>
 
+#include <array>
 #include <cstdint>
 
 // Section: Test component types (all power-of-two sizes)
@@ -144,6 +145,36 @@ int main() {
         gba::test.expect.is_true(reg.all_of<hp_t>(e), "has hp before ref remove_unchecked");
         reg.remove_unchecked<hp_t>(hp);
         gba::test.expect.is_false(reg.all_of<hp_t>(e), "no hp after ref remove_unchecked");
+
+        static constexpr auto constexpr_removed = [] {
+            gba::ecs::registry<2, int> constexpr_reg;
+            const auto constexpr_entity = constexpr_reg.create();
+            auto& constexpr_component = constexpr_reg.emplace<int>(constexpr_entity, 7);
+            constexpr_reg.remove_unchecked<int>(constexpr_component);
+            return !constexpr_reg.all_of<int>(constexpr_entity);
+        }();
+        static_assert(constexpr_removed);
+    });
+
+    gba::test("remove_unchecked by reference accounts for pool padding", [] {
+        struct padded40 {
+            std::array<std::uint8_t, 40> bytes{};
+        };
+        gba::ecs::registry<11, padded40> reg;
+        auto keep = reg.create();
+        for (int i = 0; i < 4; ++i) static_cast<void>(reg.create());
+        auto remove = reg.create();
+        for (int i = 0; i < 4; ++i) static_cast<void>(reg.create());
+        auto& component = reg.emplace<padded40>(remove);
+        reg.emplace<padded40>(keep);
+        const auto unrelated = reg.create();
+        reg.emplace<padded40>(unrelated);
+
+        reg.remove_unchecked<padded40>(component);
+
+        gba::test.expect.is_false(reg.all_of<padded40>(remove), "referenced component removed");
+        gba::test.expect.is_true(reg.all_of<padded40>(keep), "earlier component remains");
+        gba::test.expect.is_true(reg.all_of<padded40>(unrelated), "later component remains");
     });
 
     gba::test("remove_unchecked variadic by entity_id", [] {

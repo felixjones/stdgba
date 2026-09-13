@@ -623,9 +623,12 @@ namespace gba::ecs {
         /// @brief Remove a component using a direct pool reference without checks.
         template<typename C>
         constexpr void remove_unchecked(C& component) noexcept {
-            auto* base = std::get<index_of<C>>(m_pools).data();
             auto* ptr = std::addressof(component);
-            const auto slot = static_cast<unsigned int>(ptr - base);
+            const auto& pool = std::get<index_of<C>>(m_pools);
+            unsigned int slot = 0;
+            for (; slot < Capacity; ++slot) {
+                if (ptr == std::addressof(pool[slot])) break;
+            }
             if constexpr (detail::supports_constexpr_byte_lifetime && !std::is_trivially_destructible_v<C>) {
                 std::destroy_at(ptr);
             }
