@@ -399,6 +399,47 @@ ENDFONT
     return data;
 }
 
+static constexpr auto make_test_wav() {
+    std::array<unsigned char, 58> data{};
+    const auto put_tag = [&data](std::size_t offset, const char (&tag)[5]) {
+        for (std::size_t index = 0; index < 4; ++index) data[offset + index] = tag[index];
+    };
+    const auto put_u16 = [&data](std::size_t offset, unsigned int value) {
+        data[offset] = static_cast<unsigned char>(value);
+        data[offset + 1] = static_cast<unsigned char>(value >> 8);
+    };
+    const auto put_u32 = [&data](std::size_t offset, unsigned int value) {
+        for (std::size_t index = 0; index < 4; ++index) {
+            data[offset + index] = static_cast<unsigned char>(value >> (index * 8));
+        }
+    };
+
+    put_tag(0, "RIFF");
+    put_u32(4, data.size() - 8);
+    put_tag(8, "WAVE");
+
+    put_tag(12, "JUNK");
+    put_u32(16, 1);
+    data[20] = 0x55;
+
+    put_tag(22, "fmt ");
+    put_u32(26, 16);
+    put_u16(30, 1);
+    put_u16(32, 1);
+    put_u32(34, 8192);
+    put_u32(38, 8192);
+    put_u16(42, 1);
+    put_u16(44, 8);
+
+    put_tag(46, "data");
+    put_u32(50, 4);
+    data[54] = 0;
+    data[55] = 128;
+    data[56] = 255;
+    data[57] = 64;
+    return data;
+}
+
 int main() {
     // bitmap15: basic PPM parsing
     {
@@ -680,6 +721,37 @@ int main() {
         const auto* glyphEdgeBitmap = font.bitmap_data(66);
         gba::test.eq(glyphEdgeBitmap[0], 0x00u);
         gba::test.eq(glyphEdgeBitmap[1], 0x01u);
+    }
+
+    // WAV: parse mono 8-bit PCM, convert unsigned samples, and pad for FIFO DMA
+    {
+        static constexpr auto sound = gba::embed::wav([] { return make_test_wav(); });
+
+        static_assert(sound.sample_rate == 8192);
+        static_assert(sound.sample_count == 4);
+        static_assert(sound.padded_sample_count == 16);
+        static_assert(sound.samples.size() == 16);
+        static_assert(sound.samples[0] == -128);
+        static_assert(sound.samples[1] == 0);
+        static_assert(sound.samples[2] == 127);
+        static_assert(sound.samples[3] == -64);
+        static_assert(sound.samples[4] == 0);
+    }
+
+    // WAV: linearly resample PCM at compile time
+    {
+        static constexpr auto sound = gba::embed::wav<16384>([] { return make_test_wav(); });
+
+        static_assert(sound.sample_rate == 16384);
+        static_assert(sound.sample_count == 8);
+        static_assert(sound.samples[0] == -128);
+        static_assert(sound.samples[1] == -64);
+        static_assert(sound.samples[2] == 0);
+        static_assert(sound.samples[3] == 63);
+        static_assert(sound.samples[4] == 127);
+        static_assert(sound.samples[5] == 32);
+        static_assert(sound.samples[6] == -64);
+        static_assert(sound.samples[7] == -64);
     }
 
     return gba::test.finish();

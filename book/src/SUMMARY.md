@@ -30,7 +30,7 @@
 
 # Audio
 
-- [DMA PCM Sine Wave](./audio/dma-pcm-sine.md)
+- [DMA PCM Playback](./audio/dma-pcm.md)
 - [Music Composition](./audio/music.md)
 - [Embedded WAV Samples](./audio/wav-embed.md)
 

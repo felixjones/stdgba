@@ -4,6 +4,7 @@ include(CheckCXXSourceCompiles)
 file(GLOB DEMO_SOURCES demo_*.cpp)
 
 set(EMBED_DEMOS
+    demo_dma_pcm_wav
     demo_embed_sprite
     demo_embed_fonts
     demo_hello_audio_wav
