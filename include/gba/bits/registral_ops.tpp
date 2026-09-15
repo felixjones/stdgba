@@ -85,11 +85,11 @@ namespace gba::bits {
     inline void write_by_copy12(std::uintptr_t address, auto value)
         requires(sizeof(decltype(value)) == 12)
     {
-        register const auto valueTemp asm("r1") = &value;
+        register auto valuePtr asm("r1") = &value;
         asm volatile("ldm %[value_ptr], {%[value_ptr]-r3}\n"
                      "stm %[address]!, {%[value_ptr]-r3}"
-                     : [address] "+l"(address)
-                     : [value_ptr] "l"(valueTemp)
+                     : [address] "+l"(address), [value_ptr] "+l"(valuePtr)
+                     :
                      : "memory", "r2", "r3");
     }
 

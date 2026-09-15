@@ -1098,7 +1098,7 @@ namespace gba {
     /// @brief Sound bias control (SOUNDBIAS).
     struct sound_bias {
         unsigned short            : 1;
-        unsigned short bias       : 9; ///< Bias level (default 0x200).
+        unsigned short bias       : 9; ///< Bias level in half-register units (default 0x100).
         unsigned short            : 4;
         unsigned short resolution : 2; ///< Sampling resolution (0-3).
     };
@@ -1109,7 +1109,7 @@ namespace gba {
     ///
     /// Example:
     /// @code{.cpp}
-    /// gba::reg_soundbias = { .bias = 0x200, .resolution = 0 };
+    /// gba::reg_soundbias = { .bias = 0x100, .resolution = 0 };
     /// @endcode
     ///
     /// TONCLIB Equivalent:
