@@ -570,11 +570,11 @@ namespace gba {
     template<typename T>
     struct unique {
         /// @brief Default constructor (null pointer).
-        constexpr unique() noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
+        constexpr unique() noexcept = default;
 
         /// @brief Construct from nullptr.
         // NOLINTNEXTLINE(cppcoreguidelines-explicit-constructor,misc-explicit-constructor)
-        constexpr unique(std::nullptr_t) noexcept : m_ptr{nullptr}, m_deleter{[](const T*) constexpr static {}} {}
+        constexpr unique(std::nullptr_t) noexcept {}
 
         /// @brief Construct with pointer and custom deleter.
         /// @tparam Deleter The deleter type (must be callable with const T*).
@@ -630,8 +630,8 @@ namespace gba {
         constexpr explicit operator bool() const noexcept { return m_ptr != nullptr; }
 
     private:
-        T* m_ptr;
-        bits::handler<const T*> m_deleter;
+        T* m_ptr{};
+        bits::handler<const T*> m_deleter{};
     };
 
     /// @brief Create a unique pointer with default delete.
