@@ -723,19 +723,28 @@ int main() {
         gba::test.eq(glyphEdgeBitmap[1], 0x01u);
     }
 
-    // WAV: parse mono 8-bit PCM, convert unsigned samples, and pad for FIFO DMA
+    // WAV: parse mono 8-bit PCM, convert unsigned samples, and add a silent DMA tail
     {
         static constexpr auto sound = gba::embed::wav([] { return make_test_wav(); });
 
         static_assert(sound.sample_rate == 8192);
         static_assert(sound.sample_count == 4);
-        static_assert(sound.padded_sample_count == 16);
-        static_assert(sound.samples.size() == 16);
+        static_assert(sound.timer_period == 2048);
+        static_assert(sound.timer.first == 65536 - 2048);
+        static_assert(sound.timer.second.cycles == gba::cycles_1);
+        static_assert(sound.timer.second.enabled);
+        static_assert(sound.frame_count == 1);
+        static_assert(sound.fade_sample_count == 133);
+        static_assert(sound.padded_sample_count == 160);
+        static_assert(sound.samples.size() == 160);
         static_assert(sound.samples[0] == -128);
         static_assert(sound.samples[1] == 0);
         static_assert(sound.samples[2] == 127);
         static_assert(sound.samples[3] == -64);
-        static_assert(sound.samples[4] == 0);
+        static_assert(sound.samples[4] == -63);
+        static_assert(sound.samples[sound.sample_count + sound.fade_sample_count - 1] == 0);
+        static_assert(sound.samples[sound.sample_count + sound.fade_sample_count] == 0);
+        static_assert(sound.samples.back() == 0);
     }
 
     // WAV: linearly resample PCM at compile time
@@ -744,6 +753,12 @@ int main() {
 
         static_assert(sound.sample_rate == 16384);
         static_assert(sound.sample_count == 8);
+        static_assert(sound.timer_period == 1024);
+        static_assert(sound.timer.first == 65536 - 1024);
+        static_assert(sound.timer.second.enabled);
+        static_assert(sound.frame_count == 1);
+        static_assert(sound.fade_sample_count == 266);
+        static_assert(sound.padded_sample_count == 304);
         static_assert(sound.samples[0] == -128);
         static_assert(sound.samples[1] == -64);
         static_assert(sound.samples[2] == 0);

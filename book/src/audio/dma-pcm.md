@@ -37,7 +37,9 @@ The DMA repeat flag keeps the channel active, but does not reset its source addr
 
 ## Playing an embedded WAV once
 
-`embed::wav()` loads an uncompressed mono 8-bit PCM WAV at compile time. It converts unsigned WAV samples to signed Direct Sound samples and pads the result to a complete FIFO DMA burst.
+`embed::wav()` loads an uncompressed mono 8-bit PCM WAV at compile time. It converts unsigned WAV samples to signed
+Direct Sound samples, provides a ready-to-write `sound.timer` configuration and whole-frame playback duration, then uses
+the rest of the final frame to fade the last sample to zero. A silent FIFO DMA lookahead follows the fade.
 
 The second demo plays `Piano.wav` when the program starts. Press `A` to play it again:
 
@@ -45,7 +47,10 @@ The second demo plays `Piano.wav` when the program starts. Press `A` to play it 
 {{#include ../../demos/demo_dma_pcm_wav.cpp:4:}}
 ```
 
-Timer 1 cascades from the sample timer and raises an interrupt after the final sample. The interrupt stops both timers, disables DMA1, and clears FIFO A, making each playback one-shot.
+The sample clock is the demo's only timer. Playback starts immediately after VBlank, then the VBlank handler counts
+`sound.frame_count` video frames and stops timer 0 and DMA1 after the recording has finished. The generated DMA source
+fades to zero through the rest of the final frame and includes a silent 16-sample FIFO lookahead, so frame-quantized
+stopping cannot read past the buffer or produce a noise burst.
 
 `Piano.wav` is mono 8-bit PCM at 8363 Hz. The demo uses `embed::wav<16384>()` to linearly resample it at compile time. This gives timer 0 an exact 1024-cycle period and moves low-rate playback images above the most audible range. Omitting the template argument preserves the source sample rate.
 

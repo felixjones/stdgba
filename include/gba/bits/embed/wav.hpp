@@ -3,10 +3,12 @@
 #pragma once
 
 #include <gba/bits/constexpr_assert.hpp>
+#include <gba/peripherals>
 
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <type_traits>
 
 namespace gba::embed {
@@ -89,14 +91,38 @@ namespace gba::embed {
     /// @brief Embedded mono 8-bit PCM ready for Direct Sound DMA.
     ///
     /// WAV stores 8-bit PCM as unsigned bytes, while Direct Sound expects signed
-    /// bytes. `samples` contains converted signed data and is padded with silence
-    /// to a complete 16-byte FIFO DMA burst.
-    template<std::size_t SampleCount>
+    /// bytes. `samples` contains converted signed data followed by a linear fade
+    /// to silence for frame-counted playback and a silent Direct Sound FIFO lookahead.
+    template<std::size_t SampleCount, unsigned int SampleRate>
     struct alignas(4) wav_result {
-        static constexpr std::size_t sample_count = SampleCount;
-        static constexpr std::size_t padded_sample_count = (SampleCount + 15) & ~std::size_t{15};
+        static constexpr unsigned int clock_cycles_per_second = 16777216;
+        static constexpr std::size_t clock_cycles_per_frame = 280896;
+        static constexpr std::size_t fifo_lookahead = 16;
 
-        unsigned int sample_rate;
+        static constexpr unsigned int sample_rate = SampleRate;
+        static constexpr std::size_t sample_count = SampleCount;
+        static constexpr unsigned int timer_period = static_cast<unsigned int>(
+            (static_cast<std::uint64_t>(clock_cycles_per_second) + sample_rate / 2) / sample_rate);
+        static_assert(timer_period > 0 && timer_period <= 65536,
+                      "embed::wav: sample rate cannot be represented by a Direct Sound timer");
+        static constexpr gba::timer_config timer{
+            static_cast<unsigned short>(-timer_period), {.cycles = gba::cycles_1, .enabled = true}
+        };
+
+        static constexpr auto frame_count_wide =
+            (static_cast<std::uint64_t>(sample_count) * timer_period + clock_cycles_per_frame - 1) /
+            clock_cycles_per_frame;
+        static constexpr auto samples_before_stop_wide = frame_count_wide * clock_cycles_per_frame / timer_period;
+        static constexpr auto fade_sample_count_wide = samples_before_stop_wide - sample_count;
+        static constexpr auto padded_sample_count_wide = (samples_before_stop_wide + fifo_lookahead + 15) &
+                                                         ~std::uint64_t{15};
+        static_assert(padded_sample_count_wide <= std::numeric_limits<std::size_t>::max(),
+                      "embed::wav: padded sample data is too large");
+
+        static constexpr std::size_t frame_count = static_cast<std::size_t>(frame_count_wide);
+        static constexpr std::size_t fade_sample_count = static_cast<std::size_t>(fade_sample_count_wide);
+        static constexpr std::size_t padded_sample_count = static_cast<std::size_t>(padded_sample_count_wide);
+
         std::array<std::int8_t, padded_sample_count> samples;
     };
 
@@ -104,7 +130,7 @@ namespace gba::embed {
     ///
     /// @tparam TargetSampleRate Output sample rate. Zero preserves the source rate.
     /// @param supplier Callable returning the WAV file as `std::array<unsigned char, N>`.
-    /// @return Signed, FIFO-padded PCM samples at the selected sample rate.
+    /// @return Signed PCM samples, frame count, timer period, and a silent DMA tail.
     ///
     /// Example:
     /// @code{.cpp}
@@ -120,11 +146,16 @@ namespace gba::embed {
         constexpr auto layout = bits::parse_wav_layout(raw);
         constexpr auto output_rate = TargetSampleRate == 0 ? layout.sample_rate : TargetSampleRate;
         static_assert(output_rate > 0, "embed::wav: target sample rate must not be zero");
-        constexpr auto output_count = (layout.sample_count * output_rate + layout.sample_rate / 2) / layout.sample_rate;
+        constexpr auto output_count_wide =
+            (static_cast<std::uint64_t>(layout.sample_count) * output_rate + layout.sample_rate / 2) /
+            layout.sample_rate;
+        static_assert(output_count_wide <= std::numeric_limits<std::size_t>::max(),
+                      "embed::wav: resampled data is too large");
+        constexpr auto output_count = static_cast<std::size_t>(output_count_wide);
         static_assert(output_count > 0, "embed::wav: resampling produced no samples");
 
         return [&]<std::size_t SampleCount>(std::integral_constant<std::size_t, SampleCount>) consteval {
-            wav_result<SampleCount> result{output_rate, {}};
+            wav_result<SampleCount, output_rate> result{};
             for (std::size_t index = 0; index < SampleCount; ++index) {
                 const auto source_position = index * layout.sample_rate;
                 const auto source_index = source_position / output_rate;
@@ -135,6 +166,13 @@ namespace gba::embed {
                 const auto next = static_cast<int>(raw[layout.data_offset + next_index]) - 128;
                 result.samples[index] = static_cast<std::int8_t>(
                     current + (next - current) * static_cast<int>(fraction) / static_cast<int>(output_rate));
+            }
+            const auto final_sample = static_cast<std::int64_t>(result.samples[SampleCount - 1]);
+            for (std::size_t index = 0; index < result.fade_sample_count; ++index) {
+                const auto remaining = result.fade_sample_count - index;
+                result.samples[SampleCount + index] =
+                    static_cast<std::int8_t>(final_sample * static_cast<std::int64_t>(remaining) /
+                                             static_cast<std::int64_t>(result.fade_sample_count + 1));
             }
             return result;
         }(std::integral_constant<std::size_t, output_count>{});

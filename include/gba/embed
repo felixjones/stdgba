@@ -16,7 +16,7 @@
 /// - **BDF**: Bitmap Distribution Format fonts converted into glyph
 ///   metadata plus BIOS `BitUnPack`-compatible 1bpp bitmap rows.
 /// - **WAV**: Uncompressed mono 8-bit PCM converted to signed Direct Sound
-///   samples and padded to complete FIFO DMA bursts.
+///   samples with frame-counted playback metadata, an end fade, and a silent DMA tail.
 ///
 /// Format is auto-detected from the file header.
 ///
@@ -59,7 +59,8 @@
 /// constexpr auto sound = gba::embed::wav([] {
 ///     return std::to_array<unsigned char>({ #embed "sound.wav" });
 /// });
-/// // sound.sample_rate, sound.sample_count, sound.samples
+/// // sound.sample_rate, sound.sample_count, sound.frame_count, sound.fade_sample_count,
+/// // sound.timer, sound.samples
 /// @endcode
 ///
 /// TONCLIB Equivalent:
