@@ -551,6 +551,9 @@ namespace gba::ecs {
         /// @brief Number of currently alive entities.
         [[nodiscard]] constexpr std::size_t size() const noexcept { return m_alive; }
 
+        /// @brief Maximum number of entities.
+        [[nodiscard]] static constexpr std::size_t capacity() noexcept { return Capacity; }
+
         /// @brief True when no additional entities can be created.
         [[nodiscard]] constexpr bool full() const noexcept { return m_alive >= Capacity; }
 
@@ -986,6 +989,9 @@ namespace gba::ecs {
 
         /// @brief Number of alive entities.
         [[nodiscard]] constexpr std::size_t size() const noexcept { return m_impl.size(); }
+
+        /// @brief Maximum number of entities.
+        [[nodiscard]] static constexpr std::size_t capacity() noexcept { return impl_type::capacity(); }
 
         /// @brief True when registry has reached entity capacity.
         [[nodiscard]] constexpr bool full() const noexcept { return m_impl.full(); }
