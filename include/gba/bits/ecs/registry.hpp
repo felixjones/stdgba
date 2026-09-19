@@ -629,8 +629,16 @@ namespace gba::ecs {
             auto* ptr = std::addressof(component);
             const auto& pool = std::get<index_of<C>>(m_pools);
             unsigned int slot = 0;
-            for (; slot < Capacity; ++slot) {
-                if (ptr == std::addressof(pool[slot])) break;
+            if consteval {
+                for (; slot < Capacity; ++slot) {
+                    if (ptr == std::addressof(pool[slot])) break;
+                }
+            }
+            else {
+                const auto* base = pool.data();
+                const auto base_addr = reinterpret_cast<std::uintptr_t>(base);
+                const auto ptr_addr = reinterpret_cast<std::uintptr_t>(ptr);
+                slot = (ptr_addr - base_addr) / stride_of<C>;
             }
             if constexpr (detail::supports_constexpr_byte_lifetime && !std::is_trivially_destructible_v<C>) {
                 std::destroy_at(ptr);
