@@ -37,10 +37,10 @@ All three must be set for the interrupt to reach the handler.
 
 ## Critical sections
 
-Use `gba::critical_section` to temporarily disable CPU IRQ handling. It saves
-the CPSR IRQ disable flag, sets it with inline ARM assembly, and restores it when
-the object leaves scope. It does not modify `reg_ime`, and critical sections may
-be nested safely:
+Use [`gba::critical_section`](../reference/critical-section.md) to temporarily
+disable CPU IRQ handling. It saves the CPSR IRQ disable flag, sets it with
+inline ARM assembly, and restores it when the object leaves scope. It does not
+modify `reg_ime`, and critical sections may be nested safely:
 
 ```cpp
 #include <gba/critical_section>
