@@ -68,6 +68,7 @@
 
 - [`gba::critical_section`](./reference/critical-section.md)
 - [Keypad Class](./reference/keypad.md)
+- [`gba::music::music_player`](./reference/music-player.md)
 - [Object Struct](./reference/object.md)
 - [Object Affine Struct](./reference/object-affine.md)
 - [Embedded Sprite Type](./reference/embed-sprite.md)

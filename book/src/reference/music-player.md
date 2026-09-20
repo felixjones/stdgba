@@ -18,6 +18,7 @@ struct music_player {
     constexpr music_player() noexcept;
     
     bool operator()() noexcept;
+    void reset();
 };
 ```
 
@@ -70,6 +71,17 @@ while (true) {
     // Game logic
 }
 ```
+
+## `reset()`
+
+```cpp
+void reset();
+```
+
+Restores the player to the beginning of the compiled pattern. It clears the
+finished state and resets the frame and event cursors. The current instrument
+state is not explicitly cleared; it is updated again by instrument-change
+events as playback advances.
 
 ## Looping patterns
 
@@ -167,4 +179,4 @@ int main() {
 
 - [Music Composition](../audio/music.md) - pattern syntax and compilation
 - [Embedded WAV Samples](../audio/wav-embed.md) - waveform and sample embedding
-- [Square 1 Channel](./channel-sq1.md), [Square 2 Channel](./channel-sq2.md), [Wave Channel](./channel-wav.md), [Noise Channel](./channel-noise.md) - per-channel hardware details
+- [Sound Peripheral Reference](./peripherals/sound.md) - PSG channel registers and sound control
