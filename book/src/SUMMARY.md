@@ -34,6 +34,13 @@
 - [Music Composition](./audio/music.md)
 - [Embedded WAV Samples](./audio/wav-embed.md)
 
+# Multiplayer
+
+- [Multi-Player Link](./multiplayer/multi.md)
+- [Normal Link](./multiplayer/normal.md)
+- [Link Protocol](./multiplayer/protocol.md)
+- [Composing Codecs](./codecs/index.md)
+
 # Utilities
 
 - [DMA Transfers](./utilities/dma.md)
