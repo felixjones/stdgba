@@ -9,6 +9,7 @@ set(EMBED_DEMOS
     demo_embed_fonts
     demo_hello_audio_wav
     demo_text_render
+        demo_link_multiplay
 )
 
 set(SKIPPED_EMBED_DEMOS)
