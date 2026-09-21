@@ -60,6 +60,7 @@
 #include <gba/bits/codec/array.hpp>
 #include <gba/bits/codec/core.hpp>
 #include <gba/bits/codec/delimited.hpp>
+#include <gba/bits/codec/extra.hpp>
 #include <gba/bits/codec/fundamental.hpp>
 #include <gba/bits/codec/optional.hpp>
 #include <gba/bits/codec/range.hpp>
