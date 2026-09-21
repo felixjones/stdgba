@@ -20,6 +20,7 @@ add_library(stdgba INTERFACE
         include/gba/functional
         include/gba/interrupt
         include/gba/keyinput
+        include/gba/link
         include/gba/logger
         include/gba/memory
         include/gba/music

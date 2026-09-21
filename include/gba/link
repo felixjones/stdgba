@@ -1,0 +1,138 @@
+/// @file link
+/// @brief Codec-driven GBA-to-GBA link cable communication.
+///
+/// A link transports one user-selected root C++ type. The compile-time codec
+/// defines that type and its binary representation; variants provide
+/// heterogeneous message streams. Values are framed, escaped, integrity
+/// checked, and decoded independently for each peer.
+/// `Capacity` bounds both one encoded outgoing frame and each peer's pending
+/// incoming wire bytes; `send` returns false if either a value is already in
+/// flight or its framed representation exceeds that capacity.
+///
+/// @code{.cpp}
+/// constexpr auto message_codec = gba::codec::uint8_codec;
+/// using link_type = gba::link_multi<message_codec, 64>;
+///
+/// auto& link = gba::link.emplace<link_type>(gba::sio_baud_115200);
+/// link.send(std::uint8_t{42});
+/// // Service the link continuously; frame-rate polling limits throughput.
+/// link.poll();
+/// if (auto incoming = link.read(gba::multi_player::player_1)) {
+///     handle_message(*incoming);
+/// }
+/// @endcode
+///
+/// Multiboot, UART, GPIO, and Joy Bus are intentionally outside this API.
+#pragma once
+
+#include <gba/bits/link/error.hpp>
+#include <gba/bits/link/multi.hpp>
+#include <gba/bits/link/normal.hpp>
+#include <gba/codec>
+
+#include <concepts>
+#include <cstddef>
+#include <memory>
+#include <optional>
+#include <type_traits>
+#include <utility>
+
+namespace gba::bits::link {
+
+    struct link_slot {
+    public:
+        ~link_slot() = default;
+        [[nodiscard]] static link_slot& instance() noexcept { return s_instance; }
+
+        link_slot(const link_slot&) = delete;
+        link_slot& operator=(const link_slot&) = delete;
+
+        template<typename Link>
+            requires(!std::same_as<std::remove_cvref_t<Link>, link_slot>)
+        std::remove_cvref_t<Link>& operator=(Link&& value) {
+            using link_type = std::remove_cvref_t<Link>;
+            return emplace<link_type>(std::forward<Link>(value));
+        }
+
+        template<typename Link, typename... Args>
+            requires std::constructible_from<Link, Args...>
+        Link& emplace(Args&&... args) {
+            reset();
+            storage<Link>.emplace(std::forward<Args>(args)...);
+            m_link = std::addressof(*storage<Link>);
+            m_type = type_tag<Link>();
+            m_destroy = [] {
+                storage<Link>.reset();
+            };
+            return *static_cast<Link*>(m_link);
+        }
+
+        template<typename Link>
+        [[nodiscard]] Link* get_if() const noexcept {
+            return holds<Link>() ? static_cast<Link*>(m_link) : nullptr;
+        }
+
+        template<typename Link>
+        [[nodiscard]] Link& get() const noexcept {
+            if (auto* held = get_if<Link>()) {
+                return *held;
+            }
+            __builtin_trap();
+        }
+
+        template<typename Link>
+        [[nodiscard]] bool holds() const noexcept {
+            return m_type == type_tag<Link>();
+        }
+
+        void reset() noexcept {
+            if (m_destroy) {
+                m_destroy();
+            }
+            m_link = nullptr;
+            m_type = nullptr;
+            m_destroy = nullptr;
+        }
+
+        [[nodiscard]] explicit operator bool() const noexcept { return m_link != nullptr; }
+
+    private:
+        link_slot() = default;
+
+        static link_slot s_instance;
+
+        template<typename Link>
+        static inline std::optional<Link> storage{};
+
+        template<typename Link>
+        [[nodiscard]] static const void* type_tag() noexcept {
+            return std::addressof(storage<Link>);
+        }
+
+        void* m_link{};
+        const void* m_type{};
+        void (*m_destroy)(){};
+    };
+
+    inline link_slot link_slot::s_instance{};
+
+} // namespace gba::bits::link
+
+namespace gba {
+
+    using bits::link::link_error;
+    using bits::link::link_slot;
+    using bits::link::multi_player;
+    using bits::link::multi_player_index;
+    using bits::link::multi_players;
+
+    template<const auto& Codec, std::size_t Capacity, typename Word = unsigned char>
+    using link_normal = bits::link::link_normal<Codec, Capacity, Word>;
+
+    template<const auto& Codec, std::size_t Capacity>
+    using link_multi = bits::link::link_multi<Codec, Capacity>;
+
+    /// @brief The process-wide active link, configured by `emplace()` or assignment.
+    inline link_slot& link = link_slot::instance();
+
+} // namespace gba
