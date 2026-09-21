@@ -49,12 +49,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
 
-      - name: Resolve gba-toolchain experimental commit
+      - name: Resolve gba-toolchain main commit
         id: gba_toolchain_ref
         shell: bash
         run: |
           set -euo pipefail
-          commit=$(git ls-remote https://github.com/felixjones/gba-toolchain.git refs/heads/experimental | awk '{print $1}')
+          commit=$(git ls-remote https://github.com/felixjones/gba-toolchain.git refs/heads/main | awk '{print $1}')
           echo "commit=${commit}" >> "$GITHUB_OUTPUT"
 
       - name: Cache gba-toolchain checkout
@@ -62,16 +62,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/stdgba/gba-toolchain
-          key: ${{ runner.os }}-gba-toolchain-experimental-${{ steps.gba_toolchain_ref.outputs.commit }}
+          key: ${{ runner.os }}-gba-toolchain-main-${{ steps.gba_toolchain_ref.outputs.commit }}
 
-      - name: Clone gba-toolchain experimental
+      - name: Clone gba-toolchain main
         if: steps.cache_gba_toolchain.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
           rm -rf ~/.cache/stdgba/gba-toolchain
           mkdir -p ~/.cache/stdgba
-          git clone --depth 1 --branch experimental https://github.com/felixjones/gba-toolchain.git ~/.cache/stdgba/gba-toolchain
+          git clone --depth 1 --branch main https://github.com/felixjones/gba-toolchain.git ~/.cache/stdgba/gba-toolchain
 
       - name: Resolve latest Arm GNU toolchain archive URL
         id: arm_url
