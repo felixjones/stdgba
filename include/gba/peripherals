@@ -1330,6 +1330,52 @@ namespace gba {
     /// @endcode
     inline constexpr auto reg_siocnt_multi = registral<sio_multi_control>{0x4000128};
 
+    /// @brief Serial I/O control bitfield for UART mode (SIOCNT, 0x4000128).
+    ///
+    /// Use this struct when operating in UART mode (bits 12-13 both set). SIODATA8 (0x400012A)
+    /// addresses the send/receive shift register, or the send/receive FIFO when `fifo_enable` is set
+    /// (up to four 8-bit units queued in each direction).
+    ///
+    /// @see sio_control for Normal mode, sio_multi_control for Multi-Player mode
+    struct sio_uart_control {
+        gba::sio_baud baud    : 2 {};     ///< Baud rate (9600/38400/57600/115200)
+        bool cts_enable       : 1 {};     ///< 0=Send always/blindly, 1=Send only when SC=LOW
+        bool parity_odd       : 1 {};     ///< 0=Even parity, 1=Odd parity
+        bool send_full        : 1 {};     ///< Send data flag (read-only)
+        bool receive_empty    : 1 {};     ///< Receive data flag (read-only)
+        bool error            : 1 {};     ///< Bad stop bit / parity / overflow (read-only, cleared on read)
+        bool data_length_8bit : 1 {true}; ///< 0=7 bits, 1=8 bits
+        bool fifo_enable      : 1 {};     ///< Enable the 4-unit send/receive FIFOs
+        bool parity_enable    : 1 {};     ///< Enable parity checking
+        bool send_enable      : 1 {};     ///< Enable the transmitter
+        bool receive_enable   : 1 {};     ///< Enable the receiver
+        bool mode_uart_low    : 1 {true}; ///< Must be 1 for UART mode (default: 1)
+        bool mode_uart_high   : 1 {true}; ///< Must be 1 for UART mode (default: 1)
+        bool irq_enable       : 1 {};     ///< IRQ when send_full/receive_empty/error becomes set
+        bool                  : 1;        ///< Unused
+    };
+
+    /// @brief Serial control register for UART mode (SIOCNT, 0x4000128).
+    ///
+    /// The mode bits default to UART mode (bits 12-13 both set). Reset the FIFO by disabling it
+    /// before re-enabling; disable `send_enable`/`receive_enable` before switching to another SIO mode.
+    ///
+    /// Example:
+    /// @code{.cpp}
+    /// gba::reg_siocnt_uart = {
+    ///     .baud = gba::sio_baud_115200,
+    ///     .data_length_8bit = true,
+    ///     .send_enable = true,
+    ///     .receive_enable = true,
+    /// };
+    /// @endcode
+    ///
+    /// TONCLIB Equivalent:
+    /// @code{.c}
+    /// REG_SIOCNT = SIO_MODE_UART | SIO_BAUD_115200 | UART_LEN_8 | UART_SEND | UART_RECV;
+    /// @endcode
+    inline constexpr auto reg_siocnt_uart = registral<sio_uart_control>{0x4000128};
+
     /// @brief Serial I/O control bitfield (SIOCNT, 0x4000128).
     ///
     /// Control register for serial communication. Bit meanings vary by mode.
@@ -1414,19 +1460,22 @@ namespace gba {
 
     /// @brief General-purpose I/O control bitfield (RCNT, 0x4000134).
     ///
-    /// Controls serial communication mode and general-purpose I/O.
+    /// Controls serial communication mode and general-purpose I/O. Per GBATEK, bit 15 selects
+    /// between SIO Normal/Multi-Player/UART mode (0, controlled by SIOCNT) and General-Purpose/Joy
+    /// Bus mode (1); when bit 15 is set, bit 14 further selects General-Purpose (0) vs. Joy Bus (1).
     struct rcnt_control {
-        bool sc        : 1; ///< SC data/direction
-        bool sd        : 1; ///< SD data/direction
-        bool si        : 1; ///< SI data/direction
-        bool so        : 1; ///< SO data/direction
-        bool sc_dir    : 1; ///< SC direction (0=input, 1=output)
-        bool sd_dir    : 1; ///< SD direction
-        bool si_dir    : 1; ///< SI direction
-        bool so_dir    : 1; ///< SO direction
-        short          : 6;
-        bool gpio_mode : 1; ///< General-purpose mode enable
-        bool           : 1;
+        bool sc            : 1; ///< SC data/direction
+        bool sd            : 1; ///< SD data/direction
+        bool si            : 1; ///< SI data/direction
+        bool so            : 1; ///< SO data/direction
+        bool sc_dir        : 1; ///< SC direction (0=input, 1=output)
+        bool sd_dir        : 1; ///< SD direction
+        bool si_dir        : 1; ///< SI direction
+        bool so_dir        : 1; ///< SO direction
+        bool si_irq_enable : 1; ///< IRQ when SI goes high-to-low (general-purpose mode only)
+        short              : 5; ///< Unused, read-only
+        bool joybus_mode   : 1; ///< When gpio_mode is set: 0=General-Purpose, 1=Joy Bus (bit 14)
+        bool gpio_mode     : 1; ///< General-purpose/Joy Bus mode enable; 0=Normal/Multi/UART (bit 15)
     };
 
     /// @brief General-purpose I/O control register (RCNT, 0x4000134).
