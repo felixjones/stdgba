@@ -2,6 +2,11 @@
 /// @brief Scoped interrupt masking.
 #pragma once
 
+namespace gba::bits {
+    extern "C" unsigned int _stdgba_enter_critical_section() noexcept;
+    extern "C" void _stdgba_exit_critical_section(unsigned int previousInterruptState) noexcept;
+} // namespace gba::bits
+
 namespace gba {
 
     /// @brief Disables interrupts for the lifetime of the object.
@@ -20,28 +25,13 @@ namespace gba {
     /// }
     /// @endcode
     struct critical_section final {
-        [[gnu::target("arm")]]
-        critical_section() noexcept {
-            unsigned int disabled_state;
-            asm volatile("mrs %[previous], cpsr\n"
-                         "orr %[disabled], %[previous], #0x80\n"
-                         "msr cpsr_c, %[disabled]"
-                         : [previous] "=&r"(m_previous_interrupt_state), [disabled] "=&r"(disabled_state)
-                         :
-                         : "cc", "memory");
-            m_previous_interrupt_state &= 0x80;
-        }
+        [[gnu::always_inline]]
+        critical_section() noexcept
+            : m_previous_interrupt_state(bits::_stdgba_enter_critical_section()) {}
 
-        [[gnu::target("arm")]]
+        [[gnu::always_inline]]
         ~critical_section() noexcept {
-            unsigned int restored_state;
-            asm volatile("mrs %[restored], cpsr\n"
-                         "bic %[restored], %[restored], #0x80\n"
-                         "orr %[restored], %[restored], %[previous]\n"
-                         "msr cpsr_c, %[restored]"
-                         : [restored] "=&r"(restored_state)
-                         : [previous] "r"(m_previous_interrupt_state)
-                         : "cc", "memory");
+            bits::_stdgba_exit_critical_section(m_previous_interrupt_state);
         }
 
         critical_section(const critical_section&) = delete;

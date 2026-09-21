@@ -38,6 +38,7 @@ target_sources(stdgba INTERFACE
         source/assert.cpp
         source/assert_entry.S
         source/codegen_patches.s
+        source/critical_section.s
         source/div.s
         source/ldiv.s
         source/lmul.s
