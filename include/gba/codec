@@ -1,0 +1,69 @@
+/// @file gba/codec
+/// @brief Compile-time-first, byte-oriented codec framework for GBA.
+///
+/// Inspired by the Muesli codec library:
+/// https://github.com/felixjones/muesli
+///
+/// `gba::codec` describes wire formats as small, composable constexpr values
+/// ("codecs-as-values") instead of runtime schema descriptions. Composite
+/// codecs are not necessarily structural C++ values; link APIs accept a
+/// namespace-scope constexpr codec through a reference template parameter.
+/// Every codec exposes `value_type` and can manufacture a decoder/encoder pair:
+///
+/// - A decoder is driven one byte at a time: `feed(std::byte) -> step`, where
+///   `step` is `more` (need another byte), `done` (`value()` is now valid),
+///   or `error` (the input seen so far is malformed).
+/// - An encoder is a pull source: `next() -> std::optional<std::byte>`,
+///   returning `std::nullopt` once fully emitted.
+///
+/// This byte-at-a-time contract means codecs work equally well fed from a
+/// whole buffer (`gba::codec::decode`/`encode`), a link-cable byte stream, or
+/// any other incremental source, without change. Malformed input is always
+/// reported through `gba::codec::error` (via `gba::codec::result<T>`, an
+/// alias of `std::expected`); nothing in this module throws.
+///
+/// Fixed-size codecs (`FixedSizeCodec`, exposing `encoded_size`) never
+/// allocate. Only the dynamic container codecs (`vector_of`, `string_codec`)
+/// are permitted to allocate, since their wire size is inherently unbounded.
+///
+/// ## Basic usage
+///
+/// @code{.cpp}
+/// #include <gba/codec>
+///
+/// constexpr auto codec = gba::codec::uint32_codec;
+/// std::array<std::byte, 4> buffer{};
+/// gba::codec::encode(codec, 0xDEADBEEFu, buffer);
+/// const auto outcome = gba::codec::decode(codec, buffer);
+/// // outcome.value == gba::codec::result<std::uint32_t>{0xDEADBEEFu}
+/// @endcode
+///
+/// ## Aggregate projection
+///
+/// @code{.cpp}
+/// struct point { std::int32_t x, y; };
+///
+/// constexpr auto point_codec = gba::codec::make_tuple_codec(
+///     gba::codec::member<&point::x>(gba::codec::int32_codec),
+///     gba::codec::member<&point::y>(gba::codec::int32_codec)
+/// ).apply<point>();
+/// @endcode
+///
+/// ## Variable-length values
+///
+/// @code{.cpp}
+/// // A varint-encoded array length, then that many elements.
+/// constexpr auto ids_codec = gba::codec::vector_of(gba::codec::unsigned_varint_codec);
+/// @endcode
+#pragma once
+
+#include <gba/bits/codec/array.hpp>
+#include <gba/bits/codec/core.hpp>
+#include <gba/bits/codec/delimited.hpp>
+#include <gba/bits/codec/fundamental.hpp>
+#include <gba/bits/codec/optional.hpp>
+#include <gba/bits/codec/range.hpp>
+#include <gba/bits/codec/transform.hpp>
+#include <gba/bits/codec/tuple.hpp>
+#include <gba/bits/codec/variant.hpp>
+#include <gba/bits/codec/varint.hpp>
