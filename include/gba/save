@@ -66,6 +66,9 @@
 /// ee::block buf;
 /// in.read(&buf, 1);
 /// @endcode
+///
+/// For a typed, codec-driven layer over these three memory types (versioned,
+/// checksummed records with automatic field placement), see `<gba/backup>`.
 #pragma once
 
 #include <gba/bits/eeprom/eeprom_512b.hpp>

@@ -4,6 +4,7 @@ project(stdgba LANGUAGES C CXX ASM VERSION 2026.9.0)
 
 add_library(stdgba INTERFACE
         include/gba/angle
+        include/gba/backup
         include/gba/benchmark
         include/gba/bios
         include/gba/codec

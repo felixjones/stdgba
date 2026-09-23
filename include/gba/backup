@@ -1,0 +1,131 @@
+/// @file backup
+/// @brief Codec-driven typed save records, layered on top of `<gba/save>`.
+///
+/// A codec-driven layer over SRAM, EEPROM, and Flash (`<gba/save>`), mirroring
+/// how `gba::link` transports one root C++ type over the link cable.
+/// `gba::bits::backup::record` describes a value's wire format with a `gba::codec`.
+/// `gba::bits::backup::table` persists field presence and locations in a
+/// CRC-checked directory; redundant fields additionally use a durable save intent
+/// so an interrupted write can be detected and recovered through `get_alternate()`.
+///
+/// A `record` doesn't place itself in the backend -- `gba::bits::backup::table` does,
+/// packing each field on its own `Backend::granularity`-aligned boundary
+/// (SRAM: 1 byte, EEPROM: 8-byte block, Flash: sector/page) so records never
+/// share a read-modify-write (or Flash erase) with each other.
+///
+/// `record`/`table` can be used directly against any static backend
+/// (`gba::bits::backup::sram_backend`, `gba::bits::backup::eeprom_backend_8k`,
+/// `gba::bits::backup::flash_backend_standard_64k`, ...), which keeps every
+/// placement/capacity check at compile time:
+///
+/// @code{.cpp}
+/// #include <gba/backup>
+///
+/// struct player_save { std::uint32_t score; std::uint16_t level; };
+///
+/// constexpr auto save_codec = gba::codec::make_tuple_codec(
+///     gba::codec::member<&player_save::score>(gba::codec::uint32_codec),
+///     gba::codec::member<&player_save::level>(gba::codec::uint16_codec)
+/// ).apply<player_save>();
+///
+/// // save_codec is fixed-size, so Capacity can be omitted.
+/// using player_record = gba::bits::backup::record<save_codec, gba::bits::backup::flash_backend_standard_64k>;
+///
+/// // A second, independent field placed on its own sector.
+/// using settings_record = gba::bits::backup::record<settings_codec, gba::bits::backup::flash_backend_standard_64k>;
+///
+/// gba::bits::backup::table<player_record, settings_record> saves;
+/// if (auto loaded = saves.get<0>()) {
+///     use(*loaded);
+/// }
+/// saves.emplace<0>(player_save{.score = 100, .level = 2});
+/// @endcode
+///
+/// ## `gba::backup`: one type, named explicitly like `gba::link`
+///
+/// `gba::backup` erases its held type the same way `gba::link`'s slot does: assigning it a
+/// table (built by a `gba::backup_*` factory variable) determines the concrete
+/// `gba::bits::backup::table` type it holds, until the next assignment. `emplace(...)` returns a
+/// reference to that table directly, so the common case never needs the type spelled out at all;
+/// naming it explicitly (via `get<Held>()`) is only needed to reach the same table again from
+/// somewhere else. Each `gba::backup_*` factory still names a concrete physical `Backend`, so
+/// placement/capacity checks stay `static_assert`s at compile time.
+///
+/// @code{.cpp}
+/// auto& saves = gba::backup.emplace(gba::backup_flash_64k<player_codec, settings_codec>);
+///
+/// if (!saves.get<settings_save>().has_value()) {
+///     saves.emplace<settings_save>(); // default construct settings_save
+/// }
+/// saves.emplace<player_save>(100u, 2);
+/// @endcode
+///
+/// `gba::backup_flash_64k` and friends are plain variables, not functions;
+/// each one is a stateless tag naming a root codec list and a physical
+/// backend. Building the actual table (which reads the backend's directory)
+/// only happens when `gba::backup` is actually assigned, not when the
+/// variable is defined, so referencing more than one `backup_*` variable in
+/// a program is safe.
+#pragma once
+
+#include <gba/bits/save/backend.hpp>
+#include <gba/bits/save/eeprom_backend.hpp>
+#include <gba/bits/save/factory.hpp>
+#include <gba/bits/save/flash_backend.hpp>
+#include <gba/bits/save/record.hpp>
+#include <gba/bits/save/redundant.hpp>
+#include <gba/bits/save/slot.hpp>
+#include <gba/bits/save/sram_backend.hpp>
+#include <gba/bits/save/table.hpp>
+#include <gba/save>
+
+namespace gba {
+
+    using bits::backup::backup_slot;
+
+    /// @brief `record<Codecs, bits::backup::flash_backend_standard_64k>...`, one per 4KB sector.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_flash_64k = bits::backup::backup_flash_64k<Codecs...>;
+
+    /// @brief `record<Codecs, bits::backup::flash_backend_standard_128k>...`, one per 4KB sector.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_flash_128k = bits::backup::backup_flash_128k<Codecs...>;
+
+    /// @brief `record<Codecs, bits::backup::flash_backend_atmel>...`, one per 128-byte page.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_flash_atmel = bits::backup::backup_flash_atmel<Codecs...>;
+
+    /// @brief `record<Codecs, bits::backup::eeprom_backend_512b>...`, one per 8-byte block.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_eeprom_512b = bits::backup::backup_eeprom_512b<Codecs...>;
+
+    /// @brief `record<Codecs, bits::backup::eeprom_backend_8k>...`, one per 8-byte block.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_eeprom_8k = bits::backup::backup_eeprom_8k<Codecs...>;
+
+    /// @brief `record<Codecs, bits::backup::sram_backend>...`, packed byte-for-byte.
+    template<const auto&... Codecs>
+    inline constexpr auto backup_sram = bits::backup::backup_sram<Codecs...>;
+
+    /// @brief Tag a codec for power-loss-safe (never-overwrite-in-place) placement in a
+    /// `gba::backup_*` table; works for both fixed- and variable-size codecs.
+    ///
+    /// @code{.cpp}
+    /// static constexpr auto codec = gba::backup_redundant(
+    ///     gba::codec::make_tuple_codec(gba::codec::member<&settings_save::invert>(gba::codec::bool_codec))
+    ///         .apply<settings_save>());
+    /// @endcode
+    template<gba::codec::Codec C>
+    consteval auto backup_redundant(const C& codec) noexcept {
+        return bits::backup::redundant(codec);
+    }
+
+    /// @brief The process-wide active save table, built by assigning a `gba::backup_*` factory.
+    ///
+    /// @code{.cpp}
+    /// auto& saves = gba::backup.emplace(gba::backup_sram<save_codec>);
+    /// saves.emplace<value_type>(value);
+    /// @endcode
+    inline backup_slot& backup = backup_slot::instance();
+
+} // namespace gba
