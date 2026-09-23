@@ -69,18 +69,19 @@ if (!link.sending()) {
 Each remote player has an independent receive stream:
 
 ```cpp
-for (std::size_t player = 0; player < 4; ++player) {
-    if (player == link.id()) {
+const auto local_player = link.player();
+for (const auto player : gba::multi_players) {
+    if (player == local_player) {
         continue;
     }
 
     while (auto incoming = link.read(player)) {
-        apply_remote_state(player, *incoming);
+        apply_remote_state(gba::multi_player_index(player), *incoming);
     }
 }
 ```
 
-`id()` returns the local player number, `is_parent()` identifies player 0, and `connected()` returns the current
+`player()` returns the local `gba::multi_player` identifier, `is_parent()` identifies player 0, and `connected()` returns the current
 four-player connection mask. A newly configured link initially reports no connected players; topology is learned as
 transfer rounds complete.
 
@@ -110,7 +111,7 @@ link.on_error([](const std::size_t player, const gba::link_error error) {
 ```
 
 The callback runs from `poll()`, never from interrupt context. `gba::link_error::topology_changed` is reported when a
-remote player connects, disconnects, or the local player ID changes. Other errors distinguish receive overflow,
+remote player connects, disconnects, or the local player changes. Other errors distinguish receive overflow,
 malformed framing, integrity failure, codec failure, and hardware failure.
 
 ## See also
@@ -118,3 +119,4 @@ malformed framing, integrity failure, codec failure, and hardware failure.
 - [Normal Link](./normal.md)
 - [Link Protocol](./protocol.md)
 - [Composing Codecs](../codecs/index.md)
+- [`gba::link` Reference](../reference/link.md)

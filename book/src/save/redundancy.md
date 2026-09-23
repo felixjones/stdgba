@@ -72,14 +72,11 @@ grow, shrink, or are erased, the arena's free space can end up split across more
 for some new or grown value may not exist even though the *total* free space would be enough.
 
 `is_fragmented()` and `defragment()` operate on the whole table rather than one field, so, unlike `get<T>()` or
-`emplace<T>(...)`, they cannot be dispatched by a field's value type; reach them through the typed table reference
-that assigning `gba::backup` returns:
+`emplace<T>(...)`, they take no type argument:
 
 ```cpp
-auto& backup = gba::backup.emplace(gba::backup_sram<settings_save::codec>);
-
-if (backup.is_fragmented()) {
-    backup.defragment();
+if (saves.is_fragmented()) {
+    saves.defragment();
 }
 ```
 
@@ -88,6 +85,8 @@ arena's front, in ascending order of current position, consolidating the free sp
 `emplace<T>(...)` already calls `defragment()` automatically, once, whenever a variable-size field doesn't fit as-is,
 so most code never needs to call it directly. Call it explicitly to recover space proactively (e.g. after
 deleting a large record) or to retry a save that failed because a single grown value could not yet be relocated.
+`defragment()` is a no-op while a redundant field has a pending interrupted save, preserving that field's recoverable
+previous allocation until the game handles it.
 
 Fixed-size fields never fragment: their bytes are reserved once, at the front of the backend, and never move.
 
@@ -95,3 +94,4 @@ Fixed-size fields never fragment: their bytes are reserved once, at the front of
 
 - [Backup Storage](./backup.md)
 - [Low-Level Save Access](../advanced/save.md)
+- [`gba::backup` Reference](../reference/backup.md)

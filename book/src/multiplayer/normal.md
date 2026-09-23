@@ -93,3 +93,4 @@ stops the current hardware transfer, clears queued transport state, and allows p
 - [Multi-Player Link](./multi.md)
 - [Link Protocol](./protocol.md)
 - [Composing Codecs](../codecs/index.md)
+- [`gba::link` Reference](../reference/link.md)

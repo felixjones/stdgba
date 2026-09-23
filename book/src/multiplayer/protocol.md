@@ -149,3 +149,4 @@ interrupt context.
 - [Composing Codecs](../codecs/index.md)
 - [Multi-Player Link](./multi.md)
 - [Normal Link](./normal.md)
+- [`gba::link` Reference](../reference/link.md)
