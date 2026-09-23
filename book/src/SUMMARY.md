@@ -41,12 +41,17 @@
 - [Link Protocol](./multiplayer/protocol.md)
 - [Composing Codecs](./codecs/index.md)
 
+# Save Data
+
+- [Backup Storage](./save/backup.md)
+- [Redundancy & Fragmentation](./save/redundancy.md)
+- [Low-Level Save Access](./advanced/save.md)
+
 # Utilities
 
 - [DMA Transfers](./utilities/dma.md)
 - [Shapes](./utilities/shapes.md)
 - [BIOS Functions](./advanced/bios.md)
-- [Save Data](./advanced/save.md)
 - [Memory Utilities](./utilities/memory.md)
 - [Functional Types](./utilities/functional.md)
 - [Compression](./advanced/compression.md)

@@ -1,6 +1,9 @@
-# Save Data
+# Low-Level Save Access
 
 The GBA supports three save memory types. stdgba provides APIs for all three: SRAM, Flash, and EEPROM.
+
+For a higher-level, codec-driven API built on top of these (typed records, automatic placement, redundancy, and
+fragmentation recovery), see [Backup Storage](../save/backup.md).
 
 ## SRAM (32KB)
 
