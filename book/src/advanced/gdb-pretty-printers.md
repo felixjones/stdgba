@@ -23,21 +23,23 @@ When loaded successfully, GDB prints status lines including:
 
 The aggregate loader `gdb/stdgba.py` imports and registers these printer modules:
 
-| Module | Example types |
-|---|---|
-| `gdb/fixed_point.py` | `gba::fixed<Rep, FracBits>` |
-| `gdb/angle.py` | `gba::angle`, `gba::packed_angle<Bits>` |
-| `gdb/format.py` | `gba::format::compiled_format`, `arg_binder`, `bound_arg`, `format_generator` |
-| `gdb/music.py` | `gba::music::note`, `bpm_value`, `token_type`, `ast_type`, `token`, pattern types |
-| `gdb/log.py` | `gba::log::level` |
-| `gdb/video.py` | `gba::color`, `gba::object` |
-| `gdb/keyinput.py` | `gba::keypad` |
-| `gdb/key.py` | `gba::key` |
-| `gdb/registral.py` | `gba::registral<T>` |
-| `gdb/memory.py` | `gba::plex<...>`, `gba::unique<T>`, `gba::bitpool` |
-| `gdb/benchmark.py` | `gba::benchmark::cycle_counter` |
-| `gdb/interrupt.py` | `gba::irq`, `gba::irq_handler` |
-| `gdb/timer.py` | `gba::timer::compiled_timer` |
+| Module               | Example types                                                                        |
+|----------------------|--------------------------------------------------------------------------------------|
+| `gdb/fixed_point.py` | `gba::fixed<Rep, FracBits>`                                                          |
+| `gdb/angle.py`       | `gba::angle`, `gba::packed_angle<Bits>`                                              |
+| `gdb/format.py`      | `gba::format::compiled_format`, `arg_binder`, `bound_arg`, `format_generator`        |
+| `gdb/music.py`       | `gba::music::note`, `bpm_value`, `token_type`, `ast_type`, `token`, pattern types    |
+| `gdb/log.py`         | `gba::log::level`                                                                    |
+| `gdb/video.py`       | `gba::color`, `gba::object`                                                          |
+| `gdb/keyinput.py`    | `gba::keypad`                                                                        |
+| `gdb/key.py`         | `gba::key`                                                                           |
+| `gdb/registral.py`   | `gba::registral<T>`                                                                  |
+| `gdb/memory.py`      | `gba::plex<...>`, `gba::unique<T>`, `gba::bitpool`                                   |
+| `gdb/benchmark.py`   | `gba::benchmark::cycle_counter`                                                      |
+| `gdb/interrupt.py`   | `gba::irq`, `gba::irq_handler`                                                       |
+| `gdb/timer.py`       | `gba::timer::compiled_timer`                                                         |
+| `gdb/link.py`        | `gba::link_error`, `gba::link_multi<...>`, `gba::link_normal<...>`, `gba::link_slot` |
+| `gdb/backup.py`      | `gba::bits::backup::table<...>`, `gba::backup_slot`                                  |
 
 You can also source any individual module directly if you only want one printer.
 
@@ -68,12 +70,17 @@ print fix8_val
 print angle_90
 print key_combo
 print test_pool
+print link_multi
+print backup_table
 ```
 
 Expected output is human-readable (for example fixed-point decimal form and decoded key masks), rather than only raw integer fields.
+Link transport printers show sending, busy, connection, and per-peer error state. Backup table printers show only
+directory allocation metadata, including pending redundant saves; they never read or decode backup-chip payloads.
 
 ## Notes
 
 - `test_pretty_printers` is listed in `tests/CMakeLists.txt` under `MANUAL_TESTS`, so it is intentionally excluded from CTest automation.
 - Pretty-printers are a debugger convenience only; they do not affect generated ROM code or runtime behaviour.
+- The GDB build must include Python scripting support; some bundled cross-GDB builds omit it.
 - If GDB warns about auto-load restrictions, allow the script path in your local GDB security settings before sourcing the file.

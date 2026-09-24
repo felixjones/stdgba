@@ -9,15 +9,19 @@
 /// source D:/CLionProjects/stdgba/gdb/stdgba.py
 
 #include <gba/angle>
+#include <gba/backup>
 #include <gba/fixed_point>
 #include <gba/format>
 #include <gba/keyinput>
+#include <gba/link>
 #include <gba/logger>
 #include <gba/memory>
 #include <gba/peripherals>
 #include <gba/testing>
 
 using namespace gba::literals;
+
+constexpr auto link_codec = gba::codec::uint8_codec;
 
 // Prevent optimizer from removing variables
 template<typename T>
@@ -159,6 +163,23 @@ int main() {
     use(test_pool);
     use(alloc1);
     use(alloc2);
+
+    // Section: link.py
+
+    gba::link_multi<link_codec, 16> link_multi;
+    gba::link_normal<link_codec, 16> link_normal{true};
+    gba::link_error link_errors = gba::link_error::receive_overflow | gba::link_error::integrity_failure;
+
+    use(link_multi);
+    use(link_normal);
+    use(link_errors);
+
+    // Section: backup.py
+
+    using backup_table_type = decltype(gba::backup_sram<link_codec>)::table_type;
+    backup_table_type backup_table;
+
+    use(backup_table);
 
     // BREAKPOINT HERE - inspect all variables above
     asm volatile("nop");

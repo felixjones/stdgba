@@ -22,6 +22,8 @@ Individual printers can also be loaded separately:
     source /path/to/stdgba/gdb/benchmark.py
     source /path/to/stdgba/gdb/interrupt.py
     source /path/to/stdgba/gdb/timer.py
+    source /path/to/stdgba/gdb/link.py
+    source /path/to/stdgba/gdb/backup.py
 
 Supported types:
     - gba::fixed<Rep, FracBits>      -> "3.5 [raw=0x380]"
@@ -44,6 +46,10 @@ Supported types:
     - gba::irq                       -> "{vblank|timer0|dma0}"
     - gba::irq_handler               -> "handler=0x8000000 (installed)"
     - gba::timer::compiled_timer     -> "[0] prescaler=1024, reload=16384, enable, irq"
+    - gba::link_error                -> "receive_overflow|integrity_failure"
+    - gba::link_multi<...>           -> "link_multi(sending=False wire=0/0, busy=False, connected={0,1})"
+    - gba::link_normal<...>          -> "link_normal(sending=False wire=0/0, busy=False)"
+    - gba::backup::table<...>        -> "backup_table(fields=2, stored=1, pending=0)"
 """
 
 import os
@@ -123,5 +129,15 @@ try:
     import timer
 except ImportError as e:
     print(f"  Warning: Could not load timer printer: {e}")
+
+try:
+    import link
+except ImportError as e:
+    print(f"  Warning: Could not load link printer: {e}")
+
+try:
+    import backup
+except ImportError as e:
+    print(f"  Warning: Could not load backup printer: {e}")
 
 print("stdgba pretty printers loaded successfully")
