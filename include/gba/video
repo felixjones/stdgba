@@ -43,11 +43,32 @@ namespace gba {
     inline constexpr auto mem_vram_obj = registral<short[0x4000]>{0x6010000};
 
     /// @brief Object rendering mode.
+    ///
+    /// @see undocumented::mode_stereo for mode 3.
     enum mode : short {
         mode_normal = 0, ///< Normal rendering
         mode_blend = 1,  ///< Alpha blending enabled
         mode_window = 2  ///< Object window mode
     };
+
+    namespace undocumented {
+        /// @brief Stereo 3D object mode (OAM attr0 mode 3).
+        ///
+        /// Only takes effect while `undocumented::reg_stereo_3d` is enabled. Even OAM indices draw to the
+        /// left eye, odd indices to the right eye. Not considered "documented" by the community.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// gba::obj_mem[0] = { .y = 80, .mode = gba::undocumented::mode_stereo, .x = 120 }; // left eye
+        /// gba::obj_mem[1] = { .y = 80, .mode = gba::undocumented::mode_stereo, .x = 122 }; // right eye
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// obj_mem[0].attr0 = OBJ_Y(80) | (3 << 10);
+        /// @endcode
+        inline constexpr auto mode_stereo = static_cast<gba::mode>(3);
+    } // namespace undocumented
 
     /// @brief Object/tile color depth.
     enum depth : short {

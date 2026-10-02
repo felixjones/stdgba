@@ -215,5 +215,21 @@ int main() {
         static_assert(gba::shape_wide == 1);
         static_assert(gba::shape_tall == 2);
     }
+
+    // Section: stereo 3D
+    {
+        static_assert(sizeof(gba::undocumented::background_control_stereo) == sizeof(gba::background_control));
+        static_assert(gba::undocumented::stereo_both == 0);
+        static_assert(gba::undocumented::stereo_right == 1);
+        static_assert(gba::undocumented::stereo_left == 2);
+        static_assert(gba::undocumented::stereo_duplicate_left == 3);
+
+        constexpr gba::undocumented::background_control_stereo bgcnt = {
+            .priority = 1, .stereo = gba::undocumented::stereo_duplicate_left, .screenblock = 31};
+        gba::test.eq(__builtin_bit_cast(unsigned short, bgcnt), 0x1F31);
+
+        constexpr gba::object obj = {.mode = gba::undocumented::mode_stereo};
+        gba::test.eq(__builtin_bit_cast(std::array<unsigned short, 3>, obj)[0], 0x0C00);
+    }
     return gba::test.finish();
 }

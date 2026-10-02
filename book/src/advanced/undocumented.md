@@ -6,9 +6,10 @@ Use them when you know exactly why you need them. For everyday game code, prefer
 
 ## What lives in `gba::undocumented`
 
-Two public headers contribute to the namespace:
+Three public headers contribute to the namespace:
 
 - `<gba/peripherals>` for undocumented memory-mapped registers
+- `<gba/video>` for undocumented OAM values (`mode_stereo`)
 - `<gba/bios>` for undocumented BIOS SWIs
 
 ## Why these APIs are separate
@@ -43,13 +44,14 @@ This is mainly useful for:
 
 `<gba/peripherals>` exposes these registers:
 
-| Address | API | Type | Typical use |
-|---------|-----|------|-------------|
-| `0x4000002` | `reg_stereo_3d` | `bool` | Historical `GREENSWAP` / stereo-3D experiment |
-| `0x4000300` | `reg_postflg` | `bool` | Check whether the system has already passed the BIOS boot sequence |
-| `0x4000301` | `reg_haltcnt` | `halt_control` | Low-power mode control |
-| `0x4000410` | `reg_obj_center` | `volatile char` | Rare OBJ-centre hardware experiment register |
-| `0x4000800` | `reg_memcnt` | `memory_control` | BIOS/EWRAM control |
+| Address     | API                   | Type                           | Typical use                                                        |
+|-------------|-----------------------|--------------------------------|--------------------------------------------------------------------|
+| `0x4000002` | `reg_stereo_3d`       | `bool`                         | Stereo 3D enable (historically `GREENSWAP`)                        |
+| `0x4000008` | `reg_bgcnt_stereo[4]` | `background_control_stereo[4]` | Per-background stereo eye selection                                |
+| `0x4000300` | `reg_postflg`         | `bool`                         | Check whether the system has already passed the BIOS boot sequence |
+| `0x4000301` | `reg_haltcnt`         | `halt_control`                 | Low-power mode control                                             |
+| `0x4000410` | `reg_obj_center`      | `volatile char`                | Rare OBJ-centre hardware experiment register                       |
+| `0x4000800` | `reg_memcnt`          | `memory_control`               | BIOS/EWRAM control                                                 |
 
 The [Undocumented Registers](../reference/peripherals/undocumented.md) reference page lists the raw addresses. This page focuses on when they are practically useful.
 
@@ -57,15 +59,38 @@ The [Undocumented Registers](../reference/peripherals/undocumented.md) reference
 
 ```cpp
 #include <gba/peripherals>
+#include <gba/video>
 
 gba::undocumented::reg_stereo_3d = true;
+
+// BG0 only in the left eye, BG1 only in the right eye
+gba::undocumented::reg_bgcnt_stereo[0] = { .stereo = gba::undocumented::stereo_left, .screenblock = 30 };
+gba::undocumented::reg_bgcnt_stereo[1] = { .stereo = gba::undocumented::stereo_right, .screenblock = 31 };
+
+// Stereo objects: even OAM index = left eye, odd OAM index = right eye
+gba::obj_mem[0] = { .y = 80, .mode = gba::undocumented::mode_stereo, .x = 120 };
+gba::obj_mem[1] = { .y = 80, .mode = gba::undocumented::mode_stereo, .x = 120 };
 ```
 
-This register is historically known as `GREENSWAP`. It is not part of normal rendering workflows, and support can vary across emulators and hardware interpretations.
+This is bit 16 of `DISPCNT`, historically known as `GREENSWAP`. It enables a stereoscopic display mode in which output
+pixels alternate between the left and right eye across each scanline.
 
-It is best treated as a curiosity or research feature, not a mainstream graphics tool.
+Each layer then chooses which eye it draws to:
 
-If you are investigating colour-path behaviour, also see [Green Low Bit (`grn_lo`)](./green-low-bit.md).
+- backgrounds use `reg_bgcnt_stereo`, an alias of `reg_bgcnt` that exposes bits 4-5 as a stereo mode
+- objects use OBJ mode 3, `mode_stereo`, where even OAM indices draw to the left eye and odd indices to the right eye
+
+| `stereo`                | Effect                                    |
+|-------------------------|-------------------------------------------|
+| `stereo_both`           | Both eyes visible (rendered as-is)        |
+| `stereo_right`          | Right eye only                            |
+| `stereo_left`           | Left eye only                             |
+| `stereo_duplicate_left` | Duplicate the left eye into the right eye |
+
+Because the eyes are interleaved after scrolling and object placement, move backgrounds and objects in steps of 2
+pixels. Odd offsets put graphics into the wrong eye.
+
+It is best treated as a research feature, not a usable peripheral. Emulator support is required.
 
 ## `reg_postflg`
 

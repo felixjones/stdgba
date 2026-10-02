@@ -438,6 +438,16 @@ namespace gba {
         /// Enables an unused stereo 3D display mode. Historically known as "GREENSWAP".
         /// Not considered "documented" by the community.
         ///
+        /// While enabled, output pixels are interleaved left/right/left/right... across each scanline
+        /// (even columns = left eye, odd columns = right eye). Each layer then selects which eye(s) it
+        /// draws to:
+        /// - Backgrounds via `undocumented::reg_bgcnt_stereo` (BGxCNT bits 4-5, ignored when disabled).
+        /// - Objects via `undocumented::mode_stereo` (OAM attr0 mode 3); even OBJ IDs draw to the
+        ///   left eye, odd OBJ IDs to the right eye.
+        ///
+        /// Stereo processing happens late in the pipeline, so BG scroll and OBJ positions must move in
+        /// steps of 2 to move one stereoscopic pixel; odd offsets put graphics in the wrong eye.
+        ///
         /// Example:
         /// @code{.cpp}
         /// gba::undocumented::reg_stereo_3d = true;
@@ -497,6 +507,8 @@ namespace gba {
     /// @brief Background control bitfield (BGCNT).
     ///
     /// Controls priority, tile/map base, mosaic, color depth, and size.
+    ///
+    /// @see undocumented::background_control_stereo for the stereo 3D view of bits 4-5.
     struct background_control {
         unsigned short priority    : 2; ///< BG priority (0 = highest)
         unsigned short charblock   : 2; ///< Character base block
@@ -520,6 +532,54 @@ namespace gba {
     /// REG_BG0CNT = BG_SBB(31) | BG_CBB(0);
     /// @endcode
     inline constexpr auto reg_bgcnt = registral<background_control[4]>{0x4000008};
+
+    namespace undocumented {
+        /// @brief Background stereo eye selection (BGxCNT bits 4-5).
+        ///
+        /// Only takes effect while `undocumented::reg_stereo_3d` is enabled.
+        enum stereo_mode : unsigned short {
+            stereo_both = 0,           ///< Both eyes visible (rendered as-is)
+            stereo_right = 1,          ///< Right eye only
+            stereo_left = 2,           ///< Left eye only
+            stereo_duplicate_left = 3, ///< Duplicate the left eye into the right eye
+        };
+
+        /// @brief Background control bitfield with stereo 3D eye selection (BGxCNT).
+        ///
+        /// Aliases `background_control`, exposing the otherwise unused bits 4-5 as the stereo mode.
+        /// Not considered "documented" by the community.
+        ///
+        /// @see background_control, reg_stereo_3d
+        struct background_control_stereo {
+            unsigned short priority    : 2; ///< BG priority (0 = highest)
+            unsigned short charblock   : 2; ///< Character base block
+            stereo_mode stereo         : 2; ///< Stereo eye selection (ignored unless stereo 3D is enabled)
+            bool mosaic                : 1; ///< Enable mosaic effect
+            bool bpp8                  : 1; ///< 8bpp mode (false = 4bpp)
+            unsigned short screenblock : 5; ///< Screen base block
+            bool wrap_affine_tiles     : 1; ///< Wrap for affine BGs
+            unsigned short size        : 2; ///< BG size
+        };
+
+        /// @brief Background control registers with stereo 3D eye selection (BG0CNT-BG3CNT, 0x4000008-0x400000F).
+        ///
+        /// Aliases `reg_bgcnt`. Not considered "documented" by the community.
+        ///
+        /// Example:
+        /// @code{.cpp}
+        /// gba::undocumented::reg_stereo_3d = true;
+        /// gba::undocumented::reg_bgcnt_stereo[0] = {
+        ///     .stereo = gba::undocumented::stereo_left,
+        ///     .screenblock = 31,
+        /// };
+        /// @endcode
+        ///
+        /// TONCLIB Equivalent:
+        /// @code{.c}
+        /// REG_BG0CNT = BG_SBB(31) | (2 << 4);
+        /// @endcode
+        inline constexpr auto reg_bgcnt_stereo = registral<background_control_stereo[4]>{0x4000008};
+    } // namespace undocumented
 
     /// @brief Background scroll offset registers (write-only).
     ///
