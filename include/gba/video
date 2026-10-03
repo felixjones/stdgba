@@ -45,7 +45,7 @@ namespace gba {
     /// @brief Object rendering mode.
     ///
     /// @see undocumented::mode_stereo for mode 3.
-    enum mode : short {
+    enum mode : unsigned short {
         mode_normal = 0, ///< Normal rendering
         mode_blend = 1,  ///< Alpha blending enabled
         mode_window = 2  ///< Object window mode
@@ -71,13 +71,13 @@ namespace gba {
     } // namespace undocumented
 
     /// @brief Object/tile color depth.
-    enum depth : short {
+    enum depth : unsigned short {
         depth_4bpp = 0, ///< 4 bits per pixel (16 colors)
         depth_8bpp = 1  ///< 8 bits per pixel (256 colors)
     };
 
     /// @brief Object shape.
-    enum shape : short {
+    enum shape : unsigned short {
         shape_square = 0, ///< Square (size determines dimensions)
         shape_wide = 1,   ///< Wider than tall
         shape_tall = 2    ///< Taller than wide

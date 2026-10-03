@@ -214,6 +214,11 @@ int main() {
         static_assert(gba::shape_square == 0);
         static_assert(gba::shape_wide == 1);
         static_assert(gba::shape_tall == 2);
+
+        static_assert(gba::object_affine{.shape = gba::shape_tall}.shape == gba::shape_tall, "bitfield reads back");
+        static_assert(gba::object{.depth = gba::depth_8bpp}.depth == gba::depth_8bpp);
+        static_assert(gba::object{.mode = gba::mode_window}.mode == gba::mode_window);
+        static_assert(gba::object{.mode = gba::undocumented::mode_stereo}.mode == gba::undocumented::mode_stereo);
     }
 
     // Section: stereo 3D
