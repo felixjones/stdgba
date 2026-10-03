@@ -31,6 +31,12 @@
 
 namespace gba {
 
+    /// @brief LCD width in pixels.
+    inline constexpr int screen_width = 240;
+
+    /// @brief LCD height in pixels.
+    inline constexpr int screen_height = 160;
+
     // Color and palette-memory APIs are provided by <gba/color>.
 
     /// Full VRAM (96KB). tonclib: `vid_mem`

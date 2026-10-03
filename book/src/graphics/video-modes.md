@@ -1,5 +1,8 @@
 # Video Modes
 
+`<gba/video>` defines `gba::screen_width` (240) and `gba::screen_height` (160) for the physical
+LCD dimensions in pixels. These are independent of the selected framebuffer or background size.
+
 The GBA has 6 video modes (0-5), split into two categories:
 
 - **Tile modes (0-2)** - the display is built from 8x8 pixel tiles arranged on background layers
