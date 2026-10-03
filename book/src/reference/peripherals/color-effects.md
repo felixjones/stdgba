@@ -10,27 +10,27 @@
 
 ```cpp
 struct blend_control {
-    bool dest_bg0 : 1;    // 2nd target layers
-    bool dest_bg1 : 1;
-    bool dest_bg2 : 1;
-    bool dest_bg3 : 1;
-    bool dest_obj : 1;
-    bool dest_backdrop : 1;
-    blend_op blend_op : 2; // none / alpha / brighten / darken
-    bool src_bg0 : 1;     // 1st target layers
+    bool src_bg0 : 1;     // 1st target layers (bits 0-5)
     bool src_bg1 : 1;
     bool src_bg2 : 1;
     bool src_bg3 : 1;
     bool src_obj : 1;
     bool src_backdrop : 1;
+    blend_op blend_op : 2; // none / alpha / brighten / darken
+    bool dest_bg0 : 1;    // 2nd target layers (bits 8-13)
+    bool dest_bg1 : 1;
+    bool dest_bg2 : 1;
+    bool dest_bg3 : 1;
+    bool dest_obj : 1;
+    bool dest_backdrop : 1;
 };
 ```
 
 ```cpp
 gba::reg_bldcnt = {
     .src_bg0 = true,
-    .dest_bg1 = true,
-    .blend_op = gba::blend_op_alpha
+    .blend_op = gba::blend_op_alpha,
+    .dest_bg1 = true
 };
 gba::reg_bldalpha[0] = 0.5_fx; // EVA (source weight)
 gba::reg_bldalpha[1] = 0.5_fx; // EVB (target weight)

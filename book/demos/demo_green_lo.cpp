@@ -35,7 +35,7 @@ int main() {
 
     // Brightness increase on BG2 - hardware processes the full 6-bit
     // green channel, revealing the hidden text on real hardware
-    gba::reg_bldcnt = {.dest_bg2 = true, .blend_op = gba::blend_op_brighten};
+    gba::reg_bldcnt = {.src_bg2 = true, .blend_op = gba::blend_op_brighten};
     using namespace gba::literals;
     gba::reg_bldy = 0.25_fx;
 

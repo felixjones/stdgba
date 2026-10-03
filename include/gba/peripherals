@@ -784,28 +784,29 @@ namespace gba {
 
     /// @brief Blend control bitfield (BLDCNT, 0x4000050).
     ///
-    /// Controls color blending between layers.
+    /// Controls color blending between layers. The 1st (`src_`) targets are drawn over the 2nd (`dest_`) targets;
+    /// brighten and darken apply to the 1st targets only.
     struct blend_control {
-        bool dest_bg0          : 1; ///< BG0 is 2nd target
-        bool dest_bg1          : 1; ///< BG1 is 2nd target
-        bool dest_bg2          : 1; ///< BG2 is 2nd target
-        bool dest_bg3          : 1; ///< BG3 is 2nd target
-        bool dest_obj          : 1; ///< OBJ is 2nd target
-        bool dest_backdrop     : 1; ///< Backdrop is 2nd target
-        gba::blend_op blend_op : 2; ///< Blend operation
         bool src_bg0           : 1; ///< BG0 is 1st target
         bool src_bg1           : 1; ///< BG1 is 1st target
         bool src_bg2           : 1; ///< BG2 is 1st target
         bool src_bg3           : 1; ///< BG3 is 1st target
         bool src_obj           : 1; ///< OBJ is 1st target
         bool src_backdrop      : 1; ///< Backdrop is 1st target
+        gba::blend_op blend_op : 2; ///< Blend operation
+        bool dest_bg0          : 1; ///< BG0 is 2nd target
+        bool dest_bg1          : 1; ///< BG1 is 2nd target
+        bool dest_bg2          : 1; ///< BG2 is 2nd target
+        bool dest_bg3          : 1; ///< BG3 is 2nd target
+        bool dest_obj          : 1; ///< OBJ is 2nd target
+        bool dest_backdrop     : 1; ///< Backdrop is 2nd target
     };
 
     /// @brief Blend control register (BLDCNT, 0x4000050).
     ///
     /// Example:
     /// @code{.cpp}
-    /// gba::reg_bldcnt = { .src_bg0 = true, .dest_bg1 = true, .blend_op = gba::blend_op_alpha };
+    /// gba::reg_bldcnt = { .src_bg0 = true, .blend_op = gba::blend_op_alpha, .dest_bg1 = true };
     /// @endcode
     ///
     /// TONCLIB Equivalent:

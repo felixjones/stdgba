@@ -1,6 +1,7 @@
 /// @file test_video.cpp
-/// @brief Tests for video types: color, _clr literal, object, screen_entry.
+/// @brief Tests for video types: color, _clr literal, object, screen_entry, blend_control.
 
+#include <gba/peripherals>
 #include <gba/testing>
 #include <gba/video>
 
@@ -219,6 +220,20 @@ int main() {
         static_assert(gba::object{.depth = gba::depth_8bpp}.depth == gba::depth_8bpp);
         static_assert(gba::object{.mode = gba::mode_window}.mode == gba::mode_window);
         static_assert(gba::object{.mode = gba::undocumented::mode_stereo}.mode == gba::undocumented::mode_stereo);
+    }
+
+    // Section: blend_control matches BLDCNT (1st targets in bits 0-5, 2nd targets in bits 8-13)
+    {
+        static_assert(sizeof(gba::blend_control) == 2);
+        gba::test.eq(__builtin_bit_cast(unsigned short, gba::blend_control{.src_bg0 = true}), 0x0001);
+        gba::test.eq(__builtin_bit_cast(unsigned short, gba::blend_control{.src_backdrop = true}), 0x0020);
+        gba::test.eq(__builtin_bit_cast(unsigned short, gba::blend_control{.blend_op = gba::blend_op_darken}), 0x00C0);
+        gba::test.eq(__builtin_bit_cast(unsigned short, gba::blend_control{.dest_bg0 = true}), 0x0100);
+        gba::test.eq(__builtin_bit_cast(unsigned short, gba::blend_control{.dest_backdrop = true}), 0x2000);
+        constexpr gba::blend_control top_bg0_bottom_bg1 = {.src_bg0 = true,
+                                                           .blend_op = gba::blend_op_alpha,
+                                                           .dest_bg1 = true};
+        gba::test.eq(__builtin_bit_cast(unsigned short, top_bg0_bottom_bg1), 0x0241);
     }
 
     // Section: stereo 3D
