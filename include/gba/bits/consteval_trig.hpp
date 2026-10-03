@@ -5,7 +5,7 @@
 namespace gba::bits {
 
     // Compute sine and cosine from a 16-bit GBA angle (0..65535 -> 0..2*pi)
-    // This is a small, constexpr-friendly implementation using quadrant reduction and
+    // This is a small compile-time-only implementation using quadrant reduction and
     // a short Taylor series on [0, pi/2]. Returns {sin, cos} as long double values.
     consteval std::pair<long double, long double> sin_cos(unsigned int alpha16) {
         constexpr long double PI = 3.14159265358979323846L;

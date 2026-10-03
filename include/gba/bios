@@ -22,8 +22,8 @@
 
 #include <gba/angle>
 #include <gba/bits/bios.hpp>
+#include <gba/bits/consteval_trig.hpp>
 #include <gba/bits/constexpr_assert.hpp>
-#include <gba/bits/constexpr_trig.hpp>
 #include <gba/fixed_point>
 #include <gba/peripherals>
 
