@@ -1,6 +1,8 @@
 # Embedded WAV Samples
 
-The `<gba/music>` header provides consteval WAV parsing and resampling for the GBA's wave channel (PWM output with 64??4-bit custom waveforms). Combined with C23's `#embed` directive, custom acoustic instruments and samples can be baked into the ROM at compile time.
+The `<gba/music>` header provides consteval WAV parsing and resampling for the GBA's wave channel (PWM output with
+64x4-bit custom waveforms). Combined with C23's `#embed` directive, custom acoustic instruments and samples can be baked
+into the ROM at compile time.
 
 For procedural sprite generation, see [Shapes](../utilities/shapes.md). For music composition with square-wave channels, see [Music Composition](./music.md).
 
