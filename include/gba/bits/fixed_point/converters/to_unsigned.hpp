@@ -18,12 +18,12 @@ namespace gba {
     /// Warning: Negative values will wrap around!
     ///   fixed<char, 4> neg = -3.5;
     ///   auto bad = as_unsigned(neg);  // Wraps to large positive value!
-    template<fixed_point T>
+    template<FixedPoint T>
     struct unsigned_wrapper : conversion_wrapper_base<T, unsigned_wrapper<T>> {
         using base = conversion_wrapper_base<T, unsigned_wrapper<T>>;
         using base::base;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -45,7 +45,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr unsigned_wrapper<T> as_unsigned(const T& value) noexcept {
         return unsigned_wrapper<T>(value);
     }

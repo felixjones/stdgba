@@ -1,10 +1,9 @@
 #pragma once
 
-#include <array>
-#include <bit>
+#include <algorithm>
+#include <concepts>
 #include <cstddef>
 #include <ranges>
-#include <vector>
 
 namespace gba::bits {
 

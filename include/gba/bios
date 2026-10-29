@@ -281,7 +281,7 @@ namespace gba {
     /// auto root = gba::Sqrt(4.0_fx); // ~2.0
     /// @endcode
     [[nodiscard, gnu::const]]
-    constexpr auto Sqrt(fixed_point auto arg) noexcept -> decltype(arg)
+    constexpr auto Sqrt(FixedPoint auto arg) noexcept -> decltype(arg)
         requires(std::numeric_limits<typename fixed_point_traits<decltype(arg)>::underlying_type>::digits <= 16)
     {
         const auto higherPrecision =
@@ -361,7 +361,7 @@ namespace gba {
     /// @param y The y coordinate (fixed-point).
     /// @return 16-bit angle where 0x10000 = 360 degrees.
     [[nodiscard, gnu::const]]
-    constexpr packed_angle16 ArcTan2(fixed_point auto x, fixed_point auto y) noexcept {
+    constexpr packed_angle16 ArcTan2(FixedPoint auto x, FixedPoint auto y) noexcept {
         return ArcTan2(bit_cast(x), bit_cast(y));
     }
 

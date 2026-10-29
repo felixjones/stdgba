@@ -14,7 +14,7 @@ namespace gba {
     /// Usage:
     ///   fixed<unsigned char, 4> a = 3.5;
     ///   auto result = -as_signed(a);  // Result: fixed<short, 4> with value -3.5
-    template<fixed_point T>
+    template<FixedPoint T>
     struct signed_wrapper : conversion_wrapper_base<T, signed_wrapper<T>> {
         using base = conversion_wrapper_base<T, signed_wrapper<T>>;
         using base::base;
@@ -30,7 +30,7 @@ namespace gba {
         template<typename Rep>
         using make_signed_safe_t = make_signed_safe<Rep>::type;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -51,7 +51,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr signed_wrapper<T> as_signed(const T& value) noexcept {
         return signed_wrapper<T>(value);
     }

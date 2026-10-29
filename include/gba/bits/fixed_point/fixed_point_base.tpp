@@ -91,7 +91,7 @@ namespace gba {
     template<std::integral Rep, unsigned int FracBits, std::integral IntermediateRep>
         requires(FracBits > 0 && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1 &&
                  sizeof(IntermediateRep) >= sizeof(Rep) && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
-    constexpr auto fixed<Rep, FracBits, IntermediateRep>::convert_fixed(fixed_point auto rhs) noexcept {
+    constexpr auto fixed<Rep, FracBits, IntermediateRep>::convert_fixed(FixedPoint auto rhs) noexcept {
         static constexpr auto shift_right = fixed_point_traits<decltype(rhs)>::fractional_digits -
                                             fixed_point_traits<fixed>::fractional_digits;
 
@@ -103,7 +103,7 @@ namespace gba {
     template<std::integral Rep, unsigned int FracBits, std::integral IntermediateRep>
         requires(FracBits > 0 && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1 &&
                  sizeof(IntermediateRep) >= sizeof(Rep) && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
-    template<fixed_point Other>
+    template<FixedPoint Other>
     constexpr bool fixed<Rep, FracBits, IntermediateRep>::trivially_converts_from() {
         if (fixed_point_traits<Other>::fractional_digits > FracBits) {
             return false;
@@ -132,7 +132,7 @@ namespace gba {
     template<std::integral Rep, unsigned int FracBits, std::integral IntermediateRep>
         requires(FracBits > 0 && FracBits <= std::numeric_limits<std::make_unsigned_t<Rep>>::digits - 1 &&
                  sizeof(IntermediateRep) >= sizeof(Rep) && std::is_signed_v<IntermediateRep> == std::is_signed_v<Rep>)
-    constexpr fixed<Rep, FracBits, IntermediateRep>::fixed(fixed_point auto rhs) noexcept
+    constexpr fixed<Rep, FracBits, IntermediateRep>::fixed(FixedPoint auto rhs) noexcept
         // The parentheses are mandatory: a requires-clause only accepts primary expressions.
         // NOLINTNEXTLINE(readability-redundant-parentheses)
         requires(trivially_converts_from<decltype(rhs)>())
@@ -389,107 +389,107 @@ namespace gba {
         return *this;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr std::strong_ordering operator<=>(T lhs, T rhs) noexcept {
         using rep = fixed_point_traits<T>::underlying_type;
         return __builtin_bit_cast(rep, lhs) <=> __builtin_bit_cast(rep, rhs);
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr bool operator==(T lhs, T rhs) noexcept {
         using rep = fixed_point_traits<T>::underlying_type;
         return __builtin_bit_cast(rep, lhs) == __builtin_bit_cast(rep, rhs);
     }
 
-    constexpr std::strong_ordering operator<=>(fixed_point auto lhs, std::integral auto rhs) noexcept {
+    constexpr std::strong_ordering operator<=>(FixedPoint auto lhs, std::integral auto rhs) noexcept {
         return lhs <=> static_cast<decltype(lhs)>(rhs);
     }
 
-    constexpr bool operator==(fixed_point auto lhs, std::integral auto rhs) noexcept {
+    constexpr bool operator==(FixedPoint auto lhs, std::integral auto rhs) noexcept {
         return lhs == static_cast<decltype(lhs)>(rhs);
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator+(T lhs, T rhs) noexcept {
         lhs += rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator-(T lhs, T rhs) noexcept {
         lhs -= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator*(T lhs, T rhs) noexcept {
         lhs *= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator/(T lhs, T rhs) noexcept {
         lhs /= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator+(T lhs, std::integral auto rhs) noexcept {
         lhs += rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator+(std::integral auto lhs, T rhs) noexcept {
         rhs += lhs;
         return rhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator-(T lhs, std::integral auto rhs) noexcept {
         lhs -= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator-(std::integral auto lhs, T rhs) noexcept {
         T tmp{lhs};
         tmp -= rhs;
         return tmp;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator*(T lhs, std::integral auto rhs) noexcept {
         lhs *= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator*(std::integral auto lhs, T rhs) noexcept {
         rhs *= lhs;
         return rhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator/(T lhs, std::integral auto rhs) noexcept {
         lhs /= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator/(std::integral auto lhs, T rhs) noexcept {
         T tmp{lhs};
         tmp /= rhs;
         return tmp;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator<<(T lhs, std::integral auto rhs) noexcept {
         lhs <<= rhs;
         return lhs;
     }
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr T operator>>(T lhs, std::integral auto rhs) noexcept {
         lhs >>= rhs;
         return lhs;

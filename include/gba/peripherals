@@ -20,11 +20,8 @@
 #include <gba/fixed_point>
 #include <gba/memory>
 
-#include <algorithm>
-#include <concepts>
 #include <cstdint>
 #include <type_traits>
-#include <utility>
 
 namespace gba {
 
@@ -104,7 +101,7 @@ namespace gba {
         [[gnu::always_inline]]
         const registral& operator=(std::integral auto&& value) const noexcept
             requires(std::derived_from<registral, bits::write_ops> && !std::integral<value_type> &&
-                     !fixed_point<value_type>)
+                     !FixedPoint<value_type>)
         {
             bits::write_ops::write_integer(static_cast<decltype(value)&&>(value));
             return *this;

@@ -14,12 +14,12 @@ namespace gba {
     ///   fixed<int, 8> a = 3.5;   // 24 int bits (32-8)
     ///   fixed<int, 4> b = 1.25;  // 28 int bits (32-4)
     ///   auto result = as_average_int(a) + b;  // Result: fixed<int, 6> (26 int bits)
-    template<fixed_point T>
+    template<FixedPoint T>
     struct average_int_wrapper : conversion_wrapper_base<T, average_int_wrapper<T>> {
         using base = conversion_wrapper_base<T, average_int_wrapper<T>>;
         using base::base;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -42,7 +42,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr average_int_wrapper<T> as_average_int(const T& value) noexcept {
         return average_int_wrapper<T>(value);
     }

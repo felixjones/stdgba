@@ -15,7 +15,7 @@ namespace gba {
     ///   fixed<char, 4> a = 3.5;
     ///   fixed<short, 8> b = 1.25;
     ///   auto result = as_next_container(a) + b;  // Result: fixed<short, 8> or fixed<int, 8>
-    template<fixed_point T>
+    template<FixedPoint T>
     struct next_container_wrapper : conversion_wrapper_base<T, next_container_wrapper<T>> {
         using base = conversion_wrapper_base<T, next_container_wrapper<T>>;
         using base::base;
@@ -32,7 +32,7 @@ namespace gba {
         template<typename Rep>
         using next_size_t = next_size<Rep>::type;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -54,7 +54,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr next_container_wrapper<T> as_next_container(const T& value) noexcept {
         return next_container_wrapper<T>(value);
     }

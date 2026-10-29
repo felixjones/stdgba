@@ -14,12 +14,12 @@ namespace gba {
     ///   fixed<int, 8> a = 3.5;   // 8 frac bits
     ///   fixed<int, 4> b = 1.25;  // 4 frac bits
     ///   auto result = as_average_frac(a) + b;  // Result: fixed<int, 6>
-    template<fixed_point T>
+    template<FixedPoint T>
     struct average_frac_wrapper : conversion_wrapper_base<T, average_frac_wrapper<T>> {
         using base = conversion_wrapper_base<T, average_frac_wrapper<T>>;
         using base::base;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -35,7 +35,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr average_frac_wrapper<T> as_average_frac(const T& value) noexcept {
         return average_frac_wrapper<T>(value);
     }

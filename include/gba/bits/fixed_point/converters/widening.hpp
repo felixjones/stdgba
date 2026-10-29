@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gba/bits/fixed_point/conversion_wrapper.hpp>
+#include <gba/bits/fixed_point/fixed_point_base.hpp>
 
 namespace gba {
 
@@ -13,12 +14,12 @@ namespace gba {
     ///   fixed<int, 4> low = 1.25;
     ///   fixed<int, 8> high = 3.5;
     ///   auto result = as_widening(low) + high;  // Result: fixed<int, 8>
-    template<fixed_point T>
+    template<FixedPoint T>
     struct widening_wrapper : conversion_wrapper_base<T, widening_wrapper<T>> {
         using base = conversion_wrapper_base<T, widening_wrapper<T>>;
         using base::base;
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -33,7 +34,7 @@ namespace gba {
         }
     };
 
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr widening_wrapper<T> as_widening(const T& value) noexcept {
         return widening_wrapper<T>(value);
     }

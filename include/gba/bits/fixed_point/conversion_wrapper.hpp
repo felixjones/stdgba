@@ -2,8 +2,6 @@
 
 #include <gba/bits/fixed_point/fixed_point_base.hpp>
 
-#include <type_traits>
-
 namespace gba {
 
     /// @brief Trait to identify conversion wrapper types
@@ -17,11 +15,9 @@ namespace gba {
     ///
     /// Must have wrapped_type that is a fixed_point
     template<typename T>
-    // Established public concept spelling; the library uses snake_case for its concepts.
-    // NOLINTNEXTLINE(readability-identifier-naming)
-    concept conversion_wrapper = requires {
+    concept ConversionWrapper = requires {
         typename T::wrapped_type;
-        requires fixed_point<typename T::wrapped_type>;
+        requires FixedPoint<typename T::wrapped_type>;
     };
 
 } // namespace gba
@@ -38,7 +34,7 @@ namespace gba {
     ///
     /// @tparam T The wrapped fixed-point type
     /// @tparam Derived The derived conversion wrapper type (CRTP)
-    template<fixed_point T, typename Derived>
+    template<FixedPoint T, typename Derived>
     struct conversion_wrapper_base : conversion_operators<Derived> {
         using wrapped_type = T;
 
@@ -48,7 +44,7 @@ namespace gba {
 
         constexpr operator T() const noexcept { return wrappedValue; }
 
-        template<fixed_point U>
+        template<FixedPoint U>
         constexpr operator U() const noexcept {
             return convert_fixed<U>(wrappedValue);
         }
@@ -68,7 +64,7 @@ namespace gba {
     ///
     /// This is used by converters since we don't allow static_cast between
     /// incompatible fixed-point types.
-    template<fixed_point To, fixed_point From>
+    template<FixedPoint To, FixedPoint From>
     constexpr To convert_fixed(const From& from) noexcept {
         using from_traits = fixed_point_traits<From>;
         using to_traits = fixed_point_traits<To>;

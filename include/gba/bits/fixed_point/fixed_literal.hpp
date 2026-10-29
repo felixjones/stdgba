@@ -2,6 +2,8 @@
 
 #include <gba/bits/fixed_point/fixed_point_base.hpp>
 
+#include <limits>
+
 namespace gba::literals {
     struct fixed_literal;
 } // namespace gba::literals

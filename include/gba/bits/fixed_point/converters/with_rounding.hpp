@@ -20,7 +20,7 @@ namespace gba {
     /// Rounding behavior:
     ///   - Adds 0.5 (in source precision) before truncating for positive values
     ///   - Subtracts 0.5 before truncating for negative values
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     struct rounding_wrapper {
         // The meta-wrapper is a short-lived non-owning view over the converter it decorates.
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-const-or-ref-data-members)
@@ -34,7 +34,7 @@ namespace gba {
 
         using wrapped_type = W::wrapped_type;
 
-        template<fixed_point From, fixed_point To>
+        template<FixedPoint From, FixedPoint To>
         static constexpr To convert_with_rounding(const From& from) noexcept {
             using from_traits = fixed_point_traits<std::remove_cvref_t<From>>;
             using to_traits = fixed_point_traits<std::remove_cvref_t<To>>;
@@ -63,13 +63,9 @@ namespace gba {
             }
         }
 
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
-            using underlying_result = decltype(W::convert_binary_result(lhs, rhs, op));
-
-            auto result = W::convert_binary_result(lhs, rhs, op);
-
-            return result;
+            return W::convert_binary_result(lhs, rhs, op);
         }
     };
 
@@ -77,12 +73,12 @@ namespace gba {
     ///
     /// @param wrapper Any conversion wrapper to apply rounding to
     /// @return A rounding_wrapper that adds rounding behavior
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr rounding_wrapper<W> with_rounding(const W& wrapper) noexcept {
         return rounding_wrapper<W>(wrapper);
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     struct is_conversion_wrapper<rounding_wrapper<W>> : std::true_type {};
 
 } // namespace gba

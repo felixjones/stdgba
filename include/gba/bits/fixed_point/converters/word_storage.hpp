@@ -14,7 +14,7 @@ namespace gba {
     ///   fixed<char, 4> small = 3.5;     // 8-bit storage
     ///   fixed<short, 6> medium = 1.25;  // 16-bit storage
     ///   auto result = as_word_storage(small) + medium;  // Uses int (32-bit) for performance
-    template<fixed_point T>
+    template<FixedPoint T>
     struct word_storage_wrapper : conversion_wrapper_base<T, word_storage_wrapper<T>> {
         using base = conversion_wrapper_base<T, word_storage_wrapper<T>>;
         using base::base;
@@ -23,7 +23,7 @@ namespace gba {
         ///
         /// Promotes both operands to use int (signed) or unsigned int storage
         /// while preserving their fractional bit precision.
-        template<fixed_point L, fixed_point R, typename Op>
+        template<FixedPoint L, FixedPoint R, typename Op>
         static constexpr auto convert_binary_result(const L& lhs, const R& rhs, Op op) noexcept {
             using lhs_traits = fixed_point_traits<std::remove_cvref_t<L>>;
             using rhs_traits = fixed_point_traits<std::remove_cvref_t<R>>;
@@ -49,7 +49,7 @@ namespace gba {
     ///
     /// @param value The fixed-point value to wrap for word-storage conversion
     /// @return A word_storage_wrapper that uses int/unsigned int for calculations
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr word_storage_wrapper<T> as_word_storage(const T& value) noexcept {
         return word_storage_wrapper<T>(value);
     }

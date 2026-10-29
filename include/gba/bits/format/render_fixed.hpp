@@ -3,13 +3,17 @@
 
 #pragma once
 
+#include <gba/bits/fixed_point/fixed_literal.hpp>
+#include <gba/bits/fixed_point/fixed_point_base.hpp>
+#include <gba/bits/format/parse.hpp>
+#include <gba/bits/format/render_common.hpp>
 #include <gba/bits/format/render_numeric.hpp>
-#include <gba/fixed_point>
 
+#include <cstddef>
 #include <type_traits>
 
 namespace gba::format::bits {
-    template<fixed_point T>
+    template<FixedPoint T>
     constexpr std::size_t render_fixed_point_value(char* out, std::size_t cap, T value, const format_spec& spec) {
         if (spec.fmt_type == format_spec::format_kind::percent) {
             auto percentValue = value * 100;
@@ -26,7 +30,7 @@ namespace gba::format::bits {
 
         if (is_scientific_type(spec.fmt_type) || is_general_type(spec.fmt_type)) {
             using traits = fixed_point_traits<T>;
-            using rep = typename traits::rep;
+            using rep = traits::rep;
             using urep = std::make_unsigned_t<rep>;
             const rep raw = gba::bit_cast(value);
             bool negative = false;
@@ -41,13 +45,13 @@ namespace gba::format::bits {
             } else {
                 absRaw = static_cast<urep>(raw);
             }
-            constexpr auto fracBits = traits::frac_bits;
+            constexpr auto frac_bits = traits::frac_bits;
             return render_scientific_rational(out, cap, negative, static_cast<unsigned long long>(absRaw),
-                                              static_cast<unsigned long long>(1) << fracBits, spec);
+                                              static_cast<unsigned long long>(1) << frac_bits, spec);
         }
 
         using traits = fixed_point_traits<T>;
-        using rep = typename traits::rep;
+        using rep = traits::rep;
         using urep = std::make_unsigned_t<rep>;
 
         const rep raw = gba::bit_cast(value);
@@ -66,7 +70,7 @@ namespace gba::format::bits {
 
         constexpr auto fracBits = traits::frac_bits;
         const auto integerPart = static_cast<unsigned long long>(absRaw >> fracBits);
-        const auto fracMask = (static_cast<unsigned long long>(1) << fracBits) - 1ULL;
+        const auto fracMask = (static_cast<unsigned long long>(1) << fracBits) - 1ull;
         const auto fractionalNumerator = static_cast<unsigned long long>(absRaw) & fracMask;
         return render_fixed_parts(out, cap, negative, integerPart, fractionalNumerator, fracBits, spec, false);
     }

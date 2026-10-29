@@ -3,10 +3,13 @@
 
 #pragma once
 
+#include <gba/bits/angle/angle_base.hpp>
+#include <gba/bits/format/parse.hpp>
 #include <gba/bits/format/render_angle.hpp>
 #include <gba/bits/format/render_fixed.hpp>
 #include <gba/bits/format/render_scalar.hpp>
 
+#include <cstddef>
 #include <type_traits>
 
 namespace gba::format::bits {
@@ -20,7 +23,7 @@ namespace gba::format::bits {
             return render_string_value(out, cap, value, spec);
         } else if constexpr (std::is_integral_v<T>) {
             return render_integer_value(out, cap, value, spec);
-        } else if constexpr (::gba::fixed_point<std::decay_t<T>>) {
+        } else if constexpr (::gba::FixedPoint<std::decay_t<T>>) {
             return render_fixed_point_value(out, cap, value, spec);
         } else if constexpr (std::is_same_v<std::decay_t<T>, literals::angle_literal>) {
             return render_angle_value(out, cap, static_cast<angle>(value), spec);

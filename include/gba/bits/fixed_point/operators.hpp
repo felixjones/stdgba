@@ -1,7 +1,6 @@
 #pragma once
 
 #include <concepts>
-#include <type_traits>
 
 namespace gba {
 
@@ -41,121 +40,121 @@ namespace gba {
 
     template<typename T>
     constexpr decltype(auto) unwrap(const T& value) noexcept {
-        if constexpr (conversion_wrapper<T>) {
+        if constexpr (ConversionWrapper<T>) {
             return move(value);
         } else {
             return value;
         }
     }
 
-    template<conversion_wrapper L, conversion_wrapper R>
+    template<ConversionWrapper L, ConversionWrapper R>
         requires std::is_same_v<L, R>
     constexpr auto operator+(const L& lhs, const R& rhs) noexcept {
         return L::convert_binary_result(unwrap(lhs), unwrap(rhs), [](const auto& a, const auto& b) { return a + b; });
     }
 
-    template<conversion_wrapper L, conversion_wrapper R>
+    template<ConversionWrapper L, ConversionWrapper R>
         requires std::is_same_v<L, R>
     constexpr auto operator-(const L& lhs, const R& rhs) noexcept {
         return L::convert_binary_result(unwrap(lhs), unwrap(rhs), [](const auto& a, const auto& b) { return a - b; });
     }
 
-    template<conversion_wrapper L, conversion_wrapper R>
+    template<ConversionWrapper L, ConversionWrapper R>
         requires std::is_same_v<L, R>
     constexpr auto operator*(const L& lhs, const R& rhs) noexcept {
         return L::convert_binary_result(unwrap(lhs), unwrap(rhs), [](const auto& a, const auto& b) { return a * b; });
     }
 
-    template<conversion_wrapper L, conversion_wrapper R>
+    template<ConversionWrapper L, ConversionWrapper R>
         requires std::is_same_v<L, R>
     constexpr auto operator/(const L& lhs, const R& rhs) noexcept {
         return L::convert_binary_result(unwrap(lhs), unwrap(rhs), [](const auto& a, const auto& b) { return a / b; });
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator+(const W& lhs, std::integral auto rhs) noexcept {
         return unwrap(lhs) + rhs;
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator+(std::integral auto lhs, const W& rhs) noexcept {
         return lhs + unwrap(rhs);
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator-(const W& lhs, std::integral auto rhs) noexcept {
         return unwrap(lhs) - rhs;
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator-(std::integral auto lhs, const W& rhs) noexcept {
         return lhs - unwrap(rhs);
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator*(const W& lhs, std::integral auto rhs) noexcept {
         return unwrap(lhs) * rhs;
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator*(std::integral auto lhs, const W& rhs) noexcept {
         return lhs * unwrap(rhs);
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator/(const W& lhs, std::integral auto rhs) noexcept {
         return unwrap(lhs) / rhs;
     }
 
-    template<conversion_wrapper W>
+    template<ConversionWrapper W>
     constexpr auto operator/(std::integral auto lhs, const W& rhs) noexcept {
         return lhs / unwrap(rhs);
     }
 
-    template<conversion_wrapper W, fixed_point F>
-        requires(!conversion_wrapper<F>)
+    template<ConversionWrapper W, FixedPoint F>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator+(const W& lhs, const F& rhs) noexcept {
         return W::convert_binary_result(unwrap(lhs), rhs, [](const auto& a, const auto& b) { return a + b; });
     }
 
-    template<fixed_point F, conversion_wrapper W>
-        requires(!conversion_wrapper<F>)
+    template<FixedPoint F, ConversionWrapper W>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator+(const F& lhs, const W& rhs) noexcept {
         return W::convert_binary_result(lhs, unwrap(rhs), [](const auto& a, const auto& b) { return a + b; });
     }
 
-    template<conversion_wrapper W, fixed_point F>
-        requires(!conversion_wrapper<F>)
+    template<ConversionWrapper W, FixedPoint F>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator-(const W& lhs, const F& rhs) noexcept {
         return W::convert_binary_result(unwrap(lhs), rhs, [](const auto& a, const auto& b) { return a - b; });
     }
 
-    template<fixed_point F, conversion_wrapper W>
-        requires(!conversion_wrapper<F>)
+    template<FixedPoint F, ConversionWrapper W>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator-(const F& lhs, const W& rhs) noexcept {
         return W::convert_binary_result(lhs, unwrap(rhs), [](const auto& a, const auto& b) { return a - b; });
     }
 
-    template<conversion_wrapper W, fixed_point F>
-        requires(!conversion_wrapper<F>)
+    template<ConversionWrapper W, FixedPoint F>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator*(const W& lhs, const F& rhs) noexcept {
         return W::convert_binary_result(unwrap(lhs), rhs, [](const auto& a, const auto& b) { return a * b; });
     }
 
-    template<fixed_point F, conversion_wrapper W>
-        requires(!conversion_wrapper<F>)
+    template<FixedPoint F, ConversionWrapper W>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator*(const F& lhs, const W& rhs) noexcept {
         return W::convert_binary_result(lhs, unwrap(rhs), [](const auto& a, const auto& b) { return a * b; });
     }
 
-    template<conversion_wrapper W, fixed_point F>
-        requires(!conversion_wrapper<F>)
+    template<ConversionWrapper W, FixedPoint F>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator/(const W& lhs, const F& rhs) noexcept {
         return W::convert_binary_result(unwrap(lhs), rhs, [](const auto& a, const auto& b) { return a / b; });
     }
 
-    template<fixed_point F, conversion_wrapper W>
-        requires(!conversion_wrapper<F>)
+    template<FixedPoint F, ConversionWrapper W>
+        requires(!ConversionWrapper<F>)
     constexpr auto operator/(const F& lhs, const W& rhs) noexcept {
         return W::convert_binary_result(lhs, unwrap(rhs), [](const auto& a, const auto& b) { return a / b; });
     }

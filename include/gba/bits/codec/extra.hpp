@@ -6,7 +6,6 @@
 #include <gba/bits/codec/fundamental.hpp>
 #include <gba/bits/codec/transform.hpp>
 #include <gba/color>
-#include <gba/fixed_point>
 #include <gba/keyinput>
 
 #include <bit>
@@ -66,14 +65,14 @@ namespace gba::codec {
             }
         };
 
-        template<fixed_point Fixed>
+        template<FixedPoint Fixed>
         struct fixed_point_encode {
             using rep = fixed_point_traits<Fixed>::rep;
 
             constexpr rep operator()(const Fixed value) const noexcept { return gba::bit_cast(value); }
         };
 
-        template<fixed_point Fixed>
+        template<FixedPoint Fixed>
         struct fixed_point_decode {
             using rep = fixed_point_traits<Fixed>::rep;
 
@@ -98,7 +97,7 @@ namespace gba::codec {
                                                          detail::packed_angle_decode<Bits>{});
 
     /// @brief Codec for the raw representation of a `gba::fixed` type.
-    template<fixed_point Fixed>
+    template<FixedPoint Fixed>
     inline constexpr auto fixed_point_codec = transform(identity_codec<typename fixed_point_traits<Fixed>::rep>,
                                                         detail::fixed_point_encode<Fixed>{},
                                                         detail::fixed_point_decode<Fixed>{});
