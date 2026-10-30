@@ -7,6 +7,7 @@ set(EMBED_DEMOS
     demo_dma_pcm_wav
     demo_embed_sprite
     demo_embed_fonts
+    demo_reciprocal_floor
     demo_hello_audio_wav
     demo_text_render
         demo_link_multiplay

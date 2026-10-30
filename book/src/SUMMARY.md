@@ -12,6 +12,7 @@
 
 - [Registers & Peripherals](./concepts/registers.md)
 - [Fixed-Point Math](./concepts/fixed-point.md)
+    - [Reciprocal Division](./concepts/reciprocal-division.md)
 - [Angles](./concepts/angles.md)
 - [Interrupts](./concepts/interrupts.md)
 - [Timers](./concepts/timers.md)
@@ -79,6 +80,7 @@
 # Reference
 
 - [`gba::critical_section`](./reference/critical-section.md)
+- [`gba::reciprocal`](./reference/reciprocal.md)
 - [Keypad Class](./reference/keypad.md)
 - [`gba::music::music_player`](./reference/music-player.md)
 - [`gba::link`](./reference/link.md)

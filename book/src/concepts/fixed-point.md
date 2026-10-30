@@ -113,6 +113,11 @@ safe y = 400.0_fx;
 auto safe_prod = x * y;   // wider intermediate
 ```
 
+Division is the slowest fixed-point operation, because the ARM7TDMI has no
+divide instruction. For hot paths such as projection, Mode 7 floors or batches
+of quotients, see [Reciprocal Division](./reciprocal-division.md). It describes
+explicit `gba::reciprocal` strategies that trade accuracy for speed and ROM.
+
 ## Mixed-type arithmetic and promotion API
 
 Operations require compatible types. For different `fixed<>` formats, use the
