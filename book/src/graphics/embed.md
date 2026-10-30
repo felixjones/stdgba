@@ -20,12 +20,13 @@ Format is auto-detected from the file header.
 
 ## Conversion functions
 
-| Function | Output | Best for |
-|----------|--------|----------|
-| `bitmap15` | Flat `gba::color` array | Mode 3 or software blitters |
-| `indexed4` | 4bpp sprite payload + 16-colour palette + tilemap | Backgrounds and 4bpp sprites |
-| `indexed8` | 8bpp tiles + 256-colour palette + tilemap | 8bpp backgrounds |
-| `indexed4_sheet<FrameW, FrameH>` | `sheet4_result` | Animated OBJ sheets; covered on the next page |
+| Function                         | Output                                             | Best for                                      |
+|----------------------------------|----------------------------------------------------|-----------------------------------------------|
+| `bitmap15`                       | Flat `gba::color` array                            | Mode 3 or software blitters                   |
+| `indexed4`                       | 4bpp sprite payload + 16-colour palette + tilemap  | Backgrounds and 4bpp sprites                  |
+| `indexed8`                       | 8bpp tiles + 256-colour palette + tilemap          | 8bpp backgrounds                              |
+| `affine8`                        | 8bpp tiles + palette + linear byte-indexed tilemap | Affine backgrounds in Modes 1 and 2           |
+| `indexed4_sheet<FrameW, FrameH>` | `sheet4_result`                                    | Animated OBJ sheets; covered on the next page |
 
 All converters take a supplier lambda returning `std::array<unsigned char, N>`.
 
@@ -67,6 +68,65 @@ The sprite uses `dedup::none` so its tiles remain sequential - exactly what the 
 
 Transparent pixels (alpha < 128 in the PNG source) become palette index 0, so the hardware automatically shows the background through the sprite.
 
+## Affine backgrounds
+
+`affine8` converts a complete background image into an `affine8_result` containing
+`width`, `height`, `palette`, `tiles` and `map`. The image supplies both the tile
+artwork and its layout; no separate map generation is needed.
+
+Affine backgrounds use 8bpp tiles and one-byte tile indices in row-major order,
+rather than the 16-bit screenblock entries returned by `indexed4` and `indexed8`.
+`affine8` packs two indices into each `std::uint16_t` so the map can be copied
+directly to VRAM without byte writes.
+
+| Image size | BG `size` | Map bytes |
+|------------|----------:|----------:|
+| 128x128    |         0 |       256 |
+| 256x256    |         1 |      1024 |
+| 512x512    |         2 |      4096 |
+| 1024x1024  |         3 |     16384 |
+
+Images must have one of these square dimensions and no more than 256 unique
+8x8 tiles after deduplication. Invalid dimensions or too many tiles cause a
+compile-time error. Identical tiles are merged automatically; affine maps have
+no per-tile flip flags, so mirrored tiles remain separate.
+
+For a 512x512 image:
+
+```cpp
+#include <gba/embed>
+#include <gba/peripherals>
+#include <gba/video>
+#include <cstring>
+
+using namespace gba::literals;
+
+constexpr auto bg = gba::embed::affine8([] {
+    return std::to_array<unsigned char>({
+#embed "background.png"
+    });
+});
+static_assert(bg.width == 512 && bg.height == 512);
+
+void initialize_background() {
+    gba::reg_dispcnt = {.disable = true};
+    std::memcpy(gba::memory_map(gba::pal_bg_mem), bg.palette.data(), sizeof(bg.palette));
+    std::memcpy(gba::memory_map(gba::mem_tile_8bpp[0]), bg.tiles.data(), sizeof(bg.tiles));
+    std::memcpy(gba::memory_map(gba::mem_se[28]), bg.map.data(), sizeof(bg.map));
+    gba::reg_bgcnt[2] = {.bpp8 = true, .screenblock = 28, .wrap_affine_tiles = true, .size = 2};
+    gba::reg_bg_affine[0] = {.p = {1_fx, 0_fx, 0_fx, 1_fx}};
+    gba::reg_dispcnt = {.video_mode = 1, .enable_bg2 = true};
+}
+```
+
+This places tiles at character block 0 and the map at screenblock 28. Each
+8bpp tile occupies 64 bytes; reserve enough space for both payloads without
+overlapping them. The 512x512 map occupies two screenblocks, but its indices
+remain linear across the whole image.
+
+The [reciprocal floor demo](../concepts/reciprocal-division.md#demo-mode-7-floor)
+uses `affine8` with per-scanline transforms to create a perspective floor.
+
 ## Tile deduplication
 
 The `indexed4` and `indexed8` converters accept a `dedup` mode as a template parameter:
@@ -84,7 +144,10 @@ constexpr auto bg = gba::embed::indexed4(supplier);
 constexpr auto obj = gba::embed::indexed4<dedup::none>(supplier);
 ```
 
-When `dedup::flip` is active, matching tiles reuse an existing tile index and encode flip flags in the emitted `screen_entry`. This keeps map VRAM usage low for symmetric art.
+For `indexed4`, `dedup::flip` also matches mirrored tiles and encodes flip flags
+in the emitted `screen_entry`. `indexed8` currently matches identical tiles
+only, including when `dedup::flip` is selected. `affine8` always uses identical-tile
+deduplication and does not take a `dedup` parameter.
 
 ## Sprite OAM helpers
 
@@ -117,7 +180,7 @@ If the source image does not match one of those shapes, `obj()` and `obj_aff()` 
 - **PNG**: RGBA/GA alpha maps transparent pixels (alpha < 128) to palette index 0.
 - **TGA**: 32bpp alpha and 16bpp attribute-bit transparency map transparent pixels (alpha < 128) to palette index 0.
 - **indexed4**: images may spread across multiple palette banks when background tiles use <= 15 opaque colours per tile.
-- **indexed8**: one 256-entry palette is shared across the whole image.
+- **indexed8 / affine8**: one palette of up to 256 entries is shared across the whole image.
 
 ## Constexpr evaluation limits
 
