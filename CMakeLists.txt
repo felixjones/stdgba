@@ -27,6 +27,7 @@ add_library(stdgba INTERFACE
         include/gba/music
         include/gba/overlay
         include/gba/peripherals
+        include/gba/reciprocal
         include/gba/save
         include/gba/shapes
         include/gba/sprite
@@ -51,6 +52,12 @@ target_sources(stdgba INTERFACE
         source/flash.s
         source/format_digits.s
         source/interrupt.cpp
+        source/reciprocal/affine.cpp
+        source/reciprocal/apply.s
+        source/reciprocal/common.cpp
+        source/reciprocal/corrected.cpp
+        source/reciprocal/direct.cpp
+        source/reciprocal/normalized.cpp
         source/memchr.s
         source/memcmp.cpp
         source/memcmp.s

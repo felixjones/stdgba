@@ -46,6 +46,7 @@ Current development is validated against ARM GNU Toolchain (`arm-none-eabi`) and
 ## Core modules
 
 - `gba/fixed_point`, `gba/angle`: deterministic arithmetic types for game math
+- `gba/reciprocal`: callable fixed-point division strategies with explicit accuracy/storage trade-offs
 - `gba/video`, `gba/sprite`, `gba/color`, `gba/peripherals`: display and register-layer APIs
 - `gba/dma`, `gba/timer`, `gba/interrupt`: hardware control and scheduling primitives
 - `gba/testing`, `gba/benchmark`: ROM-native validation and cycle measurement

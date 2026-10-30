@@ -1,0 +1,52 @@
+/// @file reciprocal
+/// @brief Explicit reciprocal division for 32-bit fixed-point types.
+///
+/// Strategies trade accuracy, execution time and ROM table size without
+/// changing gba::fixed::operator/. Call a strategy with a denominator to
+/// prepare an owning divider, or with a numerator and denominator to divide:
+///
+/// @code{.cpp}
+/// using q16 = gba::fixed<int, 16>;
+/// constexpr auto divide = gba::reciprocal::normalized<8, 2>;
+/// auto quotient = divide(q16{12}, q16{3});
+/// auto depth = divide(q16{3});
+/// auto x = depth(q16{12});
+/// auto y = depth(q16{8});
+/// @endcode
+///
+/// @section reciprocal_strategies Strategies
+///
+/// - normalized uses a midpoint seed table and Newton-Raphson refinement.
+/// - affine uses a straight-line seed and refinement without a table.
+/// - direct uses a table for bounded integer denominator magnitudes.
+/// - corrected wraps a supported strategy for exact truncating results.
+///
+/// Each strategy exposes table_bytes. Matching configurations share immutable
+/// tables in ROM; copying a strategy does not copy its table.
+///
+/// @section reciprocal_ranges Batch calls and preconditions
+///
+/// Strategies accept (numerators, denominators, out); prepared dividers accept
+/// (numerators, out). Ranges must be contiguous, sized and equal in length,
+/// with matching fixed-point element types and writable output. Direct batch
+/// denominators use 32-bit integers. Batch results match scalar calls.
+///
+/// Denominators must be nonzero and quotients must fit the result type.
+/// Unsigned results cannot represent negative nonzero quotients. Violations
+/// assert in debug builds, trap in release builds and fail constant evaluation.
+/// Prepared dividers retain no references to their original denominators.
+///
+/// All call forms support constant evaluation with matching runtime results.
+/// Runtime arithmetic executes ARM code in IWRAM; batching amortises kernel
+/// call overhead. Strategies do not change the CPU mode or WAITCNT.
+///
+/// @see gba::reciprocal::normalized_strategy
+/// @see gba::reciprocal::affine_strategy
+/// @see gba::reciprocal::direct_strategy
+/// @see gba::reciprocal::corrected_strategy
+#pragma once
+
+#include <gba/bits/reciprocal/affine.hpp>
+#include <gba/bits/reciprocal/corrected.hpp>
+#include <gba/bits/reciprocal/direct.hpp>
+#include <gba/bits/reciprocal/normalized.hpp>
