@@ -589,6 +589,43 @@ namespace gba::embed {
         return result;
     }
 
+    /// @brief 8bpp affine background with a linear, byte-indexed tilemap.
+    /// @tparam Width Image width in pixels.
+    /// @tparam Height Image height in pixels.
+    /// @tparam PaletteSize Number of palette entries.
+    /// @tparam TileCount Number of unique tiles (at most 256).
+    template<unsigned int Width, unsigned int Height, std::size_t PaletteSize, std::size_t TileCount>
+    struct affine8_result {
+        static constexpr unsigned int width = Width;
+        static constexpr unsigned int height = Height;
+        std::array<gba::color, PaletteSize> palette;
+        std::array<gba::tile8bpp, TileCount> tiles;
+        /// Linear byte indices packed into halfwords for VRAM-safe copying.
+        std::array<std::uint16_t, Width / 8 * (Height / 8) / 2> map;
+    };
+
+    /// @brief Convert an image to affine BG tiles, palette and a directly uploadable map.
+    /// @param supplier A callable returning a std::array<unsigned char, N>.
+    /// @details Supports square 128, 256, 512 and 1024 pixel backgrounds with
+    /// at most 256 unique tiles. Tiles are deduplicated without flips.
+    consteval auto affine8(auto supplier) {
+        constexpr auto image = indexed8<dedup::identity>(supplier);
+        static_assert(image.width == image.height &&
+                          (image.width == 128 || image.width == 256 || image.width == 512 || image.width == 1024),
+                      "embed: affine backgrounds must be square with size 128, 256, 512 or 1024");
+        static_assert(image.tiles.size() <= 256, "embed: affine backgrounds support at most 256 unique tiles");
+        affine8_result<image.width, image.height, image.palette.size(), image.tiles.size()> result{
+            .palette = image.palette, .tiles = image.tiles};
+        constexpr unsigned width = image.width / 8;
+        for (unsigned y = 0; y < image.height / 8; ++y) {
+            for (unsigned x = 0; x < width; ++x) {
+                const unsigned tile = image.map[bits::sb_index(x, y, width)].tile_index;
+                result.map[(y * width + x) / 2] |= static_cast<std::uint16_t>(tile << ((x & 1) * 8));
+            }
+        }
+        return result;
+    }
+
     /// @brief Row view into a sprite sheet - scoped flipbook builders for one row.
     ///
     /// Frame indices produced by `forward()`, `ping_pong()`, and `sequence()`

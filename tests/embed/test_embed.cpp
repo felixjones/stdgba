@@ -440,7 +440,46 @@ static constexpr auto make_test_wav() {
     return data;
 }
 
+static constexpr auto make_affine_tga() {
+    std::array<unsigned char, 18 + 128 * 4 * 4> data{};
+    data[2] = 10;
+    data[12] = 128;
+    data[14] = 128;
+    data[16] = 24;
+    data[17] = 0x20;
+    for (unsigned y = 0; y < 128; ++y) {
+        for (unsigned run = 0; run < 4; ++run) {
+            const auto offset = 18 + (y * 4 + run) * 4;
+            data[offset] = 159;
+            data[offset + 1] = static_cast<unsigned char>((run + 1) * 48);
+            data[offset + 2] = static_cast<unsigned char>((y / 32 + 1) * 48);
+        }
+    }
+    return data;
+}
+
 int main() {
+    {
+        constexpr auto image = gba::embed::affine8([] { return make_affine_tga(); });
+        static_assert(image.width == 128 && image.height == 128);
+        static_assert(image.tiles.size() == 16 && sizeof(image.map) == 256);
+        constexpr bool map_matches = [&] {
+            for (unsigned y = 0; y < 16; ++y) {
+                for (unsigned x = 0; x < 16; ++x) {
+                    const unsigned tile = (image.map[(y * 16 + x) / 2] >> ((x & 1) * 8)) & 255;
+                    const unsigned palette = image.tiles[tile][0] & 255;
+                    if (image.palette[palette].blue != (x / 4 + 1) * 6 ||
+                        image.palette[palette].green != (y / 4 + 1) * 6) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }();
+        static_assert(map_matches);
+        gba::test.eq(map_matches, true);
+    }
+
     // bitmap15: basic PPM parsing
     {
         constexpr auto result = gba::embed::bitmap15([] { return make_test_ppm(); });
