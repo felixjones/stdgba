@@ -550,7 +550,7 @@ int main() {
 
         int visited = 0;
         int removed = 0;
-        world.view<physics>().each([&](gba::entity id, position&, velocity&, acceleration&) {
+        world.view<gba::ecs::with_entity, physics>().each([&](gba::entity id, position&, velocity&, acceleration&) {
             ++visited;
             world.destroy(id);
             ++removed;

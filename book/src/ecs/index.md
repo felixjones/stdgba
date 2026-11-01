@@ -169,12 +169,12 @@ Both are equivalent at runtime; groups are flattened to individual components at
 
 ### Iteration APIs
 
-| API                           | Best for                                             |
-| ----------------------------- | ---------------------------------------------------- |
-| `view<Cs...>()` and range-for | Ergonomic gameplay systems with structured bindings  |
-| `.each(fn)`                   | Portable systems; constexpr-friendly                 |
-| `.each_arm(fn)`               | Measured hot loops requiring ARM mode + IWRAM        |
-| `.each(entity, fn)`        | Systems that need the entity ID alongside components |
+| API                                 | Best for                                             |
+|-------------------------------------|------------------------------------------------------|
+| `view<Cs...>()` and range-for       | Ergonomic gameplay systems with structured bindings  |
+| `.each(fn)`                         | Portable systems; constexpr-friendly                 |
+| `.each_arm(fn)`                     | Measured hot loops requiring ARM mode + IWRAM        |
+| `view<with_entity, ...>().each(fn)` | Systems that need the entity ID alongside components |
 
 Use `gba::ecs::exclude<Cs...>` inside a view query to require that the listed
 components are absent. Groups can be passed to `exclude` or can contain
@@ -208,8 +208,8 @@ world.view<position, velocity>().each([](position& pos, velocity& vel) {
 	pos.x += vel.vx;
 });
 
-// With entity ID
-world.view<health>().each([](gba::entity id, health& hp) {
+// With entity ID (required first argument for each and each_arm)
+world.view<gba::ecs::with_entity, health>().each([](gba::entity id, health& hp) {
 	if (hp.hp <= 0) world.destroy(id);
 });
 

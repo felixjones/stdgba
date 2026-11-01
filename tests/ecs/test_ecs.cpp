@@ -30,6 +30,26 @@ static_assert(std::has_single_bit(sizeof(tag_t)));
 
 using test_registry = gba::ecs::registry<32, pos_t, vel_t, hp_t, tag_t>;
 
+template<typename View, typename Fn>
+concept accepts_each = requires(View view, Fn fn) { view.each(fn); };
+
+template<typename View, typename Fn>
+concept accepts_each_arm = requires(View view, Fn fn) { view.each_arm(fn); };
+
+using hp_view = decltype(std::declval<test_registry&>().view<hp_t>());
+using entity_hp_view = decltype(std::declval<test_registry&>().view<gba::ecs::with_entity, hp_t>());
+using hp_callback = void (*)(hp_t&);
+using entity_hp_callback = void (*)(gba::entity, hp_t&);
+
+static_assert(accepts_each<hp_view, hp_callback>);
+static_assert(!accepts_each<hp_view, entity_hp_callback>);
+static_assert(!accepts_each<entity_hp_view, hp_callback>);
+static_assert(accepts_each<entity_hp_view, entity_hp_callback>);
+static_assert(accepts_each_arm<hp_view, hp_callback>);
+static_assert(!accepts_each_arm<hp_view, entity_hp_callback>);
+static_assert(!accepts_each_arm<entity_hp_view, hp_callback>);
+static_assert(accepts_each_arm<entity_hp_view, entity_hp_callback>);
+
 int main() {
     // Section: Entity lifecycle
 
@@ -328,7 +348,7 @@ int main() {
         gba::test.expect.eq(count, 2, "skips destroyed e1");
     });
 
-    gba::test("view with entity_id callback", [] {
+    gba::test("view component-only callback", [] {
         test_registry reg;
         auto e = reg.create();
         reg.emplace<hp_t>(e, 42);
@@ -337,6 +357,64 @@ int main() {
             if (h.hp == 42) ++count;
         });
         gba::test.expect.eq(count, 1, "each iteration found expected hp");
+    });
+
+    gba::test("view callback arguments follow with_entity", [] {
+        test_registry reg;
+        const auto e = reg.create();
+        reg.emplace<hp_t>(e, 42);
+
+        std::size_t arity = 0;
+        auto callback = [&](auto&&... args) {
+            arity = sizeof...(args);
+        };
+        reg.view<hp_t>().each(callback);
+        gba::test.expect.eq(arity, std::size_t{1}, "each passes only components by default");
+        reg.view<hp_t>().each_arm(callback);
+        gba::test.expect.eq(arity, std::size_t{1}, "each_arm passes only components by default");
+        reg.view<gba::ecs::with_entity, hp_t>().each(callback);
+        gba::test.expect.eq(arity, std::size_t{2}, "each prefixes entity when requested");
+        reg.view<gba::ecs::with_entity, hp_t>().each_arm(callback);
+        gba::test.expect.eq(arity, std::size_t{2}, "each_arm prefixes entity when requested");
+    });
+
+    gba::test("with_entity callbacks cover all iteration paths", [] {
+        test_registry reg;
+        const auto e0 = reg.create();
+        const auto e1 = reg.create();
+        const auto old_e2 = reg.create();
+        reg.destroy(old_e2);
+        const auto e2 = reg.create();
+        reg.emplace<hp_t>(e0, 10);
+        reg.emplace<hp_t>(e1, 20);
+        reg.emplace<hp_t>(e2, 30);
+
+        auto check = [&](int expected_count, int expected_sum) {
+            for (int arm = 0; arm < 2; ++arm) {
+                int count = 0;
+                int sum = 0;
+                auto callback = [&](gba::entity id, hp_t& hp) {
+                    gba::test.expect.is_true(reg.valid(id), "callback entity has current generation");
+                    gba::test.expect.is_true(&reg.get<hp_t>(id) == &hp, "entity matches component reference");
+                    if (id.slot == e2.slot) gba::test.expect.is_true(id == e2, "recycled entity ID is current");
+                    sum += hp.hp;
+                    ++count;
+                };
+                auto view = reg.view<gba::ecs::with_entity, hp_t, gba::ecs::exclude<tag_t>>();
+                if (arm) view.each_arm(callback);
+                else view.each(callback);
+                gba::test.expect.eq(count, expected_count, "callback visits every matching entity");
+                gba::test.expect.eq(sum, expected_sum, "callback receives matching component values");
+            }
+        };
+
+        check(3, 60);
+        reg.destroy(e1);
+        check(2, 40);
+        reg.emplace<tag_t>(e0, std::uint8_t{1});
+        check(1, 30);
+        reg.remove<hp_t>(e2);
+        check(0, 0);
     });
 
     gba::test("view range-based for", [] {
@@ -353,6 +431,28 @@ int main() {
         }
         // Original x: 0, 10, 20, 30. After +1 each: 1, 11, 21, 31. Sum = 64.
         gba::test.expect.eq(sum_x, 64, "range-for modifies components");
+    });
+
+    gba::test("view with_entity range includes entity IDs", [] {
+        test_registry reg;
+        const auto e0 = reg.create();
+        const auto e1 = reg.create();
+        reg.emplace<pos_t>(e0, 10, 20);
+        reg.emplace<vel_t>(e0, 1, 2);
+        reg.emplace<pos_t>(e1, 30, 40);
+
+        int count = 0;
+        int sum_x = 0;
+        for (auto&& [entity, pos, vel] : reg.view<gba::ecs::with_entity, pos_t, vel_t, gba::ecs::exclude<hp_t>>()) {
+            gba::test.expect.is_true(reg.valid(entity), "each range yields a valid entity");
+            gba::test.expect.is_true(entity == e0, "each range yields the matching entity ID");
+            pos.x += vel.vx;
+            sum_x += pos.x;
+            ++count;
+        }
+
+        gba::test.expect.eq(count, 1, "each range filters non-matching entities");
+        gba::test.expect.eq(sum_x, 11, "each range yields mutable component references");
     });
 
     gba::test("view empty registry", [] {
@@ -374,6 +474,24 @@ int main() {
     });
 
     // Section: Constexpr support
+
+    gba::test("constexpr with_entity callback", [] {
+        static constexpr auto result = [] {
+            gba::ecs::registry<2, int> reg;
+            const auto old = reg.create();
+            reg.destroy(old);
+            const auto current = reg.create();
+            reg.emplace<int>(current, 41);
+            bool matched = false;
+            reg.view<gba::ecs::with_entity, int>().each([&](gba::entity id, int& value) {
+                matched = id == current && reg.valid(id);
+                ++value;
+            });
+            return matched && reg.get<int>(current) == 42;
+        }();
+        static_assert(result);
+        gba::test.expect.is_true(result, "constexpr callback receives entity and mutable component");
+    });
 
     gba::test("constexpr create + emplace + get", [] {
         static constexpr auto result = [] {

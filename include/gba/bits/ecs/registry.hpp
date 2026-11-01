@@ -17,6 +17,10 @@
 
 namespace gba::ecs {
 
+    /// @brief Include entity IDs in view iteration and callbacks.
+    /// Place this tag first in the view's template argument list.
+    struct with_entity {};
+
     namespace detail {
 
 #if defined(__cpp_constexpr) && __cpp_constexpr >= 202406L
@@ -94,6 +98,11 @@ namespace gba::ecs {
             using type = split_query_acc<included, Excludes>;
         };
 
+        template<typename Includes, typename Excludes>
+        struct split_query_one<Includes, Excludes, with_entity> {
+            using type = split_query_acc<Includes, Excludes>;
+        };
+
         template<typename Includes, typename Excludes, typename... Cs>
         struct split_query_one<Includes, Excludes, group<Cs...>> {
             using type = split_query_acc<Includes, Excludes, Cs...>;
@@ -120,16 +129,17 @@ namespace gba::ecs {
         template<typename Include, typename... Excludes>
         struct include_exclude_disjoint : std::bool_constant<(!std::is_same_v<Include, Excludes> && ...)> {};
 
-        template<typename Includes, typename Excludes>
+        template<typename Includes, typename Excludes, bool IncludeEntity = false>
         struct view_query;
 
-        template<typename... Includes, typename... Excludes>
-        struct view_query<group<Includes...>, group<Excludes...>> {
+        template<typename... Includes, typename... Excludes, bool IncludeEntity>
+        struct view_query<group<Includes...>, group<Excludes...>, IncludeEntity> {
             static_assert((include_exclude_disjoint<Includes, Excludes...>::value && ...),
                           "view cannot include and exclude the same component");
 
             using includes = group<Includes...>;
             using excludes = group<Excludes...>;
+            static constexpr bool include_entity = IncludeEntity;
         };
 
     } // namespace detail
@@ -295,7 +305,7 @@ namespace gba::ecs {
     public:
         /// @brief Lightweight view over entities matching a component set.
         ///
-        /// Supports range-based for (structured bindings) and `.each()`.
+        /// Supports range-based for (structured bindings) and `.each()` callbacks.
         ///
         /// @code{.cpp}
         /// for (auto [pos, vel] : world.view<position, velocity>()) {
@@ -303,12 +313,14 @@ namespace gba::ecs {
         /// }
         /// // or:
         /// world.view<position, velocity>().each([](position& p, velocity& v) { ... });
+        /// // with entity IDs:
+        /// for (auto&& [entity, p, v] : world.view<with_entity, position, velocity>()) { ... }
         /// @endcode
         template<typename ViewQuery>
         class basic_view;
 
-        template<typename... ViewCs, typename... ExcludeCs>
-        class basic_view<detail::view_query<group<ViewCs...>, group<ExcludeCs...>>> {
+        template<bool IncludeEntity, typename... ViewCs, typename... ExcludeCs>
+        class basic_view<detail::view_query<group<ViewCs...>, group<ExcludeCs...>, IncludeEntity>> {
             static_assert(sizeof...(ViewCs) > 0 || sizeof...(ExcludeCs) > 0, "view requires at least one component");
 
             /// Required mask: alive + all requested components.
@@ -325,6 +337,7 @@ namespace gba::ecs {
             struct sentinel {};
 
             /// Forward iterator over matching entity slots.
+            template<bool IncludeEntityIterator>
             class iterator {
                 registry_impl* m_reg;
                 unsigned int m_idx;
@@ -347,10 +360,15 @@ namespace gba::ecs {
                     advance();
                 }
 
-                /// @brief Dereference: returns tuple of component references.
+                /// @brief Dereference: returns components, optionally prefixed by the entity ID.
                 constexpr auto operator*() const noexcept {
                     const auto slot = m_reg->m_alive_list[m_idx];
-                    return std::tie(m_reg->template pool_ref<ViewCs>(slot)...);
+                    if constexpr (IncludeEntityIterator) {
+                        return std::tuple_cat(std::tuple{entity(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot])},
+                                              std::tie(m_reg->template pool_ref<ViewCs>(slot)...));
+                    } else {
+                        return std::tie(m_reg->template pool_ref<ViewCs>(slot)...);
+                    }
                 }
 
                 constexpr iterator& operator++() noexcept {
@@ -363,7 +381,7 @@ namespace gba::ecs {
                 constexpr bool operator!=(sentinel) const noexcept { return m_idx < m_end; }
             };
 
-            [[nodiscard]] constexpr iterator begin() const noexcept {
+            [[nodiscard]] constexpr iterator<IncludeEntity> begin() const noexcept {
                 const bool allMatch = ((m_reg->m_component_count[index_of<ViewCs>] == m_reg->m_alive) && ...) &&
                                       ((m_reg->m_component_count[index_of<ExcludeCs>] == 0) && ...);
                 return {m_reg, 0u, m_reg->m_alive, allMatch};
@@ -373,21 +391,23 @@ namespace gba::ecs {
 
             /// @brief Iterate all matching entities with a callback.
             ///
-            /// Callback signature: `void(ViewCs&...)` or `void(gba::entity, ViewCs&...)`.
-            /// The `gba::entity` overload is auto-detected at compile time.
+            /// Callback signature: `void(ViewCs&...)` by default, or
+            /// `void(gba::entity, ViewCs&...)` when the view includes `with_entity`.
             ///
             /// Three runtime paths selected by per-component count metadata:
             ///   1. Dense + all-match: slot == j, no mask check (fastest).
             ///   2. All-match: alive_list indirection, no mask check.
             ///   3. Mixed: alive_list + mask check (general fallback).
             template<typename Fn>
+                requires(IncludeEntity ? std::is_invocable_v<Fn&, const entity, ViewCs&...>
+                                       : std::is_invocable_v<Fn&, ViewCs&...>)
             [[gnu::always_inline]] constexpr void each(Fn&& fn) const {
                 const unsigned int count = m_reg->m_alive;
                 const bool allMatch = ((m_reg->m_component_count[index_of<ViewCs>] == m_reg->m_alive) && ...) &&
                                       ((m_reg->m_component_count[index_of<ExcludeCs>] == 0) && ...);
 
                 auto invoke = [&](unsigned int slot) {
-                    if constexpr (std::is_invocable_v<Fn, const entity, ViewCs&...>) {
+                    if constexpr (IncludeEntity) {
                         fn(entity(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
                            m_reg->template pool_ref<ViewCs>(slot)...);
                     } else {
@@ -428,6 +448,8 @@ namespace gba::ecs {
             /// });
             /// @endcode
             template<typename Fn>
+                requires(IncludeEntity ? std::is_invocable_v<Fn&, const entity, ViewCs&...>
+                                       : std::is_invocable_v<Fn&, ViewCs&...>)
             [[gnu::target("arm"), gnu::section(".iwram._gba_ecs_each"), gnu::noinline, gnu::flatten, gnu::noipa]]
             void each_arm(Fn&& fn) const {
                 const unsigned int count = m_reg->m_alive;
@@ -435,7 +457,7 @@ namespace gba::ecs {
                                       ((m_reg->m_component_count[index_of<ExcludeCs>] == 0) && ...);
 
                 auto invoke = [&](unsigned int slot) {
-                    if constexpr (std::is_invocable_v<Fn, const entity, ViewCs&...>) {
+                    if constexpr (IncludeEntity) {
                         fn(entity(static_cast<std::uint8_t>(slot), m_reg->m_gen[slot]),
                            m_reg->template pool_ref<ViewCs>(slot)...);
                     } else {
@@ -633,8 +655,7 @@ namespace gba::ecs {
                 for (; slot < Capacity; ++slot) {
                     if (ptr == std::addressof(pool[slot])) break;
                 }
-            }
-            else {
+            } else {
                 const auto* base = pool.data();
                 const auto base_addr = reinterpret_cast<std::uintptr_t>(base);
                 const auto ptr_addr = reinterpret_cast<std::uintptr_t>(ptr);
@@ -792,15 +813,15 @@ namespace gba::ecs {
 
         impl_type m_impl;
 
-        template<typename... IncludeCs, typename... ExcludeCs>
+        template<bool IncludeEntity, typename... IncludeCs, typename... ExcludeCs>
         [[nodiscard]] constexpr auto view_flat_impl(group<IncludeCs...>*, group<ExcludeCs...>*) noexcept {
-            using query = detail::view_query<group<IncludeCs...>, group<ExcludeCs...>>;
+            using query = detail::view_query<group<IncludeCs...>, group<ExcludeCs...>, IncludeEntity>;
             return m_impl.template view<query>();
         }
 
-        template<typename... IncludeCs, typename... ExcludeCs>
+        template<bool IncludeEntity, typename... IncludeCs, typename... ExcludeCs>
         [[nodiscard]] constexpr auto view_flat_impl(group<IncludeCs...>*, group<ExcludeCs...>*) const noexcept {
-            using query = detail::view_query<group<IncludeCs...>, group<ExcludeCs...>>;
+            using query = detail::view_query<group<IncludeCs...>, group<ExcludeCs...>, IncludeEntity>;
             return m_impl.template view<query>();
         }
 
@@ -1185,14 +1206,18 @@ namespace gba::ecs {
         template<typename... Query>
         [[nodiscard]] constexpr auto view() noexcept {
             using split = detail::split_query<Query...>;
-            return view_flat_impl((typename split::includes*)nullptr, (typename split::excludes*)nullptr);
+            constexpr bool includeEntity = (std::is_same_v<with_entity, Query> || ...);
+            return view_flat_impl<includeEntity>((typename split::includes*)nullptr,
+                                                 (typename split::excludes*)nullptr);
         }
 
         /// @brief Create a view over matching entities from a mixed component/group query pack. Const overload.
         template<typename... Query>
         [[nodiscard]] constexpr auto view() const noexcept {
             using split = detail::split_query<Query...>;
-            return view_flat_impl((typename split::includes*)nullptr, (typename split::excludes*)nullptr);
+            constexpr bool includeEntity = (std::is_same_v<with_entity, Query> || ...);
+            return view_flat_impl<includeEntity>((typename split::includes*)nullptr,
+                                                 (typename split::excludes*)nullptr);
         }
     };
 

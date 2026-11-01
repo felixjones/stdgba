@@ -37,6 +37,16 @@
 ///     pos.y += vel.vy;
 /// });
 ///
+/// // Include the entity ID in a range-based for loop
+/// for (auto&& [entity, pos, vel] : world.view<gba::ecs::with_entity, position, velocity>()) {
+///     pos.x += vel.vx;
+/// }
+///
+/// // with_entity also requires the entity ID as the first callback argument
+/// world.view<gba::ecs::with_entity, health>().each([](gba::entity id, health& hp) {
+///     hp.hp += id.slot;
+/// });
+///
 /// // Entity lifecycle
 /// world.destroy(player);
 /// // player is now invalid - generation mismatch detects use-after-destroy

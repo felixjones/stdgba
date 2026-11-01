@@ -93,10 +93,11 @@ Both range-for and `.each()` are implemented on top of the same storage model, b
 | `.each()`     | explicit callback, easy to specialise or switch to `.each_arm()` |
 | `.each_arm()` | hottest runtime path                                             |
 
-The callback path also auto-detects whether your lambda wants an `entity` first:
+Callbacks receive only component references by default. Add `gba::ecs::with_entity`
+to the view to require an `entity` as the first argument in `.each()` or `.each_arm()`:
 
 ```cpp
-world.view<health>().each([](gba::entity e, health& hp) {
+world.view<gba::ecs::with_entity, health>().each([](gba::entity e, health& hp) {
 	// id-aware system
 });
 ```
@@ -272,7 +273,7 @@ void collision_system(world_type& world) {
 
 // With entity IDs for selective destruction
 void health_system(world_type& world) {
-	world.view<health>().each([](gba::entity e, health& hp) {
+	world.view<gba::ecs::with_entity, health>().each([](gba::entity e, health& hp) {
 		if (hp.hp <= 0) {
 			world.destroy(e);  // safe due to generation
 		}
